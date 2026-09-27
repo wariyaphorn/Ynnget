@@ -662,6 +662,9 @@
         <select id="ma-owner"></select>
       </div>
       <input type="text" id="ma-remark" placeholder="หมายเหตุ (ไม่บังคับ)" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);margin-bottom:10px;">
+        <input type="checkbox" id="ma-invested"> เพื่อการลงทุน
+      </label>
       <button class="btn btn-primary" id="ma-add">+ เพิ่มบัญชี</button>
       <p class="muted" style="margin-top:6px;">บัญชีธนาคารจริงที่กระเป๋าเงิน/เป้าหมายอ้างอิงถึง เลือกจากลิสต์แทนการพิมพ์เอง ป้องกันสะกดไม่ตรงกัน</p>
     </div>
@@ -1647,6 +1650,7 @@ let expandedWalletDetails = new Set();
 let walletDetailMonth = {};
 let addingTxWalletId = null;
 let expandedMainAccountDetails = new Set();
+let expandedSummaryGroups = new Set();
 
 function renderWalletsManager() {
   const wrap = document.getElementById('wallets-manager');
@@ -1962,12 +1966,20 @@ function renderWalletStatusSummary() {
   wrap.appendChild(totalDiv);
   ['no', 'yes', ''].forEach(key => {
     if (grouped[key].items.length === 0) return;
+    const groupKey = 'status:' + key;
+    const isOpen = expandedSummaryGroups.has(groupKey);
     const div = document.createElement('div');
     div.className = 'goal-card';
     div.innerHTML = `<div class="row-between"><span style="color:${statusColors[key]};">${statusLabels[key]} (${grouped[key].items.length})</span><span style="font-weight:600;">${fmt(grouped[key].total)}</span></div>
-      <div style="margin-top:4px;">${grouped[key].items.map(it => `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12.5px;padding:3px 0;"><span class="muted">${it.name}</span><span>${fmt(it.amount)}</span></div>`).join('')}</div>`;
+      <button class="btn" data-summary-toggle="${groupKey}" style="margin-top:6px;font-size:12px;padding:4px 10px;">${isOpen ? 'ซ่อนรายละเอียด ▲' : 'ดูรายละเอียด ▼'}</button>
+      ${isOpen ? `<div style="margin-top:4px;">${grouped[key].items.map(it => `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12.5px;padding:3px 0;"><span class="muted">${it.name}</span><span>${fmt(it.amount)}</span></div>`).join('')}</div>` : ''}`;
     wrap.appendChild(div);
   });
+  wrap.querySelectorAll('[data-summary-toggle]').forEach(btn => btn.addEventListener('click', () => {
+    const key = btn.dataset.summaryToggle;
+    if (expandedSummaryGroups.has(key)) expandedSummaryGroups.delete(key); else expandedSummaryGroups.add(key);
+    renderWalletStatusSummary();
+  }));
 }
 
 function renderWalletTypeSummary() {
@@ -1992,12 +2004,20 @@ function renderWalletTypeSummary() {
   wrap.appendChild(totalDiv);
   ['spending', 'saving'].forEach(key => {
     if (grouped[key].items.length === 0) return;
+    const groupKey = 'type:' + key;
+    const isOpen = expandedSummaryGroups.has(groupKey);
     const div = document.createElement('div');
     div.className = 'goal-card';
     div.innerHTML = `<div class="row-between"><span style="color:${typeColors[key]};">${typeLabels[key]} (${grouped[key].items.length})</span><span style="font-weight:600;">${fmt(grouped[key].total)}</span></div>
-      <div style="margin-top:4px;">${grouped[key].items.map(it => `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12.5px;padding:3px 0;"><span class="muted">${it.name}</span><span>${fmt(it.amount)}</span></div>`).join('')}</div>`;
+      <button class="btn" data-summary-toggle="${groupKey}" style="margin-top:6px;font-size:12px;padding:4px 10px;">${isOpen ? 'ซ่อนรายละเอียด ▲' : 'ดูรายละเอียด ▼'}</button>
+      ${isOpen ? `<div style="margin-top:4px;">${grouped[key].items.map(it => `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12.5px;padding:3px 0;"><span class="muted">${it.name}</span><span>${fmt(it.amount)}</span></div>`).join('')}</div>` : ''}`;
     wrap.appendChild(div);
   });
+  wrap.querySelectorAll('[data-summary-toggle]').forEach(btn => btn.addEventListener('click', () => {
+    const key = btn.dataset.summaryToggle;
+    if (expandedSummaryGroups.has(key)) expandedSummaryGroups.delete(key); else expandedSummaryGroups.add(key);
+    renderWalletTypeSummary();
+  }));
 }
 
 function renderWalletInvestedSummary() {
@@ -2022,12 +2042,20 @@ function renderWalletInvestedSummary() {
   wrap.appendChild(totalDiv);
   ['invested', 'other'].forEach(key => {
     if (grouped[key].items.length === 0) return;
+    const groupKey = 'invested:' + key;
+    const isOpen = expandedSummaryGroups.has(groupKey);
     const div = document.createElement('div');
     div.className = 'goal-card';
     div.innerHTML = `<div class="row-between"><span style="color:${groupColors[key]};">${groupLabels[key]} (${grouped[key].items.length})</span><span style="font-weight:600;">${fmt(grouped[key].total)}</span></div>
-      <div style="margin-top:4px;">${grouped[key].items.map(it => `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12.5px;padding:3px 0;"><span class="muted">${it.name}</span><span>${fmt(it.amount)}</span></div>`).join('')}</div>`;
+      <button class="btn" data-summary-toggle="${groupKey}" style="margin-top:6px;font-size:12px;padding:4px 10px;">${isOpen ? 'ซ่อนรายละเอียด ▲' : 'ดูรายละเอียด ▼'}</button>
+      ${isOpen ? `<div style="margin-top:4px;">${grouped[key].items.map(it => `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12.5px;padding:3px 0;"><span class="muted">${it.name}</span><span>${fmt(it.amount)}</span></div>`).join('')}</div>` : ''}`;
     wrap.appendChild(div);
   });
+  wrap.querySelectorAll('[data-summary-toggle]').forEach(btn => btn.addEventListener('click', () => {
+    const key = btn.dataset.summaryToggle;
+    if (expandedSummaryGroups.has(key)) expandedSummaryGroups.delete(key); else expandedSummaryGroups.add(key);
+    renderWalletInvestedSummary();
+  }));
 }
 
 function normalizeMerchantText(s) { return (s || '').toUpperCase().replace(/[^A-Z0-9ก-๙]/g, ''); }
@@ -2271,14 +2299,18 @@ function renderMainAccountsManager() {
     if (byStatus.no) statusParts.push(`<span style="color:var(--sage);">ใช้ได้ ${fmt(byStatus.no)}</span>`);
     if (byStatus.yes) statusParts.push(`<span style="color:var(--rust);">ล็อกไว้ ${fmt(byStatus.yes)}</span>`);
     if (byStatus['']) statusParts.push(`<span class="muted">ไม่ระบุ ${fmt(byStatus[''])}</span>`);
+    const investedBadgeHtml = a.invested ? ' <span style="display:inline-block;padding:1px 7px;border-radius:10px;background:var(--gold);color:#fff;font-size:10.5px;font-weight:600;vertical-align:middle;">📈 ลงทุน</span>' : '';
     div.innerHTML = `<div class="row-between">
         <input type="text" value="${a.name}" data-key="${a.id}" class="ma-name-input" style="flex:1;margin-right:8px;">
-        <span style="font-weight:600;white-space:nowrap;">${fmt(total)}</span>
+        <span style="font-weight:600;white-space:nowrap;">${fmt(total)}${investedBadgeHtml}</span>
       </div>
       <div class="row-between" style="margin-top:6px;">
         <select class="ma-owner-input" data-key="${a.id}">${ownerOptions}</select>
         <button class="del-btn" data-del-ma="${a.id}" aria-label="ลบบัญชี">✕</button>
       </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-secondary);margin-top:6px;">
+        <input type="checkbox" class="ma-invested-input" data-key="${a.id}" ${a.invested ? 'checked' : ''}> เพื่อการลงทุน
+      </label>
       <input type="text" value="${a.remark || ''}" data-key="${a.id}" class="ma-remark-input" placeholder="หมายเหตุ (ไม่บังคับ)" style="width:100%;box-sizing:border-box;margin-top:6px;font-size:12.5px;">
       ${statusParts.length ? `<p class="muted" style="margin:8px 0 0;">${statusParts.join(' · ')}</p>` : ''}
       ${items.length ? `<button class="btn" data-ma-toggle-detail="${a.id}" style="margin-top:8px;font-size:12px;padding:4px 10px;">${expandedMainAccountDetails.has(a.id) ? 'ซ่อนรายละเอียด ▲' : 'ดูรายละเอียด (' + items.length + ' รายการ) ▼'}</button>
@@ -2322,6 +2354,12 @@ function renderMainAccountsManager() {
     inp.addEventListener('change', async () => {
       const a = mainAccounts.find(x => x.id === inp.dataset.key);
       if (a) { a.remark = inp.value.trim(); await saveMainAccounts(); render(); }
+    });
+  });
+  wrap.querySelectorAll('.ma-invested-input').forEach(chk => {
+    chk.addEventListener('change', async () => {
+      const a = mainAccounts.find(x => x.id === chk.dataset.key);
+      if (a) { a.invested = chk.checked; await saveMainAccounts(); render(); }
     });
   });
   wrap.querySelectorAll('[data-ma-toggle-detail]').forEach(btn => btn.addEventListener('click', () => {
@@ -4244,9 +4282,11 @@ document.getElementById('ma-add').addEventListener('click', async () => {
   if (!name) return;
   const owner = maOwnerSelect.value;
   const remark = document.getElementById('ma-remark').value.trim();
-  mainAccounts.push({ id: genId(), name, owner, remark });
+  const invested = document.getElementById('ma-invested').checked;
+  mainAccounts.push({ id: genId(), name, owner, remark, invested });
   document.getElementById('ma-name').value = '';
   document.getElementById('ma-remark').value = '';
+  document.getElementById('ma-invested').checked = false;
   await saveMainAccounts(); refreshMainAccountSelects(); render();
 });
 
