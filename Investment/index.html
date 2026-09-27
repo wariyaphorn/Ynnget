@@ -810,12 +810,14 @@ function renderHoldingsSummary() {
   const remainingColor = remaining >= 0 ? 'var(--sage)' : 'var(--rust)';
   const remainingLabel = remaining >= 0 ? 'ยังไม่ได้ลงทุน (เหลือ)' : 'ลงทุนเกินยอดบัญชีต้นทาง';
 
+  const remainingRow = `
+    <div class="row-between" style="padding-bottom:6px;">
+      <span class="muted">${remainingLabel}</span>
+      <span style="font-weight:600;font-size:16px;color:${remainingColor};">${fmt(Math.abs(remaining))}</span>
+    </div>`;
+
   if (!holdings.length) {
-    wrap.innerHTML = `<p class="empty">ยังไม่มีรายการลงทุน เพิ่มได้จากฟอร์มด้านล่าง</p>
-      <div class="row-between" style="padding-top:8px;border-top:1px solid var(--border);margin-top:4px;">
-        <span class="muted">${remainingLabel}</span>
-        <span style="font-weight:600;font-size:16px;color:${remainingColor};">${fmt(Math.abs(remaining))}</span>
-      </div>`;
+    wrap.innerHTML = remainingRow + '<p class="empty" style="border-top:1px solid var(--border);padding-top:8px;margin-top:2px;">ยังไม่มีรายการลงทุน เพิ่มได้จากฟอร์มด้านล่าง</p>';
     return;
   }
   const totalCurrent = holdings.reduce((s, h) => s + (h.currentValue || 0), 0);
@@ -823,8 +825,8 @@ function renderHoldingsSummary() {
   const pct = totalInitial ? (diff / totalInitial * 100) : 0;
   const diffColor = diff >= 0 ? 'var(--sage)' : 'var(--rust)';
   const rowStyle = 'padding:6px 0;border-top:1px solid var(--border);';
-  wrap.innerHTML = `
-    <div class="row-between" style="padding-bottom:6px;">
+  wrap.innerHTML = remainingRow + `
+    <div class="row-between" style="${rowStyle}">
       <span class="muted">เงินทุนตั้งต้นรวม</span>
       <span style="font-weight:600;font-size:16px;">${fmt(totalInitial)}</span>
     </div>
@@ -834,19 +836,7 @@ function renderHoldingsSummary() {
     </div>
     <div class="row-between" style="${rowStyle}">
       <span class="muted">กำไร/ขาดทุน</span>
-      <span style="font-weight:600;font-size:16px;color:${diffColor};">${diff >= 0 ? '+' : ''}${fmt(diff)}</span>
-    </div>
-    <div class="row-between" style="${rowStyle}">
-      <span class="muted">% เติบโต</span>
-      <span style="font-weight:600;font-size:16px;color:${diffColor};">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>
-    </div>
-    <div class="row-between" style="${rowStyle}">
-      <span class="muted">เงินทุนตั้งต้นจากบัญชีต้นทาง (Budget)</span>
-      <span style="font-weight:600;font-size:16px;">${fmt(sourceTotal)}</span>
-    </div>
-    <div class="row-between" style="${rowStyle}">
-      <span class="muted">${remainingLabel}</span>
-      <span style="font-weight:600;font-size:16px;color:${remainingColor};">${fmt(Math.abs(remaining))}</span>
+      <span style="font-weight:600;font-size:16px;color:${diffColor};">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}% (${diff >= 0 ? '+' : ''}${fmt(diff)})</span>
     </div>`;
 }
 
