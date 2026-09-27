@@ -1964,8 +1964,8 @@ function renderWalletStatusSummary() {
     if (grouped[key].items.length === 0) return;
     const div = document.createElement('div');
     div.className = 'goal-card';
-    div.innerHTML = `<div class="row-between"><span style="color:${statusColors[key]};">${statusLabels[key]}</span><span style="font-weight:600;">${fmt(grouped[key].total)}</span></div>
-      <p class="muted" style="margin:4px 0 0;">${grouped[key].items.map(it => it.name + ' ' + fmt(it.amount)).join(' · ')}</p>`;
+    div.innerHTML = `<div class="row-between"><span style="color:${statusColors[key]};">${statusLabels[key]} (${grouped[key].items.length})</span><span style="font-weight:600;">${fmt(grouped[key].total)}</span></div>
+      <div style="margin-top:4px;">${grouped[key].items.map(it => `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12.5px;padding:3px 0;"><span class="muted">${it.name}</span><span>${fmt(it.amount)}</span></div>`).join('')}</div>`;
     wrap.appendChild(div);
   });
 }
@@ -1995,7 +1995,7 @@ function renderWalletTypeSummary() {
     const div = document.createElement('div');
     div.className = 'goal-card';
     div.innerHTML = `<div class="row-between"><span style="color:${typeColors[key]};">${typeLabels[key]} (${grouped[key].items.length})</span><span style="font-weight:600;">${fmt(grouped[key].total)}</span></div>
-      <p class="muted" style="margin:4px 0 0;">${grouped[key].items.map(it => it.name + ' ' + fmt(it.amount)).join(' · ')}</p>`;
+      <div style="margin-top:4px;">${grouped[key].items.map(it => `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12.5px;padding:3px 0;"><span class="muted">${it.name}</span><span>${fmt(it.amount)}</span></div>`).join('')}</div>`;
     wrap.appendChild(div);
   });
 }
@@ -2025,7 +2025,7 @@ function renderWalletInvestedSummary() {
     const div = document.createElement('div');
     div.className = 'goal-card';
     div.innerHTML = `<div class="row-between"><span style="color:${groupColors[key]};">${groupLabels[key]} (${grouped[key].items.length})</span><span style="font-weight:600;">${fmt(grouped[key].total)}</span></div>
-      <p class="muted" style="margin:4px 0 0;">${grouped[key].items.map(it => it.name + ' ' + fmt(it.amount)).join(' · ')}</p>`;
+      <div style="margin-top:4px;">${grouped[key].items.map(it => `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12.5px;padding:3px 0;"><span class="muted">${it.name}</span><span>${fmt(it.amount)}</span></div>`).join('')}</div>`;
     wrap.appendChild(div);
   });
 }
