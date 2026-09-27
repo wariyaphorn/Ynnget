@@ -424,6 +424,27 @@
 
   <div id="page-savings" class="page">
   <section>
+    <div class="card">
+      <h2>สรุปยอดตามประเภท</h2>
+      <div id="goal-type-summary"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>สรุปยอดเก็บต่อเดือน แยกตามกระเป๋า</h2>
+      <div id="goal-wallet-monthly-summary"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>สรุปยอดเงินออมตามสถานะการดึงมาใช้</h2>
+      <div id="withdrawable-summary"></div>
+    </div>
+  </section>
+
+  <section>
     <h2>เป้าหมาย</h2>
     <button class="btn btn-primary" id="bulk-log-open" style="margin-bottom:10px;">บันทึกยอดหลายเป้าหมายพร้อมกัน</button>
     <div id="bulk-log-form"></div>
@@ -463,27 +484,6 @@
       <datalist id="main-account-list"></datalist>
       <button class="btn btn-primary" id="g-add">+ เพิ่ม</button>
       <p class="muted" style="margin-top:6px;">เลือก "หนี้" สำหรับกรณียืมเงินคนในบ้านแล้วผ่อนคืนเป็นงวด · ช่องวันที่คือกำหนดชำระครั้งถัดไป · ยอดสะสม ณ ปัจจุบันใช้กรณีมีอยู่ก่อนเริ่มระบบนี้ (ทั้งหมดไม่บังคับ)</p>
-    </div>
-  </section>
-
-  <section>
-    <div class="card">
-      <h2>สรุปยอดตามประเภท</h2>
-      <div id="goal-type-summary"></div>
-    </div>
-  </section>
-
-  <section>
-    <div class="card">
-      <h2>สรุปยอดเก็บต่อเดือน แยกตามกระเป๋า</h2>
-      <div id="goal-wallet-monthly-summary"></div>
-    </div>
-  </section>
-
-  <section>
-    <div class="card">
-      <h2>สรุปยอดเงินออมตามสถานะการดึงมาใช้</h2>
-      <div id="withdrawable-summary"></div>
     </div>
   </section>
   </div>
@@ -587,6 +587,27 @@
   <div id="page-wallets" class="page">
   <section>
     <div class="card">
+      <h2>สรุปยอดกระเป๋าเงินตามสถานะการดึงมาใช้</h2>
+      <div id="wallet-status-summary"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>สรุปยอดกระเป๋าเงินตามประเภท</h2>
+      <div id="wallet-type-summary"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>สรุปยอดกระเป๋าเงินตามการลงทุน</h2>
+      <div id="wallet-invested-summary"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
       <h2>ตั้งค่าเริ่มต้น</h2>
       <p class="muted" style="margin:0 0 6px;">กระเป๋าเงินเริ่มต้น ใช้เป็นค่า default ตอนเลือกช่องทางหัก/ชำระ ในหลายจุดของระบบ (บันทึกยอดเป้าหมาย, ชำระบัตรเครดิต, จ่ายรายจ่ายประจำ) ยังแก้เป็นอย่างอื่นได้ทุกครั้ง</p>
       <select id="default-bulk-wallet"></select>
@@ -629,27 +650,6 @@
       <p class="muted" id="w-usd-preview" style="margin:0 0 8px;display:none;"></p>
       <button class="btn btn-primary" id="w-add">+ เพิ่มกระเป๋า</button>
       <p class="muted" style="margin-top:6px;">เลือกกระเป๋านี้จากลิสต์ได้ทุกที่ในระบบ (บันทึกรายการ, เป้าหมาย, ชำระบัตร ฯลฯ) แทนการพิมพ์ชื่อเอง ป้องกันสะกดไม่ตรงกัน</p>
-    </div>
-  </section>
-
-  <section>
-    <div class="card">
-      <h2>สรุปยอดกระเป๋าเงินตามสถานะการดึงมาใช้</h2>
-      <div id="wallet-status-summary"></div>
-    </div>
-  </section>
-
-  <section>
-    <div class="card">
-      <h2>สรุปยอดกระเป๋าเงินตามประเภท</h2>
-      <div id="wallet-type-summary"></div>
-    </div>
-  </section>
-
-  <section>
-    <div class="card">
-      <h2>สรุปยอดกระเป๋าเงินตามการลงทุน</h2>
-      <div id="wallet-invested-summary"></div>
     </div>
   </section>
 
