@@ -14,6 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-app-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
   // --- Firebase-backed storage: ใช้ Firebase project เดียวกับแอพ Budget ---
   // (อ่าน "รหัสครัวเรือน" เดียวกัน ผ่าน localStorage ที่แชร์กันเพราะอยู่โดเมนเดียวกัน)
@@ -200,7 +201,10 @@
 
     <section>
       <div class="card">
-        <h2>รายการลงทุนทั้งหมด</h2>
+        <div class="row-between" style="margin-bottom:10px;">
+          <h2 style="margin:0;">รายการลงทุนทั้งหมด</h2>
+          <button class="btn" id="export-holdings-xlsx">⬇ Export Excel</button>
+        </div>
         <div id="holdings-list"></div>
       </div>
     </section>
@@ -891,6 +895,43 @@ document.getElementById('hf-save').addEventListener('click', async () => {
   render();
 });
 document.getElementById('hf-cancel').addEventListener('click', cancelEditHolding);
+
+document.getElementById('export-holdings-xlsx').addEventListener('click', () => {
+  if (!holdings.length) { alert('ยังไม่มีรายการลงทุนให้ export'); return; }
+  if (typeof XLSX === 'undefined') { alert('โหลดไลบรารี Excel ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่'); return; }
+  const header = ['บัญชีต้นทาง', 'โบรกเกอร์', 'Asset Class', 'Asset Type', 'ประเทศ', 'สิทธิลดหย่อนภาษี', 'วัตถุประสงค์', 'หมายเหตุ', 'วันที่ลงทุน', 'ครบกำหนดการลงทุน', 'เงินทุนตั้งต้น (บาท)', 'มูลค่าปัจจุบัน (บาท)', 'กำไร/ขาดทุน (บาท)', '% เติบโต'];
+  const rows = holdings.map(h => {
+    const cls = ASSET_CLASSES.find(c => c.key === h.assetClass);
+    const accountName = (investedAccounts.find(a => a.id === h.accountId) || {}).name || h.accountNameSnapshot || '(ไม่พบบัญชี)';
+    const pct = simpleGrowthPct(h);
+    return [
+      accountName,
+      h.broker || '',
+      cls ? cls.label : (h.assetClass || ''),
+      h.assetType || '',
+      h.country || '',
+      h.taxBenefit || '',
+      h.purpose || '',
+      h.remark || '',
+      h.startDate || h.createdDate || '',
+      h.maturityDate || '',
+      h.initialCapital || 0,
+      h.currentValue || 0,
+      (h.currentValue || 0) - (h.initialCapital || 0),
+      pct == null ? '' : Number(pct.toFixed(2))
+    ];
+  });
+  const totalInitial = holdings.reduce((s, h) => s + (h.initialCapital || 0), 0);
+  const totalCurrent = holdings.reduce((s, h) => s + (h.currentValue || 0), 0);
+  rows.push([]);
+  rows.push(['รวมทั้งหมด', '', '', '', '', '', '', '', '', '', totalInitial, totalCurrent, totalCurrent - totalInitial, totalInitial ? Number(((totalCurrent - totalInitial) / totalInitial * 100).toFixed(2)) : '']);
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  ws['!cols'] = header.map(() => ({ wch: 16 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'รายการลงทุน');
+  const today = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `investment-holdings-${today}.xlsx`);
+});
 
 document.querySelectorAll('.page-tab').forEach(btn => {
   btn.addEventListener('click', () => {
