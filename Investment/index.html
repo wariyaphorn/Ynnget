@@ -195,7 +195,7 @@
         <h2 id="hf-title">+ เพิ่มรายการลงทุน</h2>
         <div class="form-grid g2">
           <div>
-            <p class="muted" style="margin:0 0 4px;">บัญชีต้นทาง (จากแอพ Budget ที่ mark ว่าลงทุน)</p>
+            <p class="muted" style="margin:0 0 4px;">บัญชีต้นทาง (จากแอพ Budget ที่ set ว่าลงทุน)</p>
             <select id="hf-account"></select>
           </div>
           <div>
@@ -280,6 +280,7 @@ let selectedProjectionRate = 5;
 const HOLDINGS_KEY = 'household-investment-holdings';
 const CONTRIBUTIONS_KEY = 'household-investment-contributions';
 const MAINACCOUNTS_KEY = 'household-ledger-mainaccounts'; // อ่านอย่างเดียว จากแอพ Budget
+const ENTRIES_KEY_FOR_AUTH_CHECK = 'household-ledger-entries'; // ใช้เช็คสิทธิ์เข้าใช้งานเท่านั้น (key เดียวกับที่แอพ Budget ใช้เช็ค และมีข้อมูลอยู่แน่นอน)
 
 let holdings = [];
 let contributions = [];
@@ -501,7 +502,7 @@ function renderHoldingsList() {
     const pct = simpleGrowthPct(h);
     const pctColor = pct == null ? 'var(--text-muted)' : pct >= 0 ? 'var(--sage)' : 'var(--rust)';
     const pctLabel = pct == null ? 'N/A' : `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}% (${fmt(h.currentValue - h.initialCapital)})`;
-    const accountName = (investedWallets.find(w => w.id === h.accountId) || {}).name || h.accountNameSnapshot || '(ไม่พบบัญชี)';
+    const accountName = (investedAccounts.find(a => a.id === h.accountId) || {}).name || h.accountNameSnapshot || '(ไม่พบบัญชี)';
     const div = document.createElement('div');
     div.className = 'goal-card';
     div.innerHTML = `<div class="row-between" style="align-items:flex-start;">
@@ -572,8 +573,8 @@ function render() {
 // ================= events =================
 document.getElementById('hf-save').addEventListener('click', async () => {
   const accountId = document.getElementById('hf-account').value;
-  if (!accountId) { alert('กรุณาเลือกบัญชีต้นทาง (ต้อง mark ว่าลงทุนไว้ในแอพ Budget ก่อน)'); return; }
-  const accountNameSnapshot = (investedWallets.find(w => w.id === accountId) || {}).name || '';
+  if (!accountId) { alert('กรุณาเลือกบัญชีต้นทาง (ต้อง set ว่าลงทุนไว้ในแอพ Budget ก่อน)'); return; }
+  const accountNameSnapshot = (investedAccounts.find(a => a.id === accountId) || {}).name || '';
   const data = {
     accountId,
     accountNameSnapshot,
@@ -632,7 +633,7 @@ document.querySelectorAll('.page-tab').forEach(btn => {
   __auth.onAuthStateChanged(async function(user) {
     if (!user) { hideLogin(); showLogin(''); return; }
     try {
-      await __db.collection('households').doc(window.HOUSEHOLD_ID).collection('data').doc(WALLETS_KEY).get();
+      await __db.collection('households').doc(window.HOUSEHOLD_ID).collection('data').doc(ENTRIES_KEY_FOR_AUTH_CHECK).get();
       hideLogin();
       if (!__loaded) { __loaded = true; await load(); }
     } catch (e) {
