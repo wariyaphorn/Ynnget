@@ -542,7 +542,6 @@ function renderOverview() {
       });
       unitLabel = 'ประเทศ';
     }
-    let acc = 0;
     const segments = [];
     let colorIdx = 0;
     Object.keys(byKey).forEach(key => {
@@ -551,10 +550,14 @@ function renderOverview() {
       if (!entry.color) entry.color = colorForLabel(entry.label, colorIdx);
       colorIdx++;
       const pct = total ? (entry.val / total * 100) : 0;
-      segments.push({ label: entry.label, color: entry.color, val: entry.val, pct, start: acc, end: acc + pct });
-      acc += pct;
+      segments.push({ label: entry.label, color: entry.color, val: entry.val, pct });
     });
+    // เรียงตามมูลค่ามาก→น้อยไว้ใช้แสดงใน legend แต่คำนวณตำแหน่ง start/end ของ conic-gradient
+    // "หลังจาก" เรียงแล้ว เพราะ conic-gradient ต้องการตำแหน่ง % เรียงจากน้อยไปมากเท่านั้น
+    // ไม่งั้นเบราว์เซอร์จะ clamp ตำแหน่งที่ไม่เรียงลำดับ ทำให้สีแรกเบ่งเต็มวงแทนที่จะแบ่งสัดส่วนตามจริง
     segments.sort((a, b) => b.val - a.val);
+    let acc = 0;
+    segments.forEach(s => { s.start = acc; s.end = acc + s.pct; acc += s.pct; });
     const gradient = segments.map(s => `${s.color} ${s.start.toFixed(2)}% ${s.end.toFixed(2)}%`).join(', ') || '#ccc 0% 100%';
     const legendHtml = segments.map(s => `<div class="legend-row"><span><span class="swatch" style="background:${s.color};"></span>${s.label}</span><span style="font-weight:600;">${fmt(s.val)} (${s.pct.toFixed(1)}%)</span></div>`).join('');
     pieWrap.innerHTML = `
@@ -797,20 +800,49 @@ function render() {
 function renderHoldingsSummary() {
   const wrap = document.getElementById('holdings-summary');
   if (!wrap) return;
+  const sourceTotal = investedAccounts.reduce((s, a) => s + (investedAccountBalances[a.id] || 0), 0);
+  const totalInitial = holdings.reduce((s, h) => s + (h.initialCapital || 0), 0);
+  const remaining = sourceTotal - totalInitial;
+  const remainingColor = remaining >= 0 ? 'var(--sage)' : 'var(--rust)';
+  const remainingLabel = remaining >= 0 ? 'ยังไม่ได้ลงทุน (เหลือ)' : 'ลงทุนเกินยอดบัญชีต้นทาง';
+
   if (!holdings.length) {
-    wrap.innerHTML = '<p class="empty">ยังไม่มีรายการลงทุน เพิ่มได้จากฟอร์มด้านล่าง</p>';
+    wrap.innerHTML = `<p class="empty">ยังไม่มีรายการลงทุน เพิ่มได้จากฟอร์มด้านล่าง</p>
+      <div class="row-between" style="padding-top:8px;border-top:1px solid var(--border);margin-top:4px;">
+        <span class="muted">${remainingLabel}</span>
+        <span style="font-weight:600;font-size:16px;color:${remainingColor};">${fmt(Math.abs(remaining))}</span>
+      </div>`;
     return;
   }
-  const totalInitial = holdings.reduce((s, h) => s + (h.initialCapital || 0), 0);
   const totalCurrent = holdings.reduce((s, h) => s + (h.currentValue || 0), 0);
   const diff = totalCurrent - totalInitial;
   const pct = totalInitial ? (diff / totalInitial * 100) : 0;
   const diffColor = diff >= 0 ? 'var(--sage)' : 'var(--rust)';
-  wrap.innerHTML = `<div class="form-grid g2" style="row-gap:12px;">
-      <div><p class="muted" style="margin:0 0 2px;">เงินทุนตั้งต้นรวม</p><p style="margin:0;font-weight:600;font-size:16px;">${fmt(totalInitial)}</p></div>
-      <div><p class="muted" style="margin:0 0 2px;">มูลค่าปัจจุบันรวม</p><p style="margin:0;font-weight:600;font-size:16px;">${fmt(totalCurrent)}</p></div>
-      <div><p class="muted" style="margin:0 0 2px;">กำไร/ขาดทุน</p><p style="margin:0;font-weight:600;font-size:16px;color:${diffColor};">${diff >= 0 ? '+' : ''}${fmt(diff)}</p></div>
-      <div><p class="muted" style="margin:0 0 2px;">% เติบโต</p><p style="margin:0;font-weight:600;font-size:16px;color:${diffColor};">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</p></div>
+  const rowStyle = 'padding:6px 0;border-top:1px solid var(--border);';
+  wrap.innerHTML = `
+    <div class="row-between" style="padding-bottom:6px;">
+      <span class="muted">เงินทุนตั้งต้นรวม</span>
+      <span style="font-weight:600;font-size:16px;">${fmt(totalInitial)}</span>
+    </div>
+    <div class="row-between" style="${rowStyle}">
+      <span class="muted">มูลค่าปัจจุบันรวม</span>
+      <span style="font-weight:600;font-size:16px;">${fmt(totalCurrent)}</span>
+    </div>
+    <div class="row-between" style="${rowStyle}">
+      <span class="muted">กำไร/ขาดทุน</span>
+      <span style="font-weight:600;font-size:16px;color:${diffColor};">${diff >= 0 ? '+' : ''}${fmt(diff)}</span>
+    </div>
+    <div class="row-between" style="${rowStyle}">
+      <span class="muted">% เติบโต</span>
+      <span style="font-weight:600;font-size:16px;color:${diffColor};">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>
+    </div>
+    <div class="row-between" style="${rowStyle}">
+      <span class="muted">เงินทุนตั้งต้นจากบัญชีต้นทาง (Budget)</span>
+      <span style="font-weight:600;font-size:16px;">${fmt(sourceTotal)}</span>
+    </div>
+    <div class="row-between" style="${rowStyle}">
+      <span class="muted">${remainingLabel}</span>
+      <span style="font-weight:600;font-size:16px;color:${remainingColor};">${fmt(Math.abs(remaining))}</span>
     </div>`;
 }
 
