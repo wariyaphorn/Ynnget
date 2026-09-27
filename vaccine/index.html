@@ -1507,7 +1507,15 @@ function renderGrowthChart() {
   });
 
   svg += `</svg>`;
-  chartWrap.innerHTML = svg;
+
+  // สรุปค่าล่าสุดของแต่ละคน (ตามตัวชี้วัดที่กำลังดูอยู่)
+  const latestParts = series.map(s => {
+    const latest = s.pts[s.pts.length - 1];
+    return `<span style="display:inline-flex;align-items:center;gap:6px;"><span class="swatch" style="background:${s.color};width:10px;height:10px;border-radius:50%;display:inline-block;"></span>${childLabel(s.member)} — ล่าสุด <strong>${latest.value} ${metric.unit}</strong> (${fmtDateStr(latest.date)})</span>`;
+  });
+  const latestSummaryHtml = `<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:10px;font-size:13px;color:var(--text-secondary);">${latestParts.join('')}</div>`;
+
+  chartWrap.innerHTML = latestSummaryHtml + svg;
 
   // legend
   const legendParts = series.map(s => `<span><span class="swatch" style="background:${s.color};"></span>${childLabel(s.member)}</span>`);
