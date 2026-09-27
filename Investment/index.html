@@ -836,7 +836,7 @@ function renderHoldingsSummary() {
     </div>
     <div class="row-between" style="${rowStyle}">
       <span class="muted">กำไร/ขาดทุน</span>
-      <span style="font-weight:600;font-size:16px;color:${diffColor};">${diff >= 0 ? '+' : ''}${fmt(diff)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)</span>
+      <span style="font-weight:600;font-size:16px;color:${diffColor};">(${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)${diff >= 0 ? '+' : ''}${fmt(diff)}</span>
     </div>`;
 }
 
