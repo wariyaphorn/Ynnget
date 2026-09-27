@@ -149,10 +149,10 @@
   <!-- ============ ภาพรวม ============ -->
   <div id="page-overview" class="page active">
     <section>
-      <div class="card" style="background:var(--ink);color:#fff;">
-        <p style="margin:0;font-size:12.5px;opacity:.75;">มูลค่าพอร์ตรวมวันนี้</p>
-        <p id="ov-total" style="margin:4px 0 0;font-family:'Kanit',sans-serif;font-weight:600;font-size:30px;">฿0.00</p>
-        <div id="ov-total-change" style="margin:8px 0 0;"></div>
+      <div class="card" style="background:linear-gradient(135deg, var(--ink), #16283f);color:#fff;">
+        <p style="margin:0;font-size:12.5px;opacity:.7;letter-spacing:.2px;">มูลค่าพอร์ตรวมวันนี้</p>
+        <p id="ov-total" style="margin:6px 0 12px;font-family:'Kanit',sans-serif;font-weight:600;font-size:34px;line-height:1.1;">฿0.00</p>
+        <div id="ov-total-change"></div>
       </div>
     </section>
 
@@ -499,11 +499,17 @@ function renderOverview() {
   const pct = totalInitial ? (diff / totalInitial * 100) : 0;
   const changeEl = document.getElementById('ov-total-change');
   if (holdings.length) {
-    const lineStyle = 'margin:0 0 4px;font-weight:600;font-size:16px;';
+    const up = diff >= 0;
+    const pillBg = up ? 'rgba(112,199,150,0.22)' : 'rgba(224,120,100,0.22)';
+    const pillColor = up ? '#9BE6BB' : '#F2AB99';
     changeEl.innerHTML = `
-      <p style="${lineStyle}"><span style="background:rgba(255,255,255,0.15);padding:2px 8px;border-radius:10px;">${diff >= 0 ? '▲' : '▼'} ${diff >= 0 ? '+' : ''}${fmt(diff)}</span></p>
-      <p style="${lineStyle}">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</p>
-      <p style="${lineStyle}margin-bottom:0;opacity:.85;">จากเงินทุนสะสม ${fmt(totalInitial)}</p>`;
+      <div style="display:inline-flex;align-items:center;gap:7px;background:${pillBg};color:${pillColor};padding:6px 13px;border-radius:20px;font-weight:600;font-size:14.5px;">
+        <span>${up ? '▲' : '▼'}</span>
+        <span>${up ? '+' : ''}${fmt(diff)}</span>
+        <span style="opacity:.55;font-weight:400;">|</span>
+        <span>${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>
+      </div>
+      <p style="margin:10px 0 0;font-size:12.5px;opacity:.7;">จากเงินทุนสะสม ${fmt(totalInitial)}</p>`;
   } else {
     changeEl.innerHTML = '';
   }
@@ -621,47 +627,71 @@ function renderProjection(total) {
     return;
   }
 
-  const W = 358, H = 210, padL = 50, padR = 10, padT = 14, padB = 26;
+  const W = 358, H = 226, padL = 54, padR = 12, padT = 18, padB = 28;
   const maxVal = Math.max(...upper, 1);
   const yTicks = 4;
   const niceMax = (() => { const step = maxVal / yTicks; const mag = Math.pow(10, Math.floor(Math.log10(step || 1))); const norm = step / mag; const niceStep = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag; return niceStep * yTicks; })();
   const xScale = i => padL + (i / (years.length - 1)) * (W - padL - padR);
   const yScale = v => padT + (H - padT - padB) - (v / niceMax) * (H - padT - padB);
-  const pathFor = arr => arr.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(v)}`).join(' ');
-  const bandTop = upper.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(v)}`).join(' ');
-  const bandBot = lower.slice().reverse().map((v, i) => `L ${xScale(years.length - 1 - i)} ${yScale(v)}`).join(' ');
+  const ptsFor = arr => arr.map((v, i) => ({ x: xScale(i), y: yScale(v) }));
+  // เส้นโค้งเรียบแบบ Catmull-Rom → Bezier แทนเส้นตรงหักมุม ให้ดูนุ่มนวลขึ้น
+  const smoothPath = pts => {
+    if (pts.length < 2) return '';
+    let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2] || p2;
+      const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+      const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+      d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+    }
+    return d;
+  };
+  const basePts = ptsFor(base), upperPts = ptsFor(upper), lowerPts = ptsFor(lower);
+  const baseline = padT + (H - padT - padB);
+  const areaPath = `${smoothPath(basePts)} L ${basePts[basePts.length - 1].x.toFixed(1)} ${baseline} L ${basePts[0].x.toFixed(1)} ${baseline} Z`;
+  const bandPath = `${smoothPath(upperPts)} ${smoothPath(lowerPts.slice().reverse()).replace('M', 'L')} Z`;
 
   const gridLines = [];
   for (let t = 0; t <= yTicks; t++) {
     const val = (niceMax / yTicks) * t;
     const y = yScale(val);
-    gridLines.push(`<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--border)" stroke-width="1"/>`);
-    gridLines.push(`<text x="${padL - 6}" y="${y + 3}" font-size="9.5" text-anchor="end" fill="var(--text-muted)" font-family="Sarabun">${formatAxisCurrency(val)}</text>`);
+    gridLines.push(`<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--border)" stroke-width="1" stroke-dasharray="${t === 0 ? '0' : '2,3'}"/>`);
+    gridLines.push(`<text x="${padL - 8}" y="${y + 3}" font-size="9.5" text-anchor="end" fill="var(--text-muted)" font-family="Sarabun">${formatAxisCurrency(val)}</text>`);
   }
-  const xLabels = years.map((y, i) => `<text x="${xScale(i)}" y="${H - 6}" font-size="9.5" text-anchor="middle" fill="var(--text-muted)" font-family="Sarabun">${y === 0 ? 'วันนี้' : 'ปีที่ ' + y}</text>`).join('');
-  const hitCircles = years.map((y, i) => `<circle data-idx="${i}" cx="${xScale(i)}" cy="${yScale(base[i])}" r="9" fill="transparent" style="cursor:pointer;"/>`).join('');
-  const pointDots = years.map((y, i) => `<circle cx="${xScale(i)}" cy="${yScale(base[i])}" r="3" fill="var(--ink)"/>`).join('');
+  const xLabels = years.map((y, i) => `<text x="${xScale(i)}" y="${H - 8}" font-size="9.5" text-anchor="middle" fill="var(--text-muted)" font-family="Sarabun">${y === 0 ? 'วันนี้' : 'ปีที่ ' + y}</text>`).join('');
+  const hitCircles = years.map((y, i) => `<circle data-idx="${i}" cx="${xScale(i)}" cy="${yScale(base[i])}" r="11" fill="transparent" style="cursor:pointer;"/>`).join('');
+  const pointDots = years.map((y, i) => `<circle class="proj-dot" data-idx="${i}" cx="${xScale(i)}" cy="${yScale(base[i])}" r="3.5" fill="var(--ink)" stroke="#fff" stroke-width="1.5"/>`).join('');
 
   chartWrap.innerHTML = `
     <div style="position:relative;">
-      <svg id="proj-svg" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;">
-        <text x="${padL - 6}" y="${padT - 2}" font-size="9" text-anchor="end" fill="var(--text-muted)" font-family="Sarabun">บาท (฿)</text>
+      <svg id="proj-svg" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;overflow:visible;">
+        <defs>
+          <linearGradient id="proj-area-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--ink)" stop-opacity="0.22"/>
+            <stop offset="100%" stop-color="var(--ink)" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <text x="${padL - 8}" y="${padT - 5}" font-size="9" text-anchor="end" fill="var(--text-muted)" font-family="Sarabun">บาท (฿)</text>
         ${gridLines.join('')}
-        <path d="${bandTop} ${bandBot} Z" fill="var(--gold)" opacity="0.15"/>
-        <path d="${pathFor(lower)}" fill="none" stroke="var(--rust)" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.7"/>
-        <path d="${pathFor(base)}" fill="none" stroke="var(--ink)" stroke-width="2.5"/>
-        <path d="${pathFor(upper)}" fill="none" stroke="var(--sage)" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.7"/>
+        <path d="${bandPath}" fill="var(--gold)" opacity="0.14"/>
+        <path d="${areaPath}" fill="url(#proj-area-grad)"/>
+        <path d="${smoothPath(lowerPts)}" fill="none" stroke="var(--rust)" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="1,5" opacity="0.8"/>
+        <path d="${smoothPath(upperPts)}" fill="none" stroke="var(--sage)" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="1,5" opacity="0.8"/>
+        <path d="${smoothPath(basePts)}" fill="none" stroke="var(--ink)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"/>
         ${pointDots}
         ${xLabels}
         <line id="proj-hover-line" x1="0" y1="${padT}" x2="0" y2="${H - padB}" stroke="var(--ink)" stroke-width="1" opacity="0" stroke-dasharray="3,2"/>
         ${hitCircles}
       </svg>
-      <div id="proj-tooltip" style="display:none;position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:11.5px;line-height:1.5;padding:6px 9px;border-radius:8px;white-space:nowrap;transform:translate(-50%,-100%);z-index:5;"></div>
+      <div id="proj-tooltip" style="display:none;position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:11.5px;line-height:1.6;padding:8px 11px;border-radius:10px;white-space:nowrap;transform:translate(-50%,-100%);z-index:5;box-shadow:0 4px 14px rgba(30,58,95,0.35);"></div>
     </div>
-    <div style="display:flex;gap:14px;font-size:11.5px;color:var(--text-secondary);margin-top:4px;flex-wrap:wrap;">
-      <span><span class="swatch" style="background:var(--sage);"></span>Upper cap (+5%)</span>
-      <span><span class="swatch" style="background:var(--ink);"></span>คาดการณ์หลัก (${selectedProjectionRate}%/ปี)</span>
-      <span><span class="swatch" style="background:var(--rust);"></span>Lower cap (−5%)</span>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <span style="display:inline-flex;align-items:center;gap:5px;background:var(--paper);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text-secondary);"><span class="swatch" style="background:var(--sage);margin:0;"></span>Upper (+5%)</span>
+      <span style="display:inline-flex;align-items:center;gap:5px;background:var(--ink);border-radius:20px;padding:3px 10px;font-size:11px;color:#fff;font-weight:600;"><span class="swatch" style="background:#fff;margin:0;"></span>หลัก (${selectedProjectionRate}%/ปี)</span>
+      <span style="display:inline-flex;align-items:center;gap:5px;background:var(--paper);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text-secondary);"><span class="swatch" style="background:var(--rust);margin:0;"></span>Lower (−5%)</span>
     </div>`;
 
   const svgEl = document.getElementById('proj-svg');
@@ -674,15 +704,20 @@ function renderProjection(total) {
       const px = (xScale(i) / W) * rect.width;
       const py = (yScale(base[i]) / H) * rect.height;
       tooltip.style.left = px + 'px';
-      tooltip.style.top = (py - 8) + 'px';
-      tooltip.innerHTML = `<strong>${years[i] === 0 ? 'วันนี้' : 'ปีที่ ' + years[i]}</strong><br>คาดการณ์หลัก: ${fmt(base[i])}<br>Upper: ${fmt(upper[i])} · Lower: ${fmt(lower[i])}`;
+      tooltip.style.top = (py - 10) + 'px';
+      tooltip.innerHTML = `<strong>${years[i] === 0 ? 'วันนี้' : 'ปีที่ ' + years[i]}</strong><br><span style="color:#B8DFC9;">คาดการณ์หลัก:</span> ${fmt(base[i])}<br><span style="color:#8FCBA8;">Upper:</span> ${fmt(upper[i])} · <span style="color:#E39A8B;">Lower:</span> ${fmt(lower[i])}`;
       tooltip.style.display = 'block';
-      hoverLine.setAttribute('x1', xScale(i)); hoverLine.setAttribute('x2', xScale(i)); hoverLine.setAttribute('opacity', '0.5');
+      svgEl.querySelectorAll('.proj-dot').forEach(d => d.setAttribute('r', d.dataset.idx === String(i) ? '5' : '3.5'));
+      hoverLine.setAttribute('x1', xScale(i)); hoverLine.setAttribute('x2', xScale(i)); hoverLine.setAttribute('opacity', '0.4');
     };
     circle.addEventListener('mouseenter', show);
     circle.addEventListener('touchstart', (e) => { e.preventDefault(); show(); });
   });
-  svgEl.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; hoverLine.setAttribute('opacity', '0'); });
+  svgEl.addEventListener('mouseleave', () => {
+    tooltip.style.display = 'none';
+    hoverLine.setAttribute('opacity', '0');
+    svgEl.querySelectorAll('.proj-dot').forEach(d => d.setAttribute('r', '3.5'));
+  });
 
   const tableWrap = document.getElementById('proj-table');
   const showYears = [1, 3, 5, 10];
