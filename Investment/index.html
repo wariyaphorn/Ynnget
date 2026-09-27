@@ -279,11 +279,11 @@ let selectedProjectionRate = 5;
 // ================= storage keys =================
 const HOLDINGS_KEY = 'household-investment-holdings';
 const CONTRIBUTIONS_KEY = 'household-investment-contributions';
-const WALLETS_KEY = 'household-ledger-wallets'; // อ่านอย่างเดียว จากแอพ Budget
+const MAINACCOUNTS_KEY = 'household-ledger-mainaccounts'; // อ่านอย่างเดียว จากแอพ Budget
 
 let holdings = [];
 let contributions = [];
-let investedWallets = []; // wallets ที่ w.invested === true จากแอพ Budget
+let investedAccounts = []; // บัญชี (mainAccounts) ที่ a.invested === true จากแอพ Budget
 let editingHoldingId = null;
 
 function genId() { return 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
@@ -295,7 +295,7 @@ async function saveContributions() { try { await window.storage.set(CONTRIBUTION
 async function load() {
   try { const r = await window.storage.get(HOLDINGS_KEY); holdings = r ? JSON.parse(r.value) : []; } catch (e) { holdings = []; }
   try { const r = await window.storage.get(CONTRIBUTIONS_KEY); contributions = r ? JSON.parse(r.value) : []; } catch (e) { contributions = []; }
-  try { const r = await window.storage.get(WALLETS_KEY); const w = r ? JSON.parse(r.value) : []; investedWallets = w.filter(x => x.invested); } catch (e) { investedWallets = []; }
+  try { const r = await window.storage.get(MAINACCOUNTS_KEY); const a = r ? JSON.parse(r.value) : []; investedAccounts = a.filter(x => x.invested); } catch (e) { investedAccounts = []; }
   document.getElementById('updated-note').textContent = 'ข้อมูลล่าสุดจากเซิร์ฟเวอร์';
   refreshAccountSelect();
   refreshClassSelect();
@@ -307,11 +307,11 @@ async function load() {
 function refreshAccountSelect() {
   const sel = document.getElementById('hf-account');
   sel.innerHTML = '';
-  if (!investedWallets.length) {
-    sel.innerHTML = '<option value="">(ไม่มีกระเป๋าที่ mark ว่าลงทุนในแอพ Budget)</option>';
+  if (!investedAccounts.length) {
+    sel.innerHTML = '<option value="">(ไม่มีบัญชีที่ mark ว่าลงทุนในแอพ Budget)</option>';
     return;
   }
-  investedWallets.forEach(w => sel.appendChild(new Option(w.name, w.id)));
+  investedAccounts.forEach(a => sel.appendChild(new Option(a.name, a.id)));
 }
 function refreshClassSelect() {
   const sel = document.getElementById('hf-class');
