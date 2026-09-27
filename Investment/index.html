@@ -185,6 +185,13 @@
   <div id="page-holdings" class="page">
     <section>
       <div class="card">
+        <h2>บัญชีต้นทาง (จากแอพ Budget)</h2>
+        <div id="source-accounts-summary"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
         <h2>รายการลงทุนทั้งหมด</h2>
         <div id="holdings-list"></div>
       </div>
@@ -281,11 +288,81 @@ const HOLDINGS_KEY = 'household-investment-holdings';
 const CONTRIBUTIONS_KEY = 'household-investment-contributions';
 const MAINACCOUNTS_KEY = 'household-ledger-mainaccounts'; // อ่านอย่างเดียว จากแอพ Budget
 const ENTRIES_KEY_FOR_AUTH_CHECK = 'household-ledger-entries'; // ใช้เช็คสิทธิ์เข้าใช้งานเท่านั้น (key เดียวกับที่แอพ Budget ใช้เช็ค และมีข้อมูลอยู่แน่นอน)
+// keys อ่านอย่างเดียวจากแอพ Budget สำหรับคำนวณยอดเงินคงเหลือของบัญชีที่ mark ว่าลงทุน
+const BUDGET_WALLETS_KEY = 'household-ledger-wallets';
+const BUDGET_GOALS_KEY = 'household-ledger-goals';
+const BUDGET_ENTRIES_KEY = 'household-ledger-entries';
+const BUDGET_CATEGORIES_KEY = 'household-ledger-categories';
+const BUDGET_WALLET_TX_KEY = 'household-ledger-wallet-transactions';
+const BUDGET_GOAL_TRANSFERS_KEY = 'household-ledger-goal-transfers';
 
 let holdings = [];
 let contributions = [];
 let investedAccounts = []; // บัญชี (mainAccounts) ที่ a.invested === true จากแอพ Budget
 let editingHoldingId = null;
+
+// ข้อมูลดิบจาก Budget (อ่านอย่างเดียว) สำหรับคำนวณยอดคงเหลือของบัญชีลงทุน
+let budgetWallets = [];
+let budgetGoals = [];
+let budgetEntries = [];
+let budgetCategories = [];
+let budgetCatMap = {};
+let budgetWalletTx = [];
+let budgetGoalTransfers = [];
+let budgetUsdRate = null;
+let investedAccountBalances = {}; // { accountId: totalTHB }
+
+function budgetGetCat(key) { return budgetCatMap[key] || { key, label: 'ไม่ทราบหมวด (ลบแล้ว)', kind: 'expense', color: '#94A0AB' }; }
+
+function budgetGoalSaved(g) {
+  const kind = g.kind === 'debt' ? 'debt' : 'saving';
+  const contributed = budgetEntries.filter(e => e.category === kind && e.goal === g.id && (!g.lastResetDate || e.date > g.lastResetDate)).reduce((s, e) => s + e.amount, 0);
+  const transferredOut = budgetGoalTransfers.filter(t => t.fromGoalId === g.id && (!g.lastResetDate || t.date > g.lastResetDate)).reduce((s, t) => s + t.amount, 0);
+  return (g.initial || 0) + contributed - transferredOut;
+}
+
+function budgetWalletBalance(w) {
+  const isUsd = w.currency === 'USD';
+  let nativeTotal = w.initial || 0;
+  budgetEntries.forEach(e => {
+    if (e.account !== w.id) return;
+    if (e.goal && (e.category === 'saving' || e.category === 'debt')) return;
+    const amt = budgetGetCat(e.category).kind === 'income' ? e.amount : -e.amount;
+    nativeTotal += amt;
+  });
+  budgetGoals.forEach(g => {
+    if (g.account !== w.id) return;
+    nativeTotal += budgetGoalSaved(g);
+  });
+  budgetWalletTx.forEach(t => {
+    if (t.account !== w.id) return;
+    nativeTotal += t.amount;
+  });
+  if (!isUsd) return nativeTotal;
+  const rate = budgetUsdRate;
+  return rate ? nativeTotal * rate : 0;
+}
+
+// คำนวณยอดคงเหลือรวมของบัญชี (mainAccount) แบบเดียวกับแอพ Budget: รวมกระเป๋า + เป้าหมายที่ผูกตรงกับบัญชี (ไม่ผ่านกระเป๋า)
+function budgetMainAccountBalance(a) {
+  let total = 0;
+  budgetWallets.forEach(w => { if (w.mainAccount === a.id) total += budgetWalletBalance(w); });
+  budgetGoals.forEach(g => { if (g.mainAccount === a.id && !g.account) total += budgetGoalSaved(g); });
+  return total;
+}
+
+async function loadBudgetBalances() {
+  try { const r = await window.storage.get(BUDGET_WALLETS_KEY); budgetWallets = r ? JSON.parse(r.value) : []; } catch (e) { budgetWallets = []; }
+  try { const r = await window.storage.get(BUDGET_GOALS_KEY); budgetGoals = r ? JSON.parse(r.value) : []; } catch (e) { budgetGoals = []; }
+  try { const r = await window.storage.get(BUDGET_ENTRIES_KEY); budgetEntries = r ? JSON.parse(r.value) : []; } catch (e) { budgetEntries = []; }
+  try { const r = await window.storage.get(BUDGET_CATEGORIES_KEY); budgetCategories = r ? JSON.parse(r.value) : []; } catch (e) { budgetCategories = []; }
+  budgetCatMap = Object.fromEntries(budgetCategories.map(c => [c.key, c]));
+  try { const r = await window.storage.get(BUDGET_WALLET_TX_KEY); budgetWalletTx = r ? JSON.parse(r.value) : []; } catch (e) { budgetWalletTx = []; }
+  try { const r = await window.storage.get(BUDGET_GOAL_TRANSFERS_KEY); budgetGoalTransfers = r ? JSON.parse(r.value) : []; } catch (e) { budgetGoalTransfers = []; }
+  try { const cached = JSON.parse(localStorage.getItem('usd-thb-rate') || 'null'); budgetUsdRate = cached ? cached.rate : null; } catch (e) { budgetUsdRate = null; }
+  investedAccountBalances = {};
+  investedAccounts.forEach(a => { investedAccountBalances[a.id] = budgetMainAccountBalance(a); });
+}
 
 function genId() { return 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 function fmt(n) { return '฿' + (n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -297,6 +374,7 @@ async function load() {
   try { const r = await window.storage.get(HOLDINGS_KEY); holdings = r ? JSON.parse(r.value) : []; } catch (e) { holdings = []; }
   try { const r = await window.storage.get(CONTRIBUTIONS_KEY); contributions = r ? JSON.parse(r.value) : []; } catch (e) { contributions = []; }
   try { const r = await window.storage.get(MAINACCOUNTS_KEY); const a = r ? JSON.parse(r.value) : []; investedAccounts = a.filter(x => x.invested); } catch (e) { investedAccounts = []; }
+  try { await loadBudgetBalances(); } catch (e) { console.error(e); investedAccountBalances = {}; }
   document.getElementById('updated-note').textContent = 'ข้อมูลล่าสุดจากเซิร์ฟเวอร์';
   refreshAccountSelect();
   refreshClassSelect();
@@ -312,7 +390,11 @@ function refreshAccountSelect() {
     sel.innerHTML = '<option value="">(ไม่มีบัญชีที่ mark ว่าลงทุนในแอพ Budget)</option>';
     return;
   }
-  investedAccounts.forEach(a => sel.appendChild(new Option(a.name, a.id)));
+  investedAccounts.forEach(a => {
+    const bal = investedAccountBalances[a.id];
+    const label = bal != null ? `${a.name} (คงเหลือ ${fmt(bal)})` : a.name;
+    sel.appendChild(new Option(label, a.id));
+  });
 }
 function refreshClassSelect() {
   const sel = document.getElementById('hf-class');
@@ -567,7 +649,20 @@ function cancelEditHolding() {
 
 function render() {
   renderOverview();
+  renderSourceAccountsSummary();
   renderHoldingsList();
+}
+
+function renderSourceAccountsSummary() {
+  const wrap = document.getElementById('source-accounts-summary');
+  if (!wrap) return;
+  if (!investedAccounts.length) {
+    wrap.innerHTML = '<p class="empty">ยังไม่มีบัญชีที่ mark ว่า "เพื่อการลงทุน" ในแอพ Budget</p>';
+    return;
+  }
+  const grandTotal = investedAccounts.reduce((s, a) => s + (investedAccountBalances[a.id] || 0), 0);
+  wrap.innerHTML = `<div class="row-between" style="margin-bottom:8px;"><span class="muted">เงินทุนรวม (${investedAccounts.length} บัญชี)</span><span style="font-weight:700;">${fmt(grandTotal)}</span></div>` +
+    investedAccounts.map(a => `<div class="row-between" style="padding:6px 0;border-top:1px solid var(--border);"><span>${a.name}</span><span style="font-weight:600;">${fmt(investedAccountBalances[a.id] || 0)}</span></div>`).join('');
 }
 
 // ================= events =================
