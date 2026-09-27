@@ -210,7 +210,7 @@
     <button class="page-tab active" data-page="vaccine">วัคซีนเด็ก</button>
     <button class="page-tab" data-page="adult-vaccine">วัคซีนผู้ใหญ่</button>
     <button class="page-tab" data-page="dentist">ทันตกรรม</button>
-    <button class="page-tab" data-page="checkup">ตรวจสุขภาพ</button>
+    <button class="page-tab" data-page="checkup">นัดหมอ</button>
     <button class="page-tab" data-page="growth">การเจริญเติบโต</button>
     <button class="page-tab" data-page="expenses">ค่าใช้จ่าย</button>
     <button class="page-tab" data-page="setup">ตั้งค่า</button>
@@ -300,18 +300,40 @@
   <div id="page-checkup" class="page">
     <section>
       <div class="card">
-        <h2>ตรวจสุขภาพ</h2>
-        <p class="muted" style="margin:0 0 10px;">บันทึกการตรวจสุขภาพประจำปี/ตรวจเลือด/เอกซเรย์ ฯลฯ — ถ้าใส่วันนัดครั้งถัดไป จะไปโผล่ในแบนเนอร์แจ้งเตือนด้านบนด้วย</p>
+        <h2>นัดหมอ / ตรวจสุขภาพ</h2>
+        <p class="muted" style="margin:0 0 10px;">บันทึกได้ทั้งตรวจสุขภาพประจำปี/ตรวจเลือด/เอกซเรย์ และนัด Follow up อาการเจ็บป่วยหรือโรคประจำตัว — ถ้าใส่วันนัดครั้งถัดไป จะไปโผล่ในแบนเนอร์แจ้งเตือนด้านบนด้วย</p>
         <div class="child-tabs" id="checkup-child-tabs"></div>
         <div id="checkup-list"></div>
         <div class="form-grid g2">
           <div>
-            <label class="field-label" for="chk-date">วันที่ตรวจ</label>
+            <label class="field-label" for="chk-date">วันที่พบหมอ/ตรวจ</label>
             <input type="date" id="chk-date">
           </div>
           <div>
             <label class="field-label" for="chk-note">รายละเอียด/รายการที่ตรวจ</label>
-            <input type="text" id="chk-note" placeholder="เช่น ตรวจสุขภาพประจำปี, ตรวจเลือด">
+            <input type="text" id="chk-note" placeholder="เช่น ตรวจสุขภาพประจำปี, Follow up หอบหืด">
+          </div>
+        </div>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="chk-hospital">โรงพยาบาล/คลินิก</label>
+            <input type="text" id="chk-hospital" list="chk-hospital-list" placeholder="เช่น รพ. ...">
+            <datalist id="chk-hospital-list"></datalist>
+          </div>
+          <div>
+            <label class="field-label" for="chk-department">แผนก</label>
+            <input type="text" id="chk-department" list="chk-department-list" placeholder="เช่น กุมารเวช, อายุรกรรม">
+            <datalist id="chk-department-list"></datalist>
+          </div>
+        </div>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="chk-doctor">คุณหมอ</label>
+            <input type="text" id="chk-doctor" placeholder="ไม่บังคับ">
+          </div>
+          <div>
+            <label class="field-label" for="chk-time">เวลานัด</label>
+            <input type="text" id="chk-time" placeholder="เช่น 09:00 หรือช่วงบ่าย">
           </div>
         </div>
         <div class="form-grid g2">
@@ -325,7 +347,7 @@
           </div>
         </div>
         <div style="display:flex;gap:8px;margin-top:8px;">
-          <button class="btn btn-primary" id="chk-add" style="flex:1;">+ บันทึกการตรวจสุขภาพ</button>
+          <button class="btn btn-primary" id="chk-add" style="flex:1;">+ บันทึกนัด</button>
           <button class="btn" id="chk-cancel-edit" style="display:none;">ยกเลิก</button>
         </div>
       </div>
@@ -1218,22 +1240,27 @@ function renderCheckupTab() {
   const listWrap = document.getElementById('checkup-list');
   listWrap.innerHTML = '';
   const list = checkupRecords.filter(r => r.member === selectedCheckupChild).sort((a, b) => b.date.localeCompare(a.date));
-  if (!list.length) { listWrap.innerHTML = '<p class="empty">ยังไม่มีประวัติการตรวจสุขภาพ</p>'; return; }
-  list.forEach(r => {
-    const div = document.createElement('div');
-    div.className = 'visit-card';
-    div.innerHTML = `<div class="row-between">
-        <span><strong>${fmtDateStr(r.date)}</strong>${r.note ? ' · ' + r.note : ''}</span>
-        <span>
-          <button class="del-btn" data-edit="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
-          <button class="del-btn" data-del="${r.id}" aria-label="ลบ">✕</button>
-        </span>
-      </div>
-      <p class="muted" style="margin:6px 0 0;">
-        ${r.cost != null ? fmt(r.cost) + ' · ' : ''}${r.nextDate ? 'นัดครั้งถัดไป: ' + fmtDateStr(r.nextDate) : ''}
-      </p>`;
-    listWrap.appendChild(div);
-  });
+  if (!list.length) { listWrap.innerHTML = '<p class="empty">ยังไม่มีประวัตินัดหมอ</p>'; }
+  else {
+    list.forEach(r => {
+      const div = document.createElement('div');
+      div.className = 'visit-card';
+      const placeParts = [r.hospital, r.department, r.doctor ? 'หมอ ' + r.doctor : ''].filter(Boolean).join(' · ');
+      const timeLabel = r.time ? ' เวลา ' + r.time : '';
+      div.innerHTML = `<div class="row-between">
+          <span><strong>${fmtDateStr(r.date)}${timeLabel}</strong>${r.note ? ' · ' + r.note : ''}</span>
+          <span>
+            <button class="del-btn" data-edit="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
+            <button class="del-btn" data-del="${r.id}" aria-label="ลบ">✕</button>
+          </span>
+        </div>
+        ${placeParts ? `<p class="muted" style="margin:4px 0 0;">${placeParts}</p>` : ''}
+        <p class="muted" style="margin:4px 0 0;">
+          ${r.cost != null ? fmt(r.cost) + ' · ' : ''}${r.nextDate ? 'นัดครั้งถัดไป: ' + fmtDateStr(r.nextDate) : ''}
+        </p>`;
+      listWrap.appendChild(div);
+    });
+  }
   listWrap.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
     if (!confirm('ลบรายการนี้?')) return;
     checkupRecords = checkupRecords.filter(r => r.id !== btn.dataset.del);
@@ -1241,6 +1268,18 @@ function renderCheckupTab() {
     await saveCheckupRecords(); render();
   }));
   listWrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => startCheckupEdit(btn.dataset.edit)));
+  refreshCheckupDatalists();
+}
+
+// เติม datalist ของ "โรงพยาบาล/คลินิก" และ "แผนก" จากรายการที่เคยบันทึกไว้ก่อนหน้า ให้เลือกซ้ำได้ง่าย
+function refreshCheckupDatalists() {
+  const hospitalList = document.getElementById('chk-hospital-list');
+  const departmentList = document.getElementById('chk-department-list');
+  if (!hospitalList || !departmentList) return;
+  const hospitals = [...new Set(checkupRecords.map(r => r.hospital).filter(Boolean))];
+  const departments = [...new Set(checkupRecords.map(r => r.department).filter(Boolean))];
+  hospitalList.innerHTML = hospitals.map(h => `<option value="${h}"></option>`).join('');
+  departmentList.innerHTML = departments.map(d => `<option value="${d}"></option>`).join('');
 }
 
 function startCheckupEdit(id) {
@@ -1249,6 +1288,10 @@ function startCheckupEdit(id) {
   editingCheckupId = id;
   document.getElementById('chk-date').value = r.date || '';
   document.getElementById('chk-note').value = r.note || '';
+  document.getElementById('chk-hospital').value = r.hospital || '';
+  document.getElementById('chk-department').value = r.department || '';
+  document.getElementById('chk-doctor').value = r.doctor || '';
+  document.getElementById('chk-time').value = r.time || '';
   document.getElementById('chk-cost').value = r.cost != null ? r.cost : '';
   document.getElementById('chk-next').value = r.nextDate || '';
   document.getElementById('chk-add').textContent = '💾 บันทึกการแก้ไข';
@@ -1260,9 +1303,13 @@ function cancelCheckupEdit() {
   editingCheckupId = null;
   document.getElementById('chk-date').value = '';
   document.getElementById('chk-note').value = '';
+  document.getElementById('chk-hospital').value = '';
+  document.getElementById('chk-department').value = '';
+  document.getElementById('chk-doctor').value = '';
+  document.getElementById('chk-time').value = '';
   document.getElementById('chk-cost').value = '';
   document.getElementById('chk-next').value = '';
-  document.getElementById('chk-add').textContent = '+ บันทึกการตรวจสุขภาพ';
+  document.getElementById('chk-add').textContent = '+ บันทึกนัด';
   document.getElementById('chk-cancel-edit').style.display = 'none';
 }
 
@@ -1626,7 +1673,7 @@ function renderExpenses() {
     const badge = g.type === 'vaccine'
       ? '<span class="type-badge type-badge-vaccine">วัคซีน</span>'
       : g.type === 'checkup'
-        ? '<span class="type-badge type-badge-checkup">ตรวจสุขภาพ</span>'
+        ? '<span class="type-badge type-badge-checkup">นัดหมอ</span>'
         : g.type === 'dentist'
           ? '<span class="type-badge type-badge-dentist">ทันตกรรม</span>'
           : '<span class="type-badge type-badge-other">ค่ารักษา/หาหมอ</span>';
@@ -1778,7 +1825,7 @@ function renderDueBanner() {
   };
   function itemLineHtml(it) {
     if (it.kind === 'checkup') {
-      return `<strong>${childLabel(it.child)}</strong> — นัดตรวจสุขภาพ${it.note ? ' — ' + it.note : ''}`;
+      return `<strong>${childLabel(it.child)}</strong> — นัดหมอ${it.note ? ' — ' + it.note : ''}`;
     }
     if (it.kind === 'dentist') {
       const statusTxt = it.confirmed ? 'มีนัดแล้ว' : 'กะวันไว้เอง (ยังไม่ได้นัด)';
@@ -2021,12 +2068,20 @@ document.getElementById('chk-add').addEventListener('click', async () => {
   if (!selectedCheckupChild) return;
   const dateInput = document.getElementById('chk-date');
   const noteInput = document.getElementById('chk-note');
+  const hospitalInput = document.getElementById('chk-hospital');
+  const departmentInput = document.getElementById('chk-department');
+  const doctorInput = document.getElementById('chk-doctor');
+  const timeInput = document.getElementById('chk-time');
   const costInput = document.getElementById('chk-cost');
   const nextInput = document.getElementById('chk-next');
   if (!dateInput.value) return;
   const values = {
     date: dateInput.value,
     note: noteInput.value.trim(),
+    hospital: hospitalInput.value.trim(),
+    department: departmentInput.value.trim(),
+    doctor: doctorInput.value.trim(),
+    time: timeInput.value.trim(),
     cost: costInput.value !== '' && !isNaN(parseFloat(costInput.value)) ? parseFloat(costInput.value) : null,
     nextDate: nextInput.value || null
   };
@@ -2036,7 +2091,7 @@ document.getElementById('chk-add').addEventListener('click', async () => {
     cancelCheckupEdit();
   } else {
     checkupRecords.push(Object.assign({ id: genId(), member: selectedCheckupChild }, values));
-    dateInput.value = ''; noteInput.value = ''; costInput.value = ''; nextInput.value = '';
+    dateInput.value = ''; noteInput.value = ''; hospitalInput.value = ''; departmentInput.value = ''; doctorInput.value = ''; timeInput.value = ''; costInput.value = ''; nextInput.value = '';
   }
   await saveCheckupRecords(); render();
 });
