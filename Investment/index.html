@@ -144,6 +144,7 @@
   <nav class="page-tabs">
     <button class="page-tab active" data-page="overview">ภาพรวม</button>
     <button class="page-tab" data-page="holdings">รายการลงทุน</button>
+    <button class="page-tab" data-page="retirement">แผนเกษียณ</button>
   </nav>
 
   <!-- ============ ภาพรวม ============ -->
@@ -277,6 +278,41 @@
           <button class="btn" id="hf-cancel" style="display:none;">ยกเลิกแก้ไข</button>
           <button class="btn btn-primary" id="hf-save">+ บันทึกรายการลงทุน</button>
         </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ แผนเกษียณ ============ -->
+  <div id="page-retirement" class="page">
+    <section>
+      <div class="card">
+        <h2>ตารางค่าใช้จ่ายรายเดือนที่คาดการณ์ (12 เดือนข้างหน้า)</h2>
+        <p class="muted" style="margin:0 0 10px;">คำนวณจากค่าเฉลี่ยรายจ่ายจริงย้อนหลังในแอพ Budget แล้วปรับเพิ่มตามอัตราเงินเฟ้อที่ตั้งไว้</p>
+        <div class="form-grid g2">
+          <div>
+            <p class="muted" style="margin:0 0 4px;">อัตราเงินเฟ้อต่อปี (%)</p>
+            <input type="number" id="ret-inflation" value="3" min="0" step="0.1">
+          </div>
+          <div>
+            <p class="muted" style="margin:0 0 4px;">คำนวณค่าเฉลี่ยจากย้อนหลัง (เดือน)</p>
+            <input type="number" id="ret-history-months" value="12" min="1" max="36" step="1">
+          </div>
+        </div>
+        <div id="ret-monthly-table" style="overflow-x:auto;"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
+        <h2>กราฟประมาณการค่าใช้จ่ายรายปี</h2>
+        <p class="muted" style="margin:0 0 10px;">คาดการณ์รายจ่ายรวมทั้งปี ปรับเพิ่มตามอัตราเงินเฟ้อทบต้นทุกปี (ใช้อัตราเงินเฟ้อและค่าเฉลี่ยรายจ่ายชุดเดียวกับตารางด้านบน)</p>
+        <div class="form-grid g2">
+          <div>
+            <p class="muted" style="margin:0 0 4px;">จำนวนปีที่คาดการณ์</p>
+            <input type="number" id="ret-years" value="20" min="1" max="40" step="1">
+          </div>
+        </div>
+        <div id="ret-expense-chart-wrap" style="background:var(--paper);border-radius:10px;padding:12px;"></div>
       </div>
     </section>
   </div>
@@ -834,6 +870,195 @@ function render() {
   renderSourceAccountsSummary();
   renderHoldingsSummary();
   renderHoldingsList();
+  renderRetirementMonthlyTable();
+}
+
+// ================= แผนเกษียณ: ตารางค่าใช้จ่ายรายเดือนที่คาดการณ์ =================
+const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+// ค่าเฉลี่ยรายจ่ายจริงต่อเดือน แยกตามหมวดหมู่ จากรายการย้อนหลัง N เดือนล่าสุดในแอพ Budget
+function computeAvgMonthlyExpenseByCategory(historyMonths) {
+  const today = new Date();
+  const cutoff = new Date(today.getFullYear(), today.getMonth() - historyMonths, 1);
+  const cutoffISO = cutoff.toISOString().slice(0, 10);
+  const byCategory = {};
+  budgetEntries.forEach(e => {
+    if (!e.date || e.date < cutoffISO) return;
+    const cat = budgetGetCat(e.category);
+    if (cat.kind !== 'expense') return;
+    if (!byCategory[e.category]) byCategory[e.category] = { label: cat.label, color: cat.color, total: 0 };
+    byCategory[e.category].total += e.amount || 0;
+  });
+  // เฉลี่ยต่อเดือน = ยอดรวม / จำนวนเดือนย้อนหลังที่ใช้คำนวณ
+  Object.keys(byCategory).forEach(k => { byCategory[k].avgMonthly = byCategory[k].total / historyMonths; });
+  return byCategory;
+}
+
+function renderRetirementMonthlyTable() {
+  const wrap = document.getElementById('ret-monthly-table');
+  if (!wrap) return;
+  const inflationInput = document.getElementById('ret-inflation');
+  const historyInput = document.getElementById('ret-history-months');
+  const inflationRate = (parseFloat(inflationInput.value) || 0) / 100;
+  const historyMonths = Math.max(1, parseInt(historyInput.value, 10) || 12);
+
+  const byCategory = computeAvgMonthlyExpenseByCategory(historyMonths);
+  const catKeys = Object.keys(byCategory).sort((a, b) => byCategory[b].avgMonthly - byCategory[a].avgMonthly);
+  if (!catKeys.length) {
+    wrap.innerHTML = '<p class="empty">ยังไม่มีข้อมูลรายจ่ายในแอพ Budget ย้อนหลังพอที่จะคาดการณ์ได้</p>';
+    return;
+  }
+
+  const now = new Date();
+  const months = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + 1 + i, 1);
+    months.push(d);
+  }
+
+  // แต่ละเดือนที่คาดการณ์ ปรับเพิ่มตามเงินเฟ้อแบบทบต้นรายเดือน จากเดือนปัจจุบัน
+  const monthlyInflationRate = Math.pow(1 + inflationRate, 1 / 12) - 1;
+  const rows = months.map((d, i) => {
+    const factor = Math.pow(1 + monthlyInflationRate, i + 1);
+    const byCat = {};
+    let total = 0;
+    catKeys.forEach(k => {
+      const val = byCategory[k].avgMonthly * factor;
+      byCat[k] = val;
+      total += val;
+    });
+    return { label: `${THAI_MONTHS_SHORT[d.getMonth()]} ${d.getFullYear() + 543}`, byCat, total };
+  });
+  const grandTotal = rows.reduce((s, r) => s + r.total, 0);
+
+  const headerCells = catKeys.map(k => `<th style="text-align:right;padding:6px 10px;font-size:11.5px;color:var(--text-secondary);white-space:nowrap;">${byCategory[k].label}</th>`).join('');
+  const bodyRows = rows.map(r => `
+    <tr>
+      <td style="padding:6px 10px;font-size:12.5px;white-space:nowrap;font-weight:600;">${r.label}</td>
+      ${catKeys.map(k => `<td style="text-align:right;padding:6px 10px;font-size:12.5px;color:var(--text-secondary);white-space:nowrap;">${fmt(r.byCat[k])}</td>`).join('')}
+      <td style="text-align:right;padding:6px 10px;font-size:12.5px;font-weight:700;white-space:nowrap;">${fmt(r.total)}</td>
+    </tr>`).join('');
+
+  wrap.innerHTML = `
+    <table style="border-collapse:collapse;width:100%;min-width:${360 + catKeys.length * 100}px;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border);">
+          <th style="text-align:left;padding:6px 10px;font-size:11.5px;color:var(--text-secondary);white-space:nowrap;">เดือน</th>
+          ${headerCells}
+          <th style="text-align:right;padding:6px 10px;font-size:11.5px;color:var(--text-secondary);white-space:nowrap;">รวม</th>
+        </tr>
+      </thead>
+      <tbody>${bodyRows}</tbody>
+      <tfoot>
+        <tr style="border-top:2px solid var(--border);">
+          <td style="padding:8px 10px;font-size:13px;font-weight:700;">รวมทั้งปี</td>
+          ${catKeys.map(k => `<td style="text-align:right;padding:8px 10px;font-size:13px;font-weight:700;">${fmt(rows.reduce((s, r) => s + r.byCat[k], 0))}</td>`).join('')}
+          <td style="text-align:right;padding:8px 10px;font-size:13px;font-weight:700;color:var(--ink);">${fmt(grandTotal)}</td>
+        </tr>
+      </tfoot>
+    </table>
+    <p class="muted" style="margin-top:10px;">คำนวณจากค่าเฉลี่ยรายจ่ายจริงย้อนหลัง ${historyMonths} เดือนต่อหมวด แล้วปรับเพิ่มแบบทบต้นรายเดือนตามอัตราเงินเฟ้อ ${(inflationRate * 100).toFixed(1)}% ต่อปี — เป็นตัวเลขประมาณการ ไม่ใช่การพยากรณ์ที่แม่นยำ</p>`;
+
+  renderRetirementExpenseChart();
+}
+
+// เส้นโค้งเรียบแบบ Catmull-Rom → Bezier (ใช้ร่วมกันหลายกราฟในหน้านี้)
+function catmullRomSmoothPath(pts) {
+  if (pts.length < 2) return '';
+  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] || p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+  return d;
+}
+
+function renderRetirementExpenseChart() {
+  const chartWrap = document.getElementById('ret-expense-chart-wrap');
+  if (!chartWrap) return;
+  const inflationRate = (parseFloat(document.getElementById('ret-inflation').value) || 0) / 100;
+  const historyMonths = Math.max(1, parseInt(document.getElementById('ret-history-months').value, 10) || 12);
+  const years = Math.max(1, parseInt(document.getElementById('ret-years').value, 10) || 20);
+
+  const byCategory = computeAvgMonthlyExpenseByCategory(historyMonths);
+  const baselineAnnual = Object.keys(byCategory).reduce((s, k) => s + byCategory[k].avgMonthly * 12, 0);
+  if (!baselineAnnual) {
+    chartWrap.innerHTML = '<p class="empty">ยังไม่มีข้อมูลรายจ่ายในแอพ Budget ย้อนหลังพอที่จะคาดการณ์ได้</p>';
+    return;
+  }
+
+  const yearIdx = Array.from({ length: years + 1 }, (_, i) => i); // ปีที่ 0 = ปีปัจจุบัน (baseline)
+  const values = yearIdx.map(n => baselineAnnual * Math.pow(1 + inflationRate, n));
+
+  const W = 358, H = 226, padL = 54, padR = 12, padT = 18, padB = 28;
+  const maxVal = Math.max(...values, 1);
+  const yTicks = 4;
+  const niceMax = (() => { const step = maxVal / yTicks; const mag = Math.pow(10, Math.floor(Math.log10(step || 1))); const norm = step / mag; const niceStep = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag; return niceStep * yTicks; })();
+  const xScale = i => padL + (i / years) * (W - padL - padR);
+  const yScale = v => padT + (H - padT - padB) - (v / niceMax) * (H - padT - padB);
+  const pts = values.map((v, i) => ({ x: xScale(i), y: yScale(v) }));
+  const baseline = padT + (H - padT - padB);
+  const areaPath = `${catmullRomSmoothPath(pts)} L ${pts[pts.length - 1].x.toFixed(1)} ${baseline} L ${pts[0].x.toFixed(1)} ${baseline} Z`;
+
+  const gridLines = [];
+  for (let t = 0; t <= yTicks; t++) {
+    const val = (niceMax / yTicks) * t;
+    const y = yScale(val);
+    gridLines.push(`<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--border)" stroke-width="1" stroke-dasharray="${t === 0 ? '0' : '2,3'}"/>`);
+    gridLines.push(`<text x="${padL - 8}" y="${y + 3}" font-size="9.5" text-anchor="end" fill="var(--text-muted)" font-family="Sarabun">${formatAxisCurrency(val)}</text>`);
+  }
+  // แสดง label แกน X แบบเว้นระยะ ไม่ให้ชนกันเมื่อจำนวนปีเยอะ
+  const xLabelStep = years <= 10 ? 1 : years <= 20 ? 2 : Math.ceil(years / 10);
+  const xLabels = yearIdx.filter(i => i % xLabelStep === 0 || i === years).map(i => `<text x="${xScale(i)}" y="${H - 8}" font-size="9.5" text-anchor="middle" fill="var(--text-muted)" font-family="Sarabun">${i === 0 ? 'ปีนี้' : 'ปีที่ ' + i}</text>`).join('');
+  const hitCircles = yearIdx.map(i => `<circle data-idx="${i}" cx="${xScale(i)}" cy="${yScale(values[i])}" r="9" fill="transparent" style="cursor:pointer;"/>`).join('');
+  const pointDots = yearIdx.filter(i => i % xLabelStep === 0 || i === years).map(i => `<circle class="ret-dot" data-idx="${i}" cx="${xScale(i)}" cy="${yScale(values[i])}" r="3" fill="var(--rust)" stroke="#fff" stroke-width="1.3"/>`).join('');
+
+  chartWrap.innerHTML = `
+    <div style="position:relative;">
+      <svg id="ret-expense-svg" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;overflow:visible;">
+        <defs>
+          <linearGradient id="ret-area-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--rust)" stop-opacity="0.22"/>
+            <stop offset="100%" stop-color="var(--rust)" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <text x="${padL - 8}" y="${padT - 5}" font-size="9" text-anchor="end" fill="var(--text-muted)" font-family="Sarabun">บาท (฿)</text>
+        ${gridLines.join('')}
+        <path d="${areaPath}" fill="url(#ret-area-grad)"/>
+        <path d="${catmullRomSmoothPath(pts)}" fill="none" stroke="var(--rust)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"/>
+        ${pointDots}
+        ${xLabels}
+        <line id="ret-hover-line" x1="0" y1="${padT}" x2="0" y2="${H - padB}" stroke="var(--rust)" stroke-width="1" opacity="0" stroke-dasharray="3,2"/>
+        ${hitCircles}
+      </svg>
+      <div id="ret-expense-tooltip" style="display:none;position:absolute;pointer-events:none;background:var(--rust);color:#fff;font-size:11.5px;line-height:1.6;padding:8px 11px;border-radius:10px;white-space:nowrap;transform:translate(-50%,-100%);z-index:5;box-shadow:0 4px 14px rgba(177,74,52,0.35);"></div>
+    </div>
+    <p class="muted" style="margin-top:10px;">ปีที่ ${years}: คาดว่ารายจ่ายรวมทั้งปีจะอยู่ที่ ${fmt(values[years])} (จากปีนี้ ${fmt(values[0])})</p>`;
+
+  const svgEl = document.getElementById('ret-expense-svg');
+  const tooltip = document.getElementById('ret-expense-tooltip');
+  const hoverLine = document.getElementById('ret-hover-line');
+  svgEl.querySelectorAll('circle[data-idx]').forEach(circle => {
+    const i = parseInt(circle.dataset.idx, 10);
+    const show = () => {
+      const rect = svgEl.getBoundingClientRect();
+      const px = (xScale(i) / W) * rect.width;
+      const py = (yScale(values[i]) / H) * rect.height;
+      tooltip.style.left = px + 'px';
+      tooltip.style.top = (py - 10) + 'px';
+      tooltip.innerHTML = `<strong>${i === 0 ? 'ปีนี้' : 'ปีที่ ' + i}</strong><br>ค่าใช้จ่ายรวมทั้งปี: ${fmt(values[i])}`;
+      tooltip.style.display = 'block';
+      hoverLine.setAttribute('x1', xScale(i)); hoverLine.setAttribute('x2', xScale(i)); hoverLine.setAttribute('opacity', '0.4');
+    };
+    circle.addEventListener('mouseenter', show);
+    circle.addEventListener('touchstart', (e) => { e.preventDefault(); show(); });
+  });
+  svgEl.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; hoverLine.setAttribute('opacity', '0'); });
 }
 
 function renderHoldingsSummary() {
@@ -957,6 +1182,10 @@ document.getElementById('export-holdings-xlsx').addEventListener('click', () => 
   const today = new Date().toISOString().slice(0, 10);
   XLSX.writeFile(wb, `investment-holdings-${today}.xlsx`);
 });
+
+document.getElementById('ret-inflation').addEventListener('input', renderRetirementMonthlyTable);
+document.getElementById('ret-history-months').addEventListener('input', renderRetirementMonthlyTable);
+document.getElementById('ret-years').addEventListener('input', renderRetirementExpenseChart);
 
 document.querySelectorAll('.page-tab').forEach(btn => {
   btn.addEventListener('click', () => {
