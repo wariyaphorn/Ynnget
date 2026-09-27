@@ -250,6 +250,16 @@
             <input type="number" id="hf-current" min="0" step="0.01">
           </div>
         </div>
+        <div class="form-grid g2">
+          <div>
+            <p class="muted" style="margin:0 0 4px;">วันที่ลงทุน</p>
+            <input type="date" id="hf-startdate">
+          </div>
+          <div>
+            <p class="muted" style="margin:0 0 4px;">ครบกำหนดการลงทุน (ถ้ามี)</p>
+            <input type="date" id="hf-maturitydate">
+          </div>
+        </div>
         <p class="muted" style="margin:-2px 0 10px;">ถ้ามีการเติมเงินเพิ่มทีหลัง ให้ใช้ "+ เพิ่มรายการเติมเงิน" ในรายการลงทุนนั้นๆ แยกต่างหาก เพื่อคำนวณผลตอบแทนแบบแม่นยำ (XIRR) แทนการนับจาก (ปัจจุบัน − เริ่มต้น) เฉยๆ</p>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
           <button class="btn" id="hf-cancel" style="display:none;">ยกเลิกแก้ไข</button>
@@ -574,6 +584,23 @@ function renderProjection(total) {
   }).join('');
 }
 
+function fmtThaiDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return '';
+  return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+function maturityInfo(h) {
+  if (!h.maturityDate) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const daysLeft = Math.round((new Date(h.maturityDate) - new Date(today)) / 86400000);
+  let color = 'var(--text-secondary)';
+  let extra = '';
+  if (daysLeft < 0) { color = 'var(--rust)'; extra = ' (ครบกำหนดแล้ว)'; }
+  else if (daysLeft <= 30) { color = 'var(--gold)'; extra = ` (อีก ${daysLeft} วัน)`; }
+  return { text: 'ครบกำหนด ' + fmtThaiDate(h.maturityDate) + extra, color };
+}
+
 // ================= render: holdings list =================
 function renderHoldingsList() {
   const wrap = document.getElementById('holdings-list');
@@ -602,6 +629,7 @@ function renderHoldingsList() {
         </div>
       </div>
       <p class="muted" style="margin-top:8px;">โบรกเกอร์: ${h.broker} · วัตถุประสงค์: ${h.purpose} · สิทธิลดหย่อน: ${h.taxBenefit}${h.remark ? ' · ' + h.remark : ''}</p>
+      <p class="muted" style="margin-top:4px;">วันที่ลงทุน: ${fmtThaiDate(h.startDate || h.createdDate) || '-'}${maturityInfo(h) ? ` · <span style="color:${maturityInfo(h).color};">${maturityInfo(h).text}</span>` : ''}</p>
       <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px;">
         <button class="btn" data-h-edit="${h.id}">แก้ไข</button>
         <button class="btn btn-danger-outline" data-h-del="${h.id}">ลบ</button>
@@ -633,6 +661,8 @@ function startEditHolding(id) {
   document.getElementById('hf-remark').value = h.remark || '';
   document.getElementById('hf-initial').value = h.initialCapital;
   document.getElementById('hf-current').value = h.currentValue;
+  document.getElementById('hf-startdate').value = h.startDate || h.createdDate || '';
+  document.getElementById('hf-maturitydate').value = h.maturityDate || '';
   document.getElementById('hf-save').textContent = 'บันทึกการแก้ไข';
   document.getElementById('hf-cancel').style.display = '';
   document.getElementById('page-holdings').scrollIntoView({ behavior: 'smooth' });
@@ -643,6 +673,8 @@ function cancelEditHolding() {
   document.getElementById('hf-remark').value = '';
   document.getElementById('hf-initial').value = '';
   document.getElementById('hf-current').value = '';
+  document.getElementById('hf-startdate').value = '';
+  document.getElementById('hf-maturitydate').value = '';
   document.getElementById('hf-save').textContent = '+ บันทึกรายการลงทุน';
   document.getElementById('hf-cancel').style.display = 'none';
 }
@@ -681,7 +713,9 @@ document.getElementById('hf-save').addEventListener('click', async () => {
     purpose: document.getElementById('hf-purpose').value,
     remark: document.getElementById('hf-remark').value.trim(),
     initialCapital: parseFloat(document.getElementById('hf-initial').value) || 0,
-    currentValue: parseFloat(document.getElementById('hf-current').value) || 0
+    currentValue: parseFloat(document.getElementById('hf-current').value) || 0,
+    startDate: document.getElementById('hf-startdate').value || new Date().toISOString().slice(0, 10),
+    maturityDate: document.getElementById('hf-maturitydate').value || ''
   };
   if (editingHoldingId) {
     const h = holdings.find(x => x.id === editingHoldingId);
@@ -689,7 +723,6 @@ document.getElementById('hf-save').addEventListener('click', async () => {
   } else {
     data.id = genId();
     data.createdDate = new Date().toISOString().slice(0, 10);
-    data.startDate = data.createdDate;
     holdings.push(data);
   }
   cancelEditHolding();
