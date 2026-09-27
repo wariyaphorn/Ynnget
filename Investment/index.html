@@ -209,7 +209,7 @@
       </div>
     </section>
 
-    <section>
+    <section id="holding-form-section">
       <div class="card">
         <h2 id="hf-title">+ เพิ่มรายการลงทุน</h2>
         <div class="form-grid g2">
@@ -780,7 +780,7 @@ function startEditHolding(id) {
   document.getElementById('hf-maturitydate').value = h.maturityDate || '';
   document.getElementById('hf-save').textContent = 'บันทึกการแก้ไข';
   document.getElementById('hf-cancel').style.display = '';
-  document.getElementById('page-holdings').scrollIntoView({ behavior: 'smooth' });
+  document.getElementById('holding-form-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function cancelEditHolding() {
   editingHoldingId = null;
@@ -836,7 +836,7 @@ function renderHoldingsSummary() {
     </div>
     <div class="row-between" style="${rowStyle}">
       <span class="muted">กำไร/ขาดทุน</span>
-      <span style="font-weight:600;font-size:16px;color:${diffColor};">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}% (${diff >= 0 ? '+' : ''}${fmt(diff)})</span>
+      <span style="font-weight:600;font-size:16px;color:${diffColor};">${diff >= 0 ? '+' : ''}${fmt(diff)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)</span>
     </div>`;
 }
 
