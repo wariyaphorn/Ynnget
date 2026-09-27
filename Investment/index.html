@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>แอพลงทุน</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#1E3A5F">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="icon" href="../icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=Kanit:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-auth-compat.js"></script>
+<script>
+  // --- Firebase-backed storage: ใช้ Firebase project เดียวกับแอพ Budget ---
+  // (อ่าน "รหัสครัวเรือน" เดียวกัน ผ่าน localStorage ที่แชร์กันเพราะอยู่โดเมนเดียวกัน)
+  var firebaseConfig = {
+    apiKey: "AIzaSyAc4fTRghYTArUAXkIFWPvIGbdt9xlbz3g",
+    authDomain: "household-budget-c31ce.firebaseapp.com",
+    projectId: "household-budget-c31ce",
+    storageBucket: "household-budget-c31ce.firebasestorage.app",
+    messagingSenderId: "905564068568",
+    appId: "1:905564068568:web:e8e227e3922f0e8d8a15ad",
+    measurementId: "G-PBHHL9749D"
+  };
+  firebase.initializeApp(firebaseConfig);
+  var __db = firebase.firestore();
+  var __auth = firebase.auth();
+
+  window.HOUSEHOLD_ID = localStorage.getItem('household-id') || '';
+  window.setHouseholdId = function(id) {
+    id = (id || '').trim();
+    if (!id) return false;
+    localStorage.setItem('household-id', id);
+    window.HOUSEHOLD_ID = id;
+    return true;
+  };
+  if (!window.HOUSEHOLD_ID) {
+    var __entered = window.prompt(
+      'ใส่รหัสครัวเรือน (Household ID) เดียวกับที่ใช้ในแอพ Budget\n\n' +
+      'เพื่อให้แอพลงทุนนี้เห็นข้อมูลชุดเดียวกัน:',
+      ''
+    );
+    if (!window.setHouseholdId(__entered)) {
+      window.setHouseholdId('default-household');
+    }
+  }
+
+  function __storageDocRef(key) {
+    return __db.collection('households').doc(window.HOUSEHOLD_ID).collection('data').doc(key);
+  }
+
+  window.storage = {
+    get: async function(key) {
+      var snap = await __storageDocRef(key).get();
+      if (!snap.exists) return null;
+      var d = snap.data();
+      return { value: d && typeof d.value === 'string' ? d.value : null };
+    },
+    set: async function(key, value) {
+      await __storageDocRef(key).set({
+        value: value,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  };
+</script>
+<style>
+  :root {
+    --ink: #1E3A5F;
+    --ink-light: #3D5A7A;
+    --paper: #F6F3EC;
+    --card: #FFFFFF;
+    --gold: #B8901F;
+    --sage: #43705F;
+    --rust: #B14A34;
+    --text-primary: #23303C;
+    --text-secondary: #62707E;
+    --text-muted: #94A0AB;
+    --border: #E4DFD1;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); font-family: 'Sarabun', sans-serif; color: var(--text-primary); line-height: 1.6; padding: 1.5rem 1rem 4rem; }
+  .wrap { max-width: 880px; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 8px; }
+  h1 { font-family: 'Kanit', sans-serif; font-weight: 600; font-size: 26px; margin: 0; color: var(--ink); }
+  .subtitle { font-size: 13px; color: var(--text-secondary); margin: 4px 0 0; }
+  h2 { font-family: 'Kanit', sans-serif; font-weight: 500; font-size: 16px; color: var(--ink); margin: 0 0 10px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1.1rem 1.25rem; }
+  section { margin-bottom: 1.75rem; }
+  .goal-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 0.9rem 1.1rem; margin-bottom: 8px; }
+  .row-between { display: flex; justify-content: space-between; align-items: center; }
+  .muted { color: var(--text-muted); font-size: 12px; }
+  .secondary-text { color: var(--text-secondary); font-size: 12px; }
+  .btn { border: 1px solid var(--border); background: var(--card); border-radius: 8px; padding: 7px 14px; font-family: 'Sarabun'; font-size: 13px; cursor: pointer; color: var(--text-primary); }
+  .btn:hover { background: var(--paper); }
+  .btn-primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .btn-primary:hover { background: var(--ink-light); }
+  .btn-danger-outline { color: var(--rust); border-color: var(--rust); }
+  input, select { font-family: 'Sarabun'; font-size: 14px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--text-primary); width: 100%; }
+  input:focus, select:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+  .form-grid { display: grid; gap: 8px; margin-bottom: 8px; }
+  .g2 { grid-template-columns: 1fr 1fr; }
+  .tabs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 10px; padding-bottom: 4px; }
+  .tab { border: 1px solid var(--border); background: var(--card); border-radius: 20px; padding: 6px 14px; font-size: 13px; cursor: pointer; color: var(--text-secondary); white-space: nowrap; flex-shrink: 0; }
+  .tab.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .del-btn { border: none; background: transparent; cursor: pointer; color: var(--text-muted); font-size: 16px; padding: 4px; }
+  .empty { color: var(--text-muted); font-size: 13px; padding: 8px 0; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .page-tabs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 1.25rem; padding-bottom: 4px; position: sticky; top: 0; background: var(--paper); z-index: 10; padding-top: 4px; }
+  .page-tab { border: 1px solid var(--border); background: var(--card); border-radius: 20px; padding: 8px 16px; font-size: 13px; font-family: 'Sarabun'; cursor: pointer; color: var(--text-secondary); white-space: nowrap; flex-shrink: 0; }
+  .page-tab.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; color: #fff; margin-right: 4px; }
+  .legend-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; font-size: 13px; }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; margin-right: 8px; }
+  @media (max-width: 520px) { .g2 { grid-template-columns: 1fr; } h1 { font-size: 22px; } }
+</style>
+</head>
+<body>
+<div id="login-overlay" style="position:fixed;inset:0;z-index:9999;background:#1E3A5F;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center;font-family:'Sarabun',sans-serif;">
+  <div style="background:#fff;border-radius:16px;padding:36px 28px;max-width:360px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);">
+    <h2 style="margin:0 0 8px;color:#1E3A5F;font-family:'Kanit',sans-serif;">แอพลงทุน</h2>
+    <p style="margin:0 0 20px;color:#3D5A7A;font-size:14px;">เข้าสู่ระบบด้วยบัญชี Google ที่ได้รับอนุญาตเท่านั้น</p>
+    <button id="google-signin-btn" style="width:100%;padding:12px 16px;border-radius:10px;border:1px solid #ddd;background:#fff;color:#1E3A5F;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34 5.1 29.3 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 19 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34 5.1 29.3 3 24 3c-7.7 0-14.4 4.4-17.7 10.7z"/><path fill="#4CAF50" d="M24 45c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 36.4 26.7 37 24 37c-5.2 0-9.6-3.3-11.2-8l-6.5 5C9.5 40.6 16.2 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.2 5.2C40.9 36 44 30.6 44 24c0-1.4-.1-2.7-.4-3.5z"/></svg>
+      เข้าสู่ระบบด้วย Google
+    </button>
+    <p id="login-message" style="margin:16px 0 0;color:#c0392b;font-size:13px;"></p>
+  </div>
+</div>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>แอพลงทุน <a href="../apps/" title="สลับไปแอปอื่นของ YNN" style="font-size:13px;font-family:'Sarabun',sans-serif;font-weight:400;color:var(--text-secondary);text-decoration:none;border:1px solid var(--border);border-radius:20px;padding:3px 10px;vertical-align:middle;margin-left:6px;">🏠 แอปอื่นๆ</a></h1>
+      <p class="subtitle" id="updated-note">กำลังโหลดข้อมูล...</p>
+    </div>
+  </header>
+
+  <nav class="page-tabs">
+    <button class="page-tab active" data-page="overview">ภาพรวม</button>
+    <button class="page-tab" data-page="holdings">รายการลงทุน</button>
+  </nav>
+
+  <!-- ============ ภาพรวม ============ -->
+  <div id="page-overview" class="page active">
+    <section>
+      <div class="card" style="background:var(--ink);color:#fff;">
+        <p style="margin:0;font-size:12.5px;opacity:.75;">มูลค่าพอร์ตรวมวันนี้</p>
+        <p id="ov-total" style="margin:4px 0 0;font-family:'Kanit',sans-serif;font-weight:600;font-size:30px;">฿0.00</p>
+        <p id="ov-total-change" style="margin:6px 0 0;font-size:13px;"></p>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
+        <h2>สัดส่วนการลงทุน (Asset Class)</h2>
+        <div id="ov-pie-wrap" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
+        <h2>เติบโต/ลดลง แยกตามรายการ</h2>
+        <div id="ov-growth-list"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
+        <h2>คาดการณ์การเติบโต (Projection)</h2>
+        <p class="muted" style="margin-bottom:8px;">อัตราเติบโตต่อปีที่คาดหวัง</p>
+        <div class="tabs" id="proj-rate-tabs"></div>
+        <div id="proj-chart-wrap" style="background:var(--paper);border-radius:10px;padding:12px;margin-bottom:10px;"></div>
+        <div id="proj-table" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;text-align:center;"></div>
+        <p class="muted" style="margin-top:10px;">แถบสีทองคือช่วง Upper/Lower cap ±5% จากอัตราเติบโตหลักที่เลือก</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ รายการลงทุน ============ -->
+  <div id="page-holdings" class="page">
+    <section>
+      <div class="card">
+        <h2>รายการลงทุนทั้งหมด</h2>
+        <div id="holdings-list"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
+        <h2 id="hf-title">+ เพิ่มรายการลงทุน</h2>
+        <div class="form-grid g2">
+          <div>
+            <p class="muted" style="margin:0 0 4px;">บัญชีต้นทาง (จากแอพ Budget ที่ mark ว่าลงทุน)</p>
+            <select id="hf-account"></select>
+          </div>
+          <div>
+            <p class="muted" style="margin:0 0 4px;">ธนาคาร / บลจ. / Broker</p>
+            <select id="hf-broker"></select>
+          </div>
+        </div>
+        <div class="form-grid g2">
+          <div>
+            <p class="muted" style="margin:0 0 4px;">Asset Class</p>
+            <select id="hf-class"></select>
+          </div>
+          <div>
+            <p class="muted" style="margin:0 0 4px;">Asset Type</p>
+            <select id="hf-type"></select>
+          </div>
+        </div>
+        <div class="form-grid g2">
+          <div>
+            <p class="muted" style="margin:0 0 4px;">ประเทศที่ลงทุน</p>
+            <select id="hf-country"></select>
+          </div>
+          <div>
+            <p class="muted" style="margin:0 0 4px;">สิทธิลดหย่อนภาษี</p>
+            <select id="hf-tax"></select>
+          </div>
+        </div>
+        <div class="form-grid g2">
+          <div>
+            <p class="muted" style="margin:0 0 4px;">วัตถุประสงค์การลงทุน</p>
+            <select id="hf-purpose"></select>
+          </div>
+          <div>
+            <p class="muted" style="margin:0 0 4px;">หมายเหตุ (ไม่บังคับ)</p>
+            <input type="text" id="hf-remark" placeholder="หมายเหตุ">
+          </div>
+        </div>
+        <div class="form-grid g2">
+          <div>
+            <p class="muted" style="margin:0 0 4px;">เงินทุนตั้งต้น (บาท)</p>
+            <input type="number" id="hf-initial" min="0" step="0.01">
+          </div>
+          <div>
+            <p class="muted" style="margin:0 0 4px;">มูลค่าปัจจุบัน (บาท)</p>
+            <input type="number" id="hf-current" min="0" step="0.01">
+          </div>
+        </div>
+        <p class="muted" style="margin:-2px 0 10px;">ถ้ามีการเติมเงินเพิ่มทีหลัง ให้ใช้ "+ เพิ่มรายการเติมเงิน" ในรายการลงทุนนั้นๆ แยกต่างหาก เพื่อคำนวณผลตอบแทนแบบแม่นยำ (XIRR) แทนการนับจาก (ปัจจุบัน − เริ่มต้น) เฉยๆ</p>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn" id="hf-cancel" style="display:none;">ยกเลิกแก้ไข</button>
+          <button class="btn btn-primary" id="hf-save">+ บันทึกรายการลงทุน</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+// ================= ค่าคงที่ / master data =================
+const BROKERS = ['SCB', 'UOB (UOBAM)', 'InnovestX', 'Dime', 'กสิกรไทย (KAsset)', 'กรุงไทย (KTAM)', 'กรุงศรี (Krungsri AM)', 'บัวหลวง (BBLAM)', 'ทิสโก้ (TISCO)', 'อีสท์สปริง (Eastspring)', 'พรินซิเพิล (Principal)', 'วรรณ (ONE AM)', 'ทาลิส (Talis)', 'เมย์แบงก์ (Maybank KE)', 'ฟินโนมีนา (Finnomena)', 'Bitkub', 'Binance TH', 'บล.เกียรตินาคินภัทร', 'บล.ฟินันเซีย ไซรัส', 'กบข.', 'ประกันสังคม/PVD', 'อื่นๆ'];
+
+const ASSET_CLASSES = [
+  { key: 'stock', label: 'Stock (หุ้น)', color: '#1E3A5F', types: ['หุ้นรายตัว', 'กองทุนหุ้น (Equity Fund)', 'ETF หุ้น'] },
+  { key: 'bond', label: 'Bond (ตราสารหนี้)', color: '#43705F', types: ['พันธบัตรรัฐบาล', 'หุ้นกู้เอกชน', 'กองทุนตราสารหนี้'] },
+  { key: 'money', label: 'Money Market', color: '#8A6D3B', types: ['กองทุนตลาดเงิน', 'เงินฝากประจำ'] },
+  { key: 'reit', label: 'Real Estate/REIT', color: '#B8901F', types: ['กองทุนอสังหาฯ/REIT', 'กองทุนโครงสร้างพื้นฐาน'] },
+  { key: 'commodity', label: 'Commodity', color: '#B14A34', types: ['ทองคำ', 'น้ำมัน/สินค้าโภคภัณฑ์อื่น'] },
+  { key: 'crypto', label: 'Crypto', color: '#6B5B95', types: ['Bitcoin', 'Altcoin', 'Stablecoin'] },
+  { key: 'mixed', label: 'Mixed/Balanced', color: '#5B7FA6', types: ['กองทุนผสม'] }
+];
+
+const COUNTRIES = ['ไทย', 'สหรัฐฯ', 'จีน', 'ญี่ปุ่น', 'เวียดนาม', 'อินเดีย', 'ยุโรป (รวม)', 'เกาหลีใต้', 'ไต้หวัน', 'เยอรมนี', 'ทั่วโลก/Global', 'ตลาดเกิดใหม่ (Emerging Markets)'];
+
+const TAX_BENEFITS = ['ไม่มี', 'LTF', 'RMF', 'SSF', 'SSFX', 'Thai ESG', 'Thai ESGX', 'PVD', 'กบข.'];
+
+const PURPOSES = ['เกษียณ', 'การศึกษาลูก', 'สภาพคล่องฉุกเฉิน', 'เติบโตระยะยาว', 'อื่นๆ'];
+
+const PROJECTION_RATES = [3, 5, 7, 10, 12, 15];
+let selectedProjectionRate = 5;
+
+// ================= storage keys =================
+const HOLDINGS_KEY = 'household-investment-holdings';
+const CONTRIBUTIONS_KEY = 'household-investment-contributions';
+const WALLETS_KEY = 'household-ledger-wallets'; // อ่านอย่างเดียว จากแอพ Budget
+
+let holdings = [];
+let contributions = [];
+let investedWallets = []; // wallets ที่ w.invested === true จากแอพ Budget
+let editingHoldingId = null;
+
+function genId() { return 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function fmt(n) { return '฿' + (n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+async function saveHoldings() { try { await window.storage.set(HOLDINGS_KEY, JSON.stringify(holdings)); } catch (e) { console.error(e); } }
+async function saveContributions() { try { await window.storage.set(CONTRIBUTIONS_KEY, JSON.stringify(contributions)); } catch (e) { console.error(e); } }
+
+async function load() {
+  try { const r = await window.storage.get(HOLDINGS_KEY); holdings = r ? JSON.parse(r.value) : []; } catch (e) { holdings = []; }
+  try { const r = await window.storage.get(CONTRIBUTIONS_KEY); contributions = r ? JSON.parse(r.value) : []; } catch (e) { contributions = []; }
+  try { const r = await window.storage.get(WALLETS_KEY); const w = r ? JSON.parse(r.value) : []; investedWallets = w.filter(x => x.invested); } catch (e) { investedWallets = []; }
+  document.getElementById('updated-note').textContent = 'ข้อมูลล่าสุดจากเซิร์ฟเวอร์';
+  refreshAccountSelect();
+  refreshClassSelect();
+  refreshStaticSelects();
+  render();
+}
+
+// ================= form selects =================
+function refreshAccountSelect() {
+  const sel = document.getElementById('hf-account');
+  sel.innerHTML = '';
+  if (!investedWallets.length) {
+    sel.innerHTML = '<option value="">(ไม่มีกระเป๋าที่ mark ว่าลงทุนในแอพ Budget)</option>';
+    return;
+  }
+  investedWallets.forEach(w => sel.appendChild(new Option(w.name, w.id)));
+}
+function refreshClassSelect() {
+  const sel = document.getElementById('hf-class');
+  sel.innerHTML = '';
+  ASSET_CLASSES.forEach(c => sel.appendChild(new Option(c.label, c.key)));
+  sel.addEventListener('change', refreshTypeSelect);
+  refreshTypeSelect();
+}
+function refreshTypeSelect() {
+  const classKey = document.getElementById('hf-class').value;
+  const sel = document.getElementById('hf-type');
+  sel.innerHTML = '';
+  const cls = ASSET_CLASSES.find(c => c.key === classKey) || ASSET_CLASSES[0];
+  cls.types.forEach(t => sel.appendChild(new Option(t, t)));
+}
+function refreshStaticSelects() {
+  const brokerSel = document.getElementById('hf-broker');
+  brokerSel.innerHTML = '';
+  BROKERS.forEach(b => brokerSel.appendChild(new Option(b, b)));
+  const countrySel = document.getElementById('hf-country');
+  countrySel.innerHTML = '';
+  COUNTRIES.forEach(c => countrySel.appendChild(new Option(c, c)));
+  const taxSel = document.getElementById('hf-tax');
+  taxSel.innerHTML = '';
+  TAX_BENEFITS.forEach(t => taxSel.appendChild(new Option(t, t)));
+  const purposeSel = document.getElementById('hf-purpose');
+  purposeSel.innerHTML = '';
+  PURPOSES.forEach(p => purposeSel.appendChild(new Option(p, p)));
+}
+
+// ================= holding contributions / XIRR =================
+function contributionsFor(holdingId) {
+  return contributions.filter(c => c.holdingId === holdingId).sort((a, b) => a.date.localeCompare(b.date));
+}
+// XIRR โดยประมาณด้วย Newton's method: cashflow ติดลบตอนลงทุน (เงินออกจากกระเป๋า) บวกตอนมูลค่าปัจจุบัน (สมมติขายวันนี้)
+function calcXirr(h) {
+  const cfs = [];
+  cfs.push({ date: h.startDate || h.createdDate, amount: -(h.initialCapital || 0) });
+  contributionsFor(h.id).forEach(c => cfs.push({ date: c.date, amount: c.type === 'out' ? c.amount : -c.amount }));
+  cfs.push({ date: new Date().toISOString().slice(0, 10), amount: h.currentValue || 0 });
+  const d0 = new Date(cfs[0].date);
+  const years = cfs.map(cf => (new Date(cf.date) - d0) / (365 * 24 * 3600 * 1000));
+  function npv(rate) { return cfs.reduce((sum, cf, i) => sum + cf.amount / Math.pow(1 + rate, years[i]), 0); }
+  let rate = 0.1;
+  for (let i = 0; i < 50; i++) {
+    const f = npv(rate);
+    const df = (npv(rate + 1e-5) - f) / 1e-5;
+    if (Math.abs(df) < 1e-9) break;
+    const next = rate - f / df;
+    if (!isFinite(next)) break;
+    rate = next;
+  }
+  return isFinite(rate) ? rate : null;
+}
+function simpleGrowthPct(h) {
+  if (!h.initialCapital) return null;
+  return ((h.currentValue - h.initialCapital) / h.initialCapital) * 100;
+}
+
+// ================= render: overview =================
+function renderOverview() {
+  const total = holdings.reduce((s, h) => s + (h.currentValue || 0), 0);
+  const totalInitial = holdings.reduce((s, h) => s + (h.initialCapital || 0), 0);
+  document.getElementById('ov-total').textContent = fmt(total);
+  const diff = total - totalInitial;
+  const pct = totalInitial ? (diff / totalInitial * 100) : 0;
+  const changeEl = document.getElementById('ov-total-change');
+  if (holdings.length) {
+    changeEl.innerHTML = `<span style="background:rgba(255,255,255,0.15);padding:2px 8px;border-radius:10px;">${diff >= 0 ? '▲' : '▼'} ${diff >= 0 ? '+' : ''}${fmt(diff)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)</span> <span style="opacity:.7;">จากเงินทุนสะสม ${fmt(totalInitial)}</span>`;
+  } else {
+    changeEl.innerHTML = '';
+  }
+
+  // pie chart by asset class
+  const pieWrap = document.getElementById('ov-pie-wrap');
+  if (!holdings.length) {
+    pieWrap.innerHTML = '<p class="empty">ยังไม่มีรายการลงทุน เพิ่มได้ที่แท็บ "รายการลงทุน"</p>';
+  } else {
+    const byClass = {};
+    ASSET_CLASSES.forEach(c => byClass[c.key] = 0);
+    holdings.forEach(h => { byClass[h.assetClass] = (byClass[h.assetClass] || 0) + (h.currentValue || 0); });
+    let acc = 0;
+    const segments = [];
+    ASSET_CLASSES.forEach(c => {
+      const val = byClass[c.key] || 0;
+      if (!val) return;
+      const pct = total ? (val / total * 100) : 0;
+      segments.push({ c, pct, start: acc, end: acc + pct });
+      acc += pct;
+    });
+    const gradient = segments.map(s => `${s.c.color} ${s.start.toFixed(2)}% ${s.end.toFixed(2)}%`).join(', ') || '#ccc 0% 100%';
+    const legendHtml = segments.map(s => `<div class="legend-row"><span><span class="swatch" style="background:${s.c.color};"></span>${s.c.label}</span><span style="font-weight:600;">${s.pct.toFixed(1)}%</span></div>`).join('');
+    pieWrap.innerHTML = `
+      <div style="width:132px;height:132px;border-radius:50%;flex-shrink:0;background:conic-gradient(${gradient});position:relative;">
+        <div style="position:absolute;inset:22px;border-radius:50%;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;">
+          <span style="font-size:10.5px;color:var(--text-muted);">สินทรัพย์</span>
+          <span style="font-size:13px;font-weight:600;">${segments.length} ประเภท</span>
+        </div>
+      </div>
+      <div style="flex:1;min-width:160px;">${legendHtml}</div>`;
+  }
+
+  // growth by holding
+  const growthWrap = document.getElementById('ov-growth-list');
+  if (!holdings.length) {
+    growthWrap.innerHTML = '<p class="empty">ยังไม่มีรายการลงทุน</p>';
+  } else {
+    growthWrap.innerHTML = holdings.map(h => {
+      const cls = ASSET_CLASSES.find(c => c.key === h.assetClass);
+      const pct = simpleGrowthPct(h);
+      const pctColor = pct == null ? 'var(--text-muted)' : pct >= 0 ? 'var(--sage)' : 'var(--rust)';
+      const pctLabel = pct == null ? 'N/A' : `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:4px 0;">
+        <span>${h.broker} <span class="muted">· ${cls ? cls.label : ''}</span></span>
+        <span style="color:${pctColor};font-weight:600;">${pctLabel}</span>
+      </div>`;
+    }).join('');
+  }
+
+  renderProjection(total);
+}
+
+// ================= render: projection =================
+function renderProjection(total) {
+  const tabsWrap = document.getElementById('proj-rate-tabs');
+  tabsWrap.innerHTML = '';
+  PROJECTION_RATES.forEach(r => {
+    const btn = document.createElement('button');
+    btn.className = 'tab' + (r === selectedProjectionRate ? ' active' : '');
+    btn.textContent = r + '%';
+    btn.addEventListener('click', () => { selectedProjectionRate = r; renderOverview(); });
+    tabsWrap.appendChild(btn);
+  });
+
+  const years = [0, 1, 3, 5, 7, 10];
+  const rate = selectedProjectionRate / 100;
+  const upperRate = (selectedProjectionRate + 5) / 100;
+  const lowerRate = Math.max(0, selectedProjectionRate - 5) / 100;
+  const base = years.map(y => total * Math.pow(1 + rate, y));
+  const upper = years.map(y => total * Math.pow(1 + upperRate, y));
+  const lower = years.map(y => total * Math.pow(1 + lowerRate, y));
+
+  const W = 358, H = 160, padL = 4, padR = 4, padT = 10, padB = 14;
+  const maxVal = Math.max(...upper, 1);
+  const xScale = i => padL + (i / (years.length - 1)) * (W - padL - padR);
+  const yScale = v => padT + (H - padT - padB) - (v / maxVal) * (H - padT - padB);
+  const pathFor = arr => arr.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(v)}`).join(' ');
+  const bandTop = upper.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(v)}`).join(' ');
+  const bandBot = lower.slice().reverse().map((v, i) => `L ${xScale(years.length - 1 - i)} ${yScale(v)}`).join(' ');
+
+  const chartWrap = document.getElementById('proj-chart-wrap');
+  if (!total) {
+    chartWrap.innerHTML = '<p class="empty">ยังไม่มีมูลค่าลงทุน ยังคำนวณ Projection ไม่ได้</p>';
+    document.getElementById('proj-table').innerHTML = '';
+    return;
+  }
+  chartWrap.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">
+      <path d="${bandTop} ${bandBot} Z" fill="var(--gold)" opacity="0.15"/>
+      <path d="${pathFor(lower)}" fill="none" stroke="var(--rust)" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.7"/>
+      <path d="${pathFor(base)}" fill="none" stroke="var(--ink)" stroke-width="2.5"/>
+      <path d="${pathFor(upper)}" fill="none" stroke="var(--sage)" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.7"/>
+      <text x="0" y="12" font-size="10" fill="var(--text-muted)" font-family="Sarabun">วันนี้</text>
+      <text x="${W - 30}" y="12" font-size="10" fill="var(--text-muted)" font-family="Sarabun">10 ปี</text>
+    </svg>
+    <div style="display:flex;gap:14px;font-size:11.5px;color:var(--text-secondary);margin-top:4px;flex-wrap:wrap;">
+      <span><span class="swatch" style="background:var(--sage);"></span>Upper cap (+5%)</span>
+      <span><span class="swatch" style="background:var(--ink);"></span>คาดการณ์หลัก (${selectedProjectionRate}%/ปี)</span>
+      <span><span class="swatch" style="background:var(--rust);"></span>Lower cap (−5%)</span>
+    </div>`;
+
+  const tableWrap = document.getElementById('proj-table');
+  const showYears = [1, 3, 5, 10];
+  tableWrap.innerHTML = showYears.map(y => {
+    const val = total * Math.pow(1 + rate, y);
+    return `<div><p class="muted" style="margin:0 0 2px;">${y} ปี</p><p style="margin:0;font-weight:600;font-size:13px;">${fmt(val)}</p></div>`;
+  }).join('');
+}
+
+// ================= render: holdings list =================
+function renderHoldingsList() {
+  const wrap = document.getElementById('holdings-list');
+  if (!holdings.length) { wrap.innerHTML = '<p class="empty">ยังไม่มีรายการลงทุน เพิ่มได้จากฟอร์มด้านล่าง</p>'; return; }
+  wrap.innerHTML = '';
+  holdings.forEach(h => {
+    const cls = ASSET_CLASSES.find(c => c.key === h.assetClass);
+    const pct = simpleGrowthPct(h);
+    const pctColor = pct == null ? 'var(--text-muted)' : pct >= 0 ? 'var(--sage)' : 'var(--rust)';
+    const pctLabel = pct == null ? 'N/A' : `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}% (${fmt(h.currentValue - h.initialCapital)})`;
+    const accountName = (investedWallets.find(w => w.id === h.accountId) || {}).name || h.accountNameSnapshot || '(ไม่พบบัญชี)';
+    const div = document.createElement('div');
+    div.className = 'goal-card';
+    div.innerHTML = `<div class="row-between" style="align-items:flex-start;">
+        <div>
+          <p style="margin:0;font-weight:600;font-size:14.5px;">${accountName}</p>
+          <p class="muted" style="margin:3px 0 0;">
+            <span class="tag" style="background:${cls ? cls.color : '#999'};">${cls ? cls.label : ''}</span>
+            <span class="tag" style="background:#5B7FA6;">${h.assetType}</span>
+            <span class="tag" style="background:var(--gold);">${h.country}</span>
+          </p>
+        </div>
+        <div style="text-align:right;">
+          <p style="margin:0;font-weight:600;">${fmt(h.currentValue)}</p>
+          <p style="margin:2px 0 0;font-size:12px;color:${pctColor};">${pctLabel}</p>
+        </div>
+      </div>
+      <p class="muted" style="margin-top:8px;">โบรกเกอร์: ${h.broker} · วัตถุประสงค์: ${h.purpose} · สิทธิลดหย่อน: ${h.taxBenefit}${h.remark ? ' · ' + h.remark : ''}</p>
+      <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px;">
+        <button class="btn" data-h-edit="${h.id}">แก้ไข</button>
+        <button class="btn btn-danger-outline" data-h-del="${h.id}">ลบ</button>
+      </div>`;
+    wrap.appendChild(div);
+  });
+  wrap.querySelectorAll('[data-h-edit]').forEach(btn => btn.addEventListener('click', () => startEditHolding(btn.dataset.hEdit)));
+  wrap.querySelectorAll('[data-h-del]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('ลบรายการลงทุนนี้ใช่ไหม?')) return;
+    holdings = holdings.filter(h => h.id !== btn.dataset.hDel);
+    contributions = contributions.filter(c => c.holdingId !== btn.dataset.hDel);
+    await saveHoldings(); await saveContributions(); render();
+  }));
+}
+
+function startEditHolding(id) {
+  const h = holdings.find(x => x.id === id);
+  if (!h) return;
+  editingHoldingId = id;
+  document.getElementById('hf-title').textContent = 'แก้ไขรายการลงทุน';
+  document.getElementById('hf-account').value = h.accountId;
+  document.getElementById('hf-broker').value = h.broker;
+  document.getElementById('hf-class').value = h.assetClass;
+  refreshTypeSelect();
+  document.getElementById('hf-type').value = h.assetType;
+  document.getElementById('hf-country').value = h.country;
+  document.getElementById('hf-tax').value = h.taxBenefit;
+  document.getElementById('hf-purpose').value = h.purpose;
+  document.getElementById('hf-remark').value = h.remark || '';
+  document.getElementById('hf-initial').value = h.initialCapital;
+  document.getElementById('hf-current').value = h.currentValue;
+  document.getElementById('hf-save').textContent = 'บันทึกการแก้ไข';
+  document.getElementById('hf-cancel').style.display = '';
+  document.getElementById('page-holdings').scrollIntoView({ behavior: 'smooth' });
+}
+function cancelEditHolding() {
+  editingHoldingId = null;
+  document.getElementById('hf-title').textContent = '+ เพิ่มรายการลงทุน';
+  document.getElementById('hf-remark').value = '';
+  document.getElementById('hf-initial').value = '';
+  document.getElementById('hf-current').value = '';
+  document.getElementById('hf-save').textContent = '+ บันทึกรายการลงทุน';
+  document.getElementById('hf-cancel').style.display = 'none';
+}
+
+function render() {
+  renderOverview();
+  renderHoldingsList();
+}
+
+// ================= events =================
+document.getElementById('hf-save').addEventListener('click', async () => {
+  const accountId = document.getElementById('hf-account').value;
+  if (!accountId) { alert('กรุณาเลือกบัญชีต้นทาง (ต้อง mark ว่าลงทุนไว้ในแอพ Budget ก่อน)'); return; }
+  const accountNameSnapshot = (investedWallets.find(w => w.id === accountId) || {}).name || '';
+  const data = {
+    accountId,
+    accountNameSnapshot,
+    broker: document.getElementById('hf-broker').value,
+    assetClass: document.getElementById('hf-class').value,
+    assetType: document.getElementById('hf-type').value,
+    country: document.getElementById('hf-country').value,
+    taxBenefit: document.getElementById('hf-tax').value,
+    purpose: document.getElementById('hf-purpose').value,
+    remark: document.getElementById('hf-remark').value.trim(),
+    initialCapital: parseFloat(document.getElementById('hf-initial').value) || 0,
+    currentValue: parseFloat(document.getElementById('hf-current').value) || 0
+  };
+  if (editingHoldingId) {
+    const h = holdings.find(x => x.id === editingHoldingId);
+    Object.assign(h, data);
+  } else {
+    data.id = genId();
+    data.createdDate = new Date().toISOString().slice(0, 10);
+    data.startDate = data.createdDate;
+    holdings.push(data);
+  }
+  cancelEditHolding();
+  await saveHoldings();
+  render();
+});
+document.getElementById('hf-cancel').addEventListener('click', cancelEditHolding);
+
+document.querySelectorAll('.page-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.page-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('page-' + btn.dataset.page).classList.add('active');
+  });
+});
+
+// ================= auth gate (เหมือนแอพ Budget) =================
+(function initAuthGate() {
+  var overlay = document.getElementById('login-overlay');
+  var msgEl = document.getElementById('login-message');
+  var btn = document.getElementById('google-signin-btn');
+  var __loaded = false;
+
+  function showLogin(message) { if (msgEl) msgEl.textContent = message || ''; if (overlay) overlay.style.display = 'flex'; }
+  function hideLogin() { if (overlay) overlay.style.display = 'none'; }
+
+  btn.addEventListener('click', function() {
+    if (msgEl) msgEl.textContent = '';
+    __auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(function(err) {
+      console.error(err);
+      showLogin('เข้าสู่ระบบไม่สำเร็จ ลองใหม่อีกครั้ง');
+    });
+  });
+
+  __auth.onAuthStateChanged(async function(user) {
+    if (!user) { hideLogin(); showLogin(''); return; }
+    try {
+      await __db.collection('households').doc(window.HOUSEHOLD_ID).collection('data').doc(WALLETS_KEY).get();
+      hideLogin();
+      if (!__loaded) { __loaded = true; await load(); }
+    } catch (e) {
+      await __auth.signOut();
+      showLogin('บัญชี ' + user.email + ' ไม่ได้รับอนุญาตให้เข้าใช้งานระบบนี้');
+    }
+  });
+})();
+</script>
+</body>
+</html>
