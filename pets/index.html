@@ -569,6 +569,8 @@ const LAB_CATALOG_SEED = [
   { key: 'TT4', label: 'TT4 (ไทรอยด์)', unit: 'µg/dL', low: 0.8, high: 4.7, group: 'chem', aliases: ['T4'] },
   { key: 'FRUCT', label: 'Fructosamine', unit: 'µmol/L', low: 219, high: 347, group: 'chem', aliases: ['FRUCTOSAMINE'] },
   { key: 'BP', label: 'ความดันโลหิต (Systolic)', unit: 'mmHg', low: null, high: null, group: 'vitals', aliases: ['BLOODPRESSURE', 'ความดัน', 'SBP'] },
+  { key: 'TEMP', label: 'อุณหภูมิร่างกาย', unit: '°C', low: 38.0, high: 39.2, group: 'vitals', aliases: ['TEMPERATURE', 'BODYTEMP', 'อุณหภูมิ'] },
+  { key: 'WEIGHT', label: 'น้ำหนักตัว', unit: 'kg', low: null, high: null, group: 'vitals', aliases: ['BW', 'BODYWEIGHT', 'น้ำหนัก'] },
   { key: 'SG', label: 'Specific Gravity (ปัสสาวะ)', unit: '', low: 1.02, high: 1.04, group: 'urine', aliases: ['SPECIFICGRAVITY'] },
   { key: 'U_WBC', label: 'WBC (ปัสสาวะ)', unit: '/HPF', low: 0, high: 1, group: 'urine', aliases: ['URINEWBC'] },
   { key: 'U_RBC', label: 'RBC (ปัสสาวะ)', unit: '/HPF', low: 2, high: 3, group: 'urine', aliases: ['URINERBC'] },
@@ -2174,10 +2176,16 @@ function renderLabTrendChart() {
   }
 
   const linePts = points.map((p, i) => `${xScale(i)},${yScale(p.val)}`).join(' ');
+  const fmtPointVal = v => (typeof v === 'number' && !Number.isInteger(v)) ? v.toFixed(2).replace(/\.?0+$/, '') : v;
   const dots = points.map((p, i) => {
     const status = labValueStatus(entry, p.val);
     const color = status === 'normal' ? '#C97C3D' : '#D9534F';
-    return `<circle cx="${xScale(i)}" cy="${yScale(p.val)}" r="4" fill="${color}" stroke="#fff" stroke-width="1.5"><title>${fmtDateStr(p.date)}: ${p.val}${entry.unit ? ' ' + entry.unit : ''}</title></circle>`;
+    const cx = xScale(i), cy = yScale(p.val);
+    // ป้ายตัวเลขเหนือจุด ถ้าจุดอยู่ใกล้ขอบบนของกราฟให้ย้ายป้ายลงมาใต้จุดแทน กันโดนตัด
+    const labelBelow = cy < padT + 14;
+    const labelY = labelBelow ? cy + 16 : cy - 8;
+    return `<circle cx="${cx}" cy="${cy}" r="4" fill="${color}" stroke="#fff" stroke-width="1.5"><title>${fmtDateStr(p.date)}: ${p.val}${entry.unit ? ' ' + entry.unit : ''}</title></circle>
+      <text x="${cx}" y="${labelY}" text-anchor="middle" font-size="10" font-weight="600" fill="${color}">${fmtPointVal(p.val)}</text>`;
   }).join('');
 
   const gridLines = [lo + (hi - lo) * 0.25, lo + (hi - lo) * 0.5, lo + (hi - lo) * 0.75].map(v =>
