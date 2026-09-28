@@ -427,8 +427,8 @@
         </div>
         <div class="form-grid">
           <div>
-            <label class="field-label" for="us-file">แนบไฟล์ PDF (เลือกได้หลายไฟล์ ไม่บังคับ — ไฟล์ใหญ่จะถูกแปลงเป็นรูปให้อัตโนมัติ)</label>
-            <input type="file" id="us-file" accept="application/pdf,.pdf" multiple>
+            <label class="field-label" for="us-file">แนบรูป/ไฟล์ PDF ผลอัลตราซาวด์ (เลือกได้หลายไฟล์ ไม่บังคับ — PDF ใหญ่จะถูกแปลงเป็นรูปให้อัตโนมัติ)</label>
+            <input type="file" id="us-file" accept="image/*,application/pdf,.pdf" multiple>
             <p class="muted" id="us-file-status" style="margin:4px 0 0;"></p>
             <div id="us-file-existing-list" style="margin-top:6px;"></div>
             <div id="us-file-pending-list" style="margin-top:6px;"></div>
@@ -1882,12 +1882,19 @@ document.getElementById('us-file').addEventListener('change', async (e) => {
   for (const file of files) {
     const att = { id: genId(), name: file.name || 'ไฟล์แนบ' };
     try {
-      if (file.size <= ULTRASOUND_MAX_BYTES) {
-        att.storage = 'raw';
-        att.content = await fileToDataUrl(file);
+      if (isPdfFile(file)) {
+        att.type = 'pdf';
+        if (file.size <= ULTRASOUND_MAX_BYTES) {
+          att.storage = 'raw';
+          att.content = await fileToDataUrl(file);
+        } else {
+          att.storage = 'pages';
+          att.pages = await pdfAllPagesToImages(file);
+        }
       } else {
-        att.storage = 'pages';
-        att.pages = await pdfAllPagesToImages(file);
+        att.type = 'image';
+        att.storage = 'raw';
+        att.content = await compressImageFile(file);
       }
       pendingUltrasoundAttachments.push(att);
     } catch (err) {
@@ -1908,7 +1915,7 @@ function renderPendingUltrasoundAttachments() {
   if (!pendingUltrasoundAttachments.length) { wrap.innerHTML = ''; return; }
   wrap.innerHTML = pendingUltrasoundAttachments.map(a => `
     <span class="chip-condition" style="display:inline-flex;align-items:center;gap:6px;margin:2px 4px 2px 0;">
-      📄 ${a.name}${a.storage === 'pages' ? ` (${a.pages.length} หน้า)` : ''}
+      ${a.type === 'pdf' ? '📄' : '🖼'} ${a.name}${a.storage === 'pages' ? ` (${a.pages.length} หน้า)` : ''}
       <button type="button" data-removependingus="${a.id}" style="border:none;background:none;color:var(--rust);cursor:pointer;font-weight:700;">✕</button>
     </span>
   `).join('');
@@ -1925,7 +1932,7 @@ function renderExistingUltrasoundAttachments(u) {
   if (!atts.length) { wrap.innerHTML = ''; return; }
   wrap.innerHTML = atts.map(a => `
     <span class="chip-condition" style="display:inline-flex;align-items:center;gap:6px;margin:2px 4px 2px 0;">
-      📄 ${a.name || 'ไฟล์แนบ'}${a.storage === 'pages' ? ` (${a.pageCount || 0} หน้า)` : ''}
+      ${(a.type || 'pdf') === 'pdf' ? '📄' : '🖼'} ${a.name || 'ไฟล์แนบ'}${a.storage === 'pages' ? ` (${a.pageCount || 0} หน้า)` : ''}
       <button type="button" data-viewexistingus="${a.id}" style="border:none;background:none;color:var(--ink-light);cursor:pointer;">👁</button>
       <button type="button" data-removeexistingus="${a.id}" style="border:none;background:none;color:var(--rust);cursor:pointer;font-weight:700;">✕</button>
     </span>
@@ -1941,13 +1948,17 @@ function renderExistingUltrasoundAttachments(u) {
 }
 
 async function viewUltrasoundAttachment(recId, att) {
-  const needsPopup = att.storage === 'raw';
+  const needsPopup = att.storage === 'raw' && (att.type || 'pdf') === 'pdf';
   const w = needsPopup ? window.open('', '_blank') : null;
   try {
     if (att.storage === 'raw') {
       const r = await window.storage.get(ultrasoundAttachmentKey(recId, att.id));
       if (!r || !r.value) { if (w) w.close(); alert('ไม่พบไฟล์แนบนี้'); return; }
-      if (w) w.location.href = dataUrlToBlobUrl(r.value);
+      if ((att.type || 'pdf') === 'pdf') {
+        if (w) w.location.href = dataUrlToBlobUrl(r.value);
+      } else {
+        openPhotoModal([r.value]);
+      }
     } else {
       const pages = [];
       for (let i = 0; i < (att.pageCount || 0); i++) {
@@ -1984,7 +1995,7 @@ function renderUltrasoundList() {
     const atts = ultrasoundRecordAttachments(u);
     const div = document.createElement('div');
     div.className = 'visit-card';
-    const attsHtml = atts.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">${atts.map(a => `<button class="btn" data-viewatt="${u.id}" data-attid="${a.id}" style="padding:4px 10px;font-size:11.5px;">${a.storage === 'pages' ? `🖼 ${a.name || 'ไฟล์'} (${a.pageCount || 0} หน้า)` : `📄 ${a.name || 'ไฟล์ PDF'}`}</button>`).join('')}</div>` : '';
+    const attsHtml = atts.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">${atts.map(a => `<button class="btn" data-viewatt="${u.id}" data-attid="${a.id}" style="padding:4px 10px;font-size:11.5px;">${a.storage === 'pages' ? `🖼 ${a.name || 'ไฟล์'} (${a.pageCount || 0} หน้า)` : `${(a.type || 'pdf') === 'pdf' ? '📄' : '🖼'} ${a.name || 'ไฟล์แนบ'}`}</button>`).join('')}</div>` : '';
     div.innerHTML = `
       <div class="row-between">
         <span><strong>${fmtDateStr(u.date)}</strong>${u.hospital ? ' · ' + u.hospital : ''}${atts.length ? ` <span class="badge">📎 ${atts.length}</span>` : ''}</span>
