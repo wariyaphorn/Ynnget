@@ -186,6 +186,7 @@
     <button class="page-tab" data-page="vaccine">วัคซีน</button>
     <button class="page-tab" data-page="checkup">นัดหมอ</button>
     <button class="page-tab" data-page="labs">ผลตรวจเลือด</button>
+    <button class="page-tab" data-page="labcatalog">ตั้งค่าค่าตรวจ</button>
   </nav>
 
   <div id="page-cats" class="page active">
@@ -426,7 +427,7 @@
         </div>
         <div class="form-grid">
           <div>
-            <label class="field-label" for="us-file">แนบไฟล์ PDF (ไม่บังคับ, ไม่เกิน 700KB)</label>
+            <label class="field-label" for="us-file">แนบไฟล์ PDF (ไม่บังคับ — ไฟล์ใหญ่จะถูกแปลงเป็นรูปให้อัตโนมัติ)</label>
             <input type="file" id="us-file" accept="application/pdf,.pdf">
             <p class="muted" id="us-file-status" style="margin:4px 0 0;"></p>
           </div>
@@ -457,6 +458,60 @@
         <p class="muted" style="margin:0 0 10px;">เลือกค่าที่ต้องการดูแนวโน้มของแมวตัวที่เลือกไว้ด้านบน (ต้องมีข้อมูลอย่างน้อย 2 ครั้ง)</p>
         <select id="lab-trend-select" style="max-width:320px;margin-bottom:12px;"></select>
         <div id="lab-trend-chart"></div>
+      </div>
+    </section>
+  </div>
+
+  <div id="page-labcatalog" class="page">
+    <section>
+      <div class="card">
+        <h2>ตั้งค่า Master ค่าตรวจ</h2>
+        <p class="muted" style="margin:0 0 10px;">จัดการรายการค่าตรวจทั้งหมดที่ใช้ในฟอร์ม "ผลตรวจเลือด" (เพิ่ม/แก้ไข/ลบ) แก้ที่นี่แล้วฟอร์มเพิ่ม/แก้ไขผลตรวจจะอัปเดตทันที — รหัสของแต่ละค่า (ในวงเล็บ) แก้ไขไม่ได้หลังสร้าง</p>
+        <div id="labcatalog-list"></div>
+      </div>
+    </section>
+    <section>
+      <div class="card">
+        <h2 style="font-size:14.5px;">+ เพิ่มค่าตรวจใหม่</h2>
+        <div class="form-grid g3">
+          <div>
+            <label class="field-label" for="lc-new-label">ชื่อที่แสดง</label>
+            <input type="text" id="lc-new-label" placeholder="เช่น T4 (ไทรอยด์)">
+          </div>
+          <div>
+            <label class="field-label" for="lc-new-unit">หน่วย (ไม่บังคับ)</label>
+            <input type="text" id="lc-new-unit" placeholder="เช่น mg/dL">
+          </div>
+          <div>
+            <label class="field-label" for="lc-new-group">กลุ่ม</label>
+            <select id="lc-new-group">
+              <option value="chem">เคมีเลือด (Chemistry)</option>
+              <option value="cbc">ความสมบูรณ์เม็ดเลือด (CBC)</option>
+              <option value="vitals">สัญญาณชีพ (Vitals)</option>
+              <option value="urine">ตรวจปัสสาวะ (Urine)</option>
+              <option value="other" selected>อื่นๆ</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid g3">
+          <div>
+            <label class="field-label" for="lc-new-type">ประเภทค่า</label>
+            <select id="lc-new-type">
+              <option value="number">ตัวเลข</option>
+              <option value="text">ข้อความ</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="lc-new-low">ต่ำสุด (ไม่บังคับ)</label>
+            <input type="number" step="any" id="lc-new-low" placeholder="ไม่บังคับ">
+          </div>
+          <div>
+            <label class="field-label" for="lc-new-high">สูงสุด (ไม่บังคับ)</label>
+            <input type="number" step="any" id="lc-new-high" placeholder="ไม่บังคับ">
+          </div>
+        </div>
+        <button class="btn btn-primary" id="lc-new-add">+ เพิ่มค่านี้</button>
+        <p class="muted" id="lc-new-status" style="margin-top:8px;"></p>
       </div>
     </section>
   </div>
@@ -577,6 +632,7 @@ let removedLabAttachmentIds = [];
 let photoModalPages = [];
 let photoModalIndex = 0;
 let pendingUltrasoundFileDataUrl = null;
+let pendingUltrasoundPages = null;
 let pendingUltrasoundFileChanged = false;
 const LAB_ATTACHMENT_RAW_MAX_BYTES = 700 * 1024;
 const ULTRASOUND_MAX_BYTES = 700 * 1024; // ไฟล์ PDF ต้องไม่ใหญ่เกินนี้ (ก่อนแปลงเป็น base64) เพื่อไม่ให้เกินขีดจำกัดเอกสารของ Firestore
@@ -705,6 +761,7 @@ function render() {
   renderVaccineTab();
   renderCheckupTab();
   renderLabTab();
+  renderLabCatalogTab();
 }
 
 /* ---------------- Cats tab ---------------- */
@@ -1181,6 +1238,122 @@ document.getElementById('lv-new-add').addEventListener('click', async () => {
   document.getElementById('lv-new-high').value = '';
   await saveLabCatalog();
   renderLabValuesGrid(collectLabValuesFromGrid());
+  renderLabCatalogTab();
+});
+
+/* ---------------- Master ค่าตรวจ (ตั้งค่า) ---------------- */
+function renderLabCatalogTab() {
+  const wrap = document.getElementById('labcatalog-list');
+  if (!wrap) return;
+  const groups = ['chem', 'cbc', 'vitals', 'urine', 'other'];
+  wrap.innerHTML = groups.map(g => {
+    const entries = labCatalog.filter(e => (e.group || 'other') === g);
+    if (!entries.length) return '';
+    const rows = entries.map(e => `
+      <div class="lab-input-row" data-lcrow="${e.key}" style="align-items:flex-start;">
+        <div>
+          <input type="text" class="lc-edit-label" value="${(e.label || '').toString().replace(/"/g, '&quot;')}" style="width:100%;margin-bottom:4px;">
+          <span class="muted" style="font-size:11px;">(${e.key})</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <input type="text" class="lc-edit-unit" value="${(e.unit || '').toString().replace(/"/g, '&quot;')}" placeholder="หน่วย">
+          <select class="lc-edit-group">
+            ${groups.map(gg => `<option value="${gg}" ${gg === g ? 'selected' : ''}>${LAB_GROUP_LABELS[gg] || gg}</option>`).join('')}
+          </select>
+          <select class="lc-edit-type">
+            <option value="number" ${e.valueType !== 'text' ? 'selected' : ''}>ตัวเลข</option>
+            <option value="text" ${e.valueType === 'text' ? 'selected' : ''}>ข้อความ</option>
+          </select>
+          <div style="display:flex;gap:4px;">
+            <input type="number" step="any" class="lc-edit-low" value="${e.low != null ? e.low : ''}" placeholder="ต่ำสุด" style="width:50%;">
+            <input type="number" step="any" class="lc-edit-high" value="${e.high != null ? e.high : ''}" placeholder="สูงสุด" style="width:50%;">
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <button class="btn" data-lcsave="${e.key}" style="padding:4px 10px;font-size:11.5px;">💾 บันทึก</button>
+          <button class="del-btn" data-lcdel="${e.key}" style="padding:4px 10px;font-size:11.5px;">ลบ</button>
+        </div>
+      </div>
+    `).join('');
+    return `<div class="lab-group-title">${LAB_GROUP_LABELS[g] || g}</div>${rows}`;
+  }).join('') || '<p class="empty">ยังไม่มีค่าตรวจในระบบ</p>';
+
+  wrap.querySelectorAll('[data-lcsave]').forEach(btn => btn.addEventListener('click', async () => {
+    const key = btn.dataset.lcsave;
+    const entry = labCatalog.find(e => e.key === key);
+    if (!entry) return;
+    const row = wrap.querySelector(`[data-lcrow="${CSS.escape(key)}"]`);
+    if (!row) return;
+    const newLabel = row.querySelector('.lc-edit-label').value.trim();
+    entry.label = newLabel || entry.label;
+    entry.unit = row.querySelector('.lc-edit-unit').value.trim();
+    entry.group = row.querySelector('.lc-edit-group').value;
+    const isText = row.querySelector('.lc-edit-type').value === 'text';
+    if (isText) {
+      entry.valueType = 'text';
+      entry.low = null;
+      entry.high = null;
+    } else {
+      delete entry.valueType;
+      const lowVal = row.querySelector('.lc-edit-low').value;
+      const highVal = row.querySelector('.lc-edit-high').value;
+      entry.low = lowVal !== '' ? Number(lowVal) : null;
+      entry.high = highVal !== '' ? Number(highVal) : null;
+    }
+    await saveLabCatalog();
+    renderLabCatalogTab();
+    if (!editingLabId) renderLabValuesGrid(collectLabValuesFromGrid());
+    else { const t = labTests.find(x => x.id === editingLabId); renderLabValuesGrid(t ? (t.values || {}) : {}); }
+  }));
+
+  wrap.querySelectorAll('[data-lcdel]').forEach(btn => btn.addEventListener('click', async () => {
+    const key = btn.dataset.lcdel;
+    if (!confirm('ลบค่าตรวจนี้ออกจาก Master? (ผลตรวจเก่าที่เคยบันทึกค่านี้ไว้จะไม่หาย แค่จะไม่มีชื่อเต็ม/หน่วยกำกับให้อีก)')) return;
+    labCatalog = labCatalog.filter(e => e.key !== key);
+    await saveLabCatalog();
+    renderLabCatalogTab();
+    if (!editingLabId) renderLabValuesGrid(collectLabValuesFromGrid());
+    else { const t = labTests.find(x => x.id === editingLabId); renderLabValuesGrid(t ? (t.values || {}) : {}); }
+    renderLabTrendSelect();
+  }));
+}
+
+document.getElementById('lc-new-add').addEventListener('click', async () => {
+  const label = document.getElementById('lc-new-label').value.trim();
+  const statusEl = document.getElementById('lc-new-status');
+  if (!label) { statusEl.textContent = 'กรุณากรอกชื่อค่า'; return; }
+  const key = normKey(label);
+  if (!key) { statusEl.textContent = 'ชื่อค่านี้ใช้ตั้งรหัสไม่ได้ ลองใช้ชื่ออื่น'; return; }
+  if (labCatalog.some(e => normKey(e.key) === key)) { statusEl.textContent = 'มีค่านี้อยู่แล้ว (รหัสซ้ำ)'; return; }
+  const isText = document.getElementById('lc-new-type').value === 'text';
+  const low = document.getElementById('lc-new-low').value;
+  const high = document.getElementById('lc-new-high').value;
+  const entry = {
+    key,
+    label,
+    unit: document.getElementById('lc-new-unit').value.trim(),
+    group: document.getElementById('lc-new-group').value,
+    aliases: []
+  };
+  if (isText) {
+    entry.valueType = 'text';
+    entry.low = null;
+    entry.high = null;
+  } else {
+    entry.low = low !== '' ? Number(low) : null;
+    entry.high = high !== '' ? Number(high) : null;
+  }
+  labCatalog.push(entry);
+  document.getElementById('lc-new-label').value = '';
+  document.getElementById('lc-new-unit').value = '';
+  document.getElementById('lc-new-low').value = '';
+  document.getElementById('lc-new-high').value = '';
+  document.getElementById('lc-new-group').value = 'other';
+  document.getElementById('lc-new-type').value = 'number';
+  await saveLabCatalog();
+  statusEl.textContent = `✅ เพิ่ม "${label}" (${key}) แล้ว`;
+  renderLabCatalogTab();
+  if (!editingLabId) renderLabValuesGrid(collectLabValuesFromGrid());
 });
 
 // บีบอัดรูปก่อนเก็บ (ย่อขนาด + ลดคุณภาพ) เพื่อไม่ให้เอกสารใหญ่เกินขีดจำกัดของ Firestore
@@ -1684,31 +1857,54 @@ function renderLabTab() {
 
 /* ---------------- Ultrasound records (PDF + note) ---------------- */
 function ultrasoundFileKey(id) { return 'pet-ultrasound-file-' + id; }
+function ultrasoundPageKey(id, pageIdx) { return ultrasoundFileKey(id) + '-p' + pageIdx; }
 
-document.getElementById('us-file').addEventListener('change', (e) => {
+document.getElementById('us-file').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   const statusEl = document.getElementById('us-file-status');
   if (!file) return;
-  if (file.size > ULTRASOUND_MAX_BYTES) {
-    statusEl.textContent = `ไฟล์ใหญ่เกินไป (${Math.round(file.size / 1024)}KB) กรุณาบีบอัด PDF ให้ไม่เกิน 700KB ก่อนแนบ`;
-    e.target.value = '';
-    pendingUltrasoundFileDataUrl = null;
-    pendingUltrasoundFileChanged = false;
+  pendingUltrasoundFileDataUrl = null;
+  pendingUltrasoundPages = null;
+  pendingUltrasoundFileChanged = false;
+  if (file.size <= ULTRASOUND_MAX_BYTES) {
+    try {
+      pendingUltrasoundFileDataUrl = await fileToDataUrl(file);
+      pendingUltrasoundFileChanged = true;
+      statusEl.textContent = '✅ แนบไฟล์แล้ว (จะถูกบันทึกตอนกดบันทึกผลอัลตราซาวด์)';
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = 'แนบไฟล์ไม่สำเร็จ ลองใหม่อีกครั้ง';
+    }
     return;
   }
-  const reader = new FileReader();
-  reader.onload = () => {
-    pendingUltrasoundFileDataUrl = reader.result;
+  // ไฟล์ใหญ่เกิน 700KB — แปลงทุกหน้าเป็นรูปบีบอัดแทน (เหมือนไฟล์แนบผลตรวจเลือด) แทนที่จะปฏิเสธไฟล์
+  statusEl.textContent = `ไฟล์ใหญ่ (${Math.round(file.size / 1024)}KB) กำลังแปลงทุกหน้าเป็นรูป...`;
+  try {
+    pendingUltrasoundPages = await pdfAllPagesToImages(file);
     pendingUltrasoundFileChanged = true;
-    statusEl.textContent = '✅ แนบไฟล์แล้ว (จะถูกบันทึกตอนกดบันทึกผลอัลตราซาวด์)';
-  };
-  reader.onerror = () => { statusEl.textContent = 'แนบไฟล์ไม่สำเร็จ ลองใหม่อีกครั้ง'; };
-  reader.readAsDataURL(file);
+    statusEl.textContent = `✅ แปลงเป็นรูปแล้ว ${pendingUltrasoundPages.length} หน้า (จะถูกบันทึกตอนกดบันทึกผลอัลตราซาวด์)`;
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = 'แปลง PDF ไม่สำเร็จ ลองใหม่อีกครั้ง';
+  }
 });
 
 async function viewUltrasoundFile(id) {
-  const w = window.open('', '_blank');
+  const u = ultrasoundRecords.find(x => x.id === id);
+  const isPages = u && u.fileStorage === 'pages';
+  const w = isPages ? null : window.open('', '_blank');
   try {
+    if (isPages) {
+      const pages = [];
+      for (let i = 0; i < (u.filePageCount || 0); i++) {
+        try {
+          const r = await window.storage.get(ultrasoundPageKey(id, i));
+          pages.push(r && r.value ? r.value : '');
+        } catch (e) { pages.push(''); }
+      }
+      openPhotoModal(pages);
+      return;
+    }
     const r = await window.storage.get(ultrasoundFileKey(id));
     if (!r || !r.value) { if (w) w.close(); alert('ไม่พบไฟล์สำหรับรายการนี้'); return; }
     if (w) w.location.href = dataUrlToBlobUrl(r.value);
@@ -1729,7 +1925,7 @@ function renderUltrasoundList() {
       <div class="row-between">
         <span><strong>${fmtDateStr(u.date)}</strong>${u.hospital ? ' · ' + u.hospital : ''}</span>
         <span>
-          ${u.hasFile ? `<button class="btn" data-viewfile="${u.id}" style="padding:4px 10px;font-size:11.5px;margin-right:4px;">📄 ดูไฟล์ PDF</button>` : ''}
+          ${u.hasFile ? `<button class="btn" data-viewfile="${u.id}" style="padding:4px 10px;font-size:11.5px;margin-right:4px;">${u.fileStorage === 'pages' ? `🖼 ดูไฟล์ (${u.filePageCount || 0} หน้า)` : '📄 ดูไฟล์ PDF'}</button>` : ''}
           <button class="del-btn" data-edit="${u.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
           <button class="del-btn" data-del="${u.id}" aria-label="ลบ">✕</button>
         </span>
@@ -1741,10 +1937,17 @@ function renderUltrasoundList() {
   listWrap.querySelectorAll('[data-viewfile]').forEach(btn => btn.addEventListener('click', () => viewUltrasoundFile(btn.dataset.viewfile)));
   listWrap.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
     if (!confirm('ลบรายการอัลตราซาวด์นี้?')) return;
-    ultrasoundRecords = ultrasoundRecords.filter(u => u.id !== btn.dataset.del);
+    const u = ultrasoundRecords.find(x => x.id === btn.dataset.del);
+    ultrasoundRecords = ultrasoundRecords.filter(x => x.id !== btn.dataset.del);
     if (editingUltrasoundId === btn.dataset.del) cancelUltrasoundEdit();
     await saveUltrasoundRecords();
-    try { await window.storage.set(ultrasoundFileKey(btn.dataset.del), ''); } catch (e) {}
+    if (u && u.fileStorage === 'pages') {
+      for (let i = 0; i < (u.filePageCount || 0); i++) {
+        try { await window.storage.set(ultrasoundPageKey(u.id, i), ''); } catch (e) {}
+      }
+    } else {
+      try { await window.storage.set(ultrasoundFileKey(btn.dataset.del), ''); } catch (e) {}
+    }
     renderUltrasoundList();
   }));
   listWrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => startUltrasoundEdit(btn.dataset.edit)));
@@ -1758,9 +1961,12 @@ function startUltrasoundEdit(id) {
   document.getElementById('us-hospital').value = u.hospital || '';
   document.getElementById('us-note').value = u.note || '';
   pendingUltrasoundFileDataUrl = null;
+  pendingUltrasoundPages = null;
   pendingUltrasoundFileChanged = false;
   document.getElementById('us-file').value = '';
-  document.getElementById('us-file-status').textContent = u.hasFile ? 'มีไฟล์แนบอยู่แล้ว (เลือกไฟล์ใหม่เพื่อแทนที่)' : '';
+  document.getElementById('us-file-status').textContent = u.hasFile
+    ? (u.fileStorage === 'pages' ? `มีไฟล์แนบอยู่แล้ว (${u.filePageCount || 0} หน้า, เลือกไฟล์ใหม่เพื่อแทนที่)` : 'มีไฟล์แนบอยู่แล้ว (เลือกไฟล์ใหม่เพื่อแทนที่)')
+    : '';
   document.getElementById('us-form-title').textContent = '✏️ แก้ไขผลอัลตราซาวด์';
   document.getElementById('us-save').textContent = '💾 บันทึกการแก้ไข';
   document.getElementById('us-cancel-edit').style.display = 'inline-block';
@@ -1772,6 +1978,7 @@ function cancelUltrasoundEdit() {
   document.getElementById('us-hospital').value = '';
   document.getElementById('us-note').value = '';
   pendingUltrasoundFileDataUrl = null;
+  pendingUltrasoundPages = null;
   pendingUltrasoundFileChanged = false;
   document.getElementById('us-file').value = '';
   document.getElementById('us-file-status').textContent = '';
@@ -1792,20 +1999,46 @@ document.getElementById('us-save').addEventListener('click', async () => {
     note: document.getElementById('us-note').value.trim()
   };
   let recId = editingUltrasoundId;
+  let prevFile = null;
   if (editingUltrasoundId) {
     const idx = ultrasoundRecords.findIndex(u => u.id === editingUltrasoundId);
     if (idx > -1) {
-      data.hasFile = pendingUltrasoundFileChanged ? true : (ultrasoundRecords[idx].hasFile || false);
+      prevFile = { fileStorage: ultrasoundRecords[idx].fileStorage, filePageCount: ultrasoundRecords[idx].filePageCount };
+      if (pendingUltrasoundFileChanged) {
+        data.hasFile = true;
+        data.fileStorage = pendingUltrasoundPages ? 'pages' : 'raw';
+        data.filePageCount = pendingUltrasoundPages ? pendingUltrasoundPages.length : undefined;
+      } else {
+        data.hasFile = ultrasoundRecords[idx].hasFile || false;
+        data.fileStorage = ultrasoundRecords[idx].fileStorage;
+        data.filePageCount = ultrasoundRecords[idx].filePageCount;
+      }
       ultrasoundRecords[idx] = Object.assign({}, ultrasoundRecords[idx], data);
     }
   } else {
     recId = genId();
-    data.hasFile = !!pendingUltrasoundFileDataUrl;
+    data.hasFile = !!(pendingUltrasoundFileDataUrl || pendingUltrasoundPages);
+    data.fileStorage = pendingUltrasoundPages ? 'pages' : 'raw';
+    data.filePageCount = pendingUltrasoundPages ? pendingUltrasoundPages.length : undefined;
     ultrasoundRecords.push(Object.assign({ id: recId }, data));
   }
   await saveUltrasoundRecords();
-  if (pendingUltrasoundFileChanged && pendingUltrasoundFileDataUrl) {
-    try { await window.storage.set(ultrasoundFileKey(recId), pendingUltrasoundFileDataUrl); } catch (e) { console.error(e); }
+  if (pendingUltrasoundFileChanged) {
+    // มีไฟล์เดิมอยู่ (ไม่ว่าเก็บแบบไหน) ให้ลบทิ้งก่อนเขียนไฟล์ใหม่เข้าไปแทน
+    if (prevFile && prevFile.fileStorage === 'pages') {
+      for (let i = 0; i < (prevFile.filePageCount || 0); i++) {
+        try { await window.storage.set(ultrasoundPageKey(recId, i), ''); } catch (e) {}
+      }
+    } else if (prevFile) {
+      try { await window.storage.set(ultrasoundFileKey(recId), ''); } catch (e) {}
+    }
+    if (pendingUltrasoundPages) {
+      for (let i = 0; i < pendingUltrasoundPages.length; i++) {
+        try { await window.storage.set(ultrasoundPageKey(recId, i), pendingUltrasoundPages[i]); } catch (e) { console.error(e); }
+      }
+    } else if (pendingUltrasoundFileDataUrl) {
+      try { await window.storage.set(ultrasoundFileKey(recId), pendingUltrasoundFileDataUrl); } catch (e) { console.error(e); }
+    }
   }
   cancelUltrasoundEdit();
   renderUltrasoundList();
