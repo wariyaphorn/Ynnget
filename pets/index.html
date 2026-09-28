@@ -369,7 +369,13 @@
         <div class="form-grid">
           <div>
             <label class="field-label" for="lab-note">หมายเหตุ</label>
-            <textarea id="lab-note" rows="2" placeholder="ไม่บังคับ"></textarea>
+            <input type="text" id="lab-note" placeholder="เช่น ตรวจสุขภาพประจำปี, Follow up">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label class="field-label" for="lab-detail">รายละเอียด</label>
+            <textarea id="lab-detail" rows="5" placeholder="สรุปผลตรวจสั้นๆ (ไม่บังคับ) — พิมพ์ Enter ขึ้นบรรทัดใหม่ได้"></textarea>
           </div>
         </div>
         <div class="form-grid">
@@ -452,8 +458,14 @@
         </div>
         <div class="form-grid">
           <div>
-            <label class="field-label" for="us-note">หมายเหตุ / ผลอ่าน</label>
-            <textarea id="us-note" rows="2" placeholder="เช่น พบก้อนที่ไต ขนาด..."></textarea>
+            <label class="field-label" for="us-note">หมายเหตุ</label>
+            <input type="text" id="us-note" placeholder="เช่น ตรวจสุขภาพประจำปี, Follow up">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label class="field-label" for="us-detail">รายละเอียด</label>
+            <textarea id="us-detail" rows="5" placeholder="สรุปผลตรวจสั้นๆ (ไม่บังคับ) — พิมพ์ Enter ขึ้นบรรทัดใหม่ได้"></textarea>
           </div>
         </div>
         <div style="display:flex;gap:8px;">
@@ -1712,7 +1724,7 @@ function renderCombinedHistoryList() {
         <div class="row-between">
           <span data-toggle="${t.id}" style="cursor:pointer;">
             <span class="badge" style="background:#5B8C6E;color:#fff;margin-right:4px;">🩸 ตรวจเลือด</span>
-            <strong>${fmtDateStr(t.date)}</strong>${t.hospital ? ' · ' + t.hospital : ''}
+            <strong>${fmtDateStr(t.date)}</strong>${t.hospital ? ' · ' + t.hospital : ''}${t.note ? ' · ' + t.note : ''}
             ${abnormalCount ? `<span class="badge badge-abnormal">ผิดปกติ ${abnormalCount}</span>` : '<span class="badge badge-normal">ปกติ</span>'}
             ${attCount ? `<span class="badge" style="margin-left:4px;">📎 ${attCount}</span>` : ''}
           </span>
@@ -1721,7 +1733,7 @@ function renderCombinedHistoryList() {
             <button class="del-btn" data-del="${t.id}" data-kind="lab" aria-label="ลบ">✕</button>
           </span>
         </div>
-        ${t.note ? `<p class="muted" style="margin:4px 0 0;white-space:pre-wrap;">${t.note}</p>` : ''}
+        ${t.detail ? `<p class="muted" style="margin:4px 0 0;white-space:pre-wrap;">${t.detail}</p>` : ''}
         ${valuesHtml}
       `;
     } else {
@@ -1733,7 +1745,7 @@ function renderCombinedHistoryList() {
         <div class="row-between">
           <span>
             <span class="badge" style="background:#B4623D;color:#fff;margin-right:4px;">${info.icon} ${info.label}</span>
-            <strong>${fmtDateStr(u.date)}</strong>${u.hospital ? ' · ' + u.hospital : ''}
+            <strong>${fmtDateStr(u.date)}</strong>${u.hospital ? ' · ' + u.hospital : ''}${u.note ? ' · ' + u.note : ''}
             ${atts.length ? `<span class="badge" style="margin-left:4px;">📎 ${atts.length}</span>` : ''}
           </span>
           <span>
@@ -1741,7 +1753,7 @@ function renderCombinedHistoryList() {
             <button class="del-btn" data-del="${u.id}" data-kind="exam" aria-label="ลบ">✕</button>
           </span>
         </div>
-        ${u.note ? `<p class="muted" style="margin:4px 0 0;white-space:pre-wrap;">${u.note}</p>` : ''}
+        ${u.detail ? `<p class="muted" style="margin:4px 0 0;white-space:pre-wrap;">${u.detail}</p>` : ''}
         ${attsHtml}
       `;
     }
@@ -1817,6 +1829,7 @@ function startLabEdit(id) {
   document.getElementById('lab-date').value = t.date || '';
   document.getElementById('lab-hospital').value = t.hospital || '';
   document.getElementById('lab-note').value = t.note || '';
+  document.getElementById('lab-detail').value = t.detail || '';
   pendingLabAttachments = [];
   removedLabAttachmentIds = [];
   document.getElementById('lab-photo').value = '';
@@ -1834,6 +1847,7 @@ function cancelLabEdit() {
   document.getElementById('lab-date').value = '';
   document.getElementById('lab-hospital').value = '';
   document.getElementById('lab-note').value = '';
+  document.getElementById('lab-detail').value = '';
   document.getElementById('lab-import-text').value = '';
   document.getElementById('lab-import-result').textContent = '';
   pendingLabPhotoDataUrl = null;
@@ -1868,6 +1882,7 @@ document.getElementById('lab-save').addEventListener('click', async () => {
     date,
     hospital: document.getElementById('lab-hospital').value.trim(),
     note: document.getElementById('lab-note').value.trim(),
+    detail: document.getElementById('lab-detail').value.trim(),
     values,
     attachments: keptAttachments.slice()
   };
@@ -2068,6 +2083,7 @@ function startUltrasoundEdit(id) {
   document.getElementById('us-date').value = u.date || '';
   document.getElementById('us-hospital').value = u.hospital || '';
   document.getElementById('us-note').value = u.note || '';
+  document.getElementById('us-detail').value = u.detail || '';
   pendingUltrasoundAttachments = [];
   removedUltrasoundAttachmentIds = [];
   document.getElementById('us-file').value = '';
@@ -2087,6 +2103,7 @@ function cancelUltrasoundEdit() {
   document.getElementById('us-date').value = '';
   document.getElementById('us-hospital').value = '';
   document.getElementById('us-note').value = '';
+  document.getElementById('us-detail').value = '';
   pendingUltrasoundAttachments = [];
   removedUltrasoundAttachmentIds = [];
   document.getElementById('us-file').value = '';
@@ -2120,6 +2137,7 @@ document.getElementById('us-save').addEventListener('click', async () => {
     date,
     hospital: document.getElementById('us-hospital').value.trim(),
     note: document.getElementById('us-note').value.trim(),
+    detail: document.getElementById('us-detail').value.trim(),
     attachments: keptAttachments.slice(),
     hasFile: false,
     fileStorage: undefined,
