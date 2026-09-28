@@ -369,7 +369,7 @@
         <div class="form-grid">
           <div>
             <label class="field-label" for="lab-note">หมายเหตุ</label>
-            <input type="text" id="lab-note" placeholder="ไม่บังคับ">
+            <textarea id="lab-note" rows="2" placeholder="ไม่บังคับ"></textarea>
           </div>
         </div>
         <div class="form-grid">
@@ -453,7 +453,7 @@
         <div class="form-grid">
           <div>
             <label class="field-label" for="us-note">หมายเหตุ / ผลอ่าน</label>
-            <input type="text" id="us-note" placeholder="เช่น พบก้อนที่ไต ขนาด...">
+            <textarea id="us-note" rows="2" placeholder="เช่น พบก้อนที่ไต ขนาด..."></textarea>
           </div>
         </div>
         <div style="display:flex;gap:8px;">
@@ -1721,7 +1721,7 @@ function renderCombinedHistoryList() {
             <button class="del-btn" data-del="${t.id}" data-kind="lab" aria-label="ลบ">✕</button>
           </span>
         </div>
-        ${t.note ? `<p class="muted" style="margin:4px 0 0;">${t.note}</p>` : ''}
+        ${t.note ? `<p class="muted" style="margin:4px 0 0;white-space:pre-wrap;">${t.note}</p>` : ''}
         ${valuesHtml}
       `;
     } else {
@@ -1741,7 +1741,7 @@ function renderCombinedHistoryList() {
             <button class="del-btn" data-del="${u.id}" data-kind="exam" aria-label="ลบ">✕</button>
           </span>
         </div>
-        ${u.note ? `<p class="muted" style="margin:4px 0 0;">${u.note}</p>` : ''}
+        ${u.note ? `<p class="muted" style="margin:4px 0 0;white-space:pre-wrap;">${u.note}</p>` : ''}
         ${attsHtml}
       `;
     }
