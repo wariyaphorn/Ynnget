@@ -650,6 +650,7 @@ let selectedCheckupCat = null;
 let selectedLabCat = null;
 let labTrendSelectedKey = null;
 let expandedLabIds = new Set();
+let expandedDetailIds = new Set();
 let pendingLabPhotoDataUrl = null;
 let pendingLabPhotoChanged = false;
 let pendingLabAttachments = [];
@@ -1733,7 +1734,7 @@ function renderCombinedHistoryList() {
             <button class="del-btn" data-del="${t.id}" data-kind="lab" aria-label="ลบ">✕</button>
           </span>
         </div>
-        ${t.detail ? `<p class="muted" style="margin:4px 0 0;white-space:pre-wrap;">${t.detail}</p>` : ''}
+        ${t.detail ? `<div style="margin-top:4px;"><button type="button" class="btn" data-toggledetail="${t.id}" style="padding:2px 8px;font-size:11px;">${expandedDetailIds.has(t.id) ? 'ซ่อนรายละเอียด ▲' : 'ดูรายละเอียด ▼'}</button>${expandedDetailIds.has(t.id) ? `<p class="muted" style="margin:4px 0 0;white-space:pre-wrap;">${t.detail}</p>` : ''}</div>` : ''}
         ${valuesHtml}
       `;
     } else {
@@ -1753,7 +1754,7 @@ function renderCombinedHistoryList() {
             <button class="del-btn" data-del="${u.id}" data-kind="exam" aria-label="ลบ">✕</button>
           </span>
         </div>
-        ${u.detail ? `<p class="muted" style="margin:4px 0 0;white-space:pre-wrap;">${u.detail}</p>` : ''}
+        ${u.detail ? `<div style="margin-top:4px;"><button type="button" class="btn" data-toggledetail="${u.id}" style="padding:2px 8px;font-size:11px;">${expandedDetailIds.has(u.id) ? 'ซ่อนรายละเอียด ▲' : 'ดูรายละเอียด ▼'}</button>${expandedDetailIds.has(u.id) ? `<p class="muted" style="margin:4px 0 0;white-space:pre-wrap;">${u.detail}</p>` : ''}</div>` : ''}
         ${attsHtml}
       `;
     }
@@ -1763,6 +1764,11 @@ function renderCombinedHistoryList() {
   listWrap.querySelectorAll('[data-toggle]').forEach(el => el.addEventListener('click', () => {
     const id = el.dataset.toggle;
     if (expandedLabIds.has(id)) expandedLabIds.delete(id); else expandedLabIds.add(id);
+    renderCombinedHistoryList();
+  }));
+  listWrap.querySelectorAll('[data-toggledetail]').forEach(btn => btn.addEventListener('click', () => {
+    const id = btn.dataset.toggledetail;
+    if (expandedDetailIds.has(id)) expandedDetailIds.delete(id); else expandedDetailIds.add(id);
     renderCombinedHistoryList();
   }));
   listWrap.querySelectorAll('[data-viewatt]').forEach(btn => btn.addEventListener('click', () => {
