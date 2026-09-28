@@ -511,6 +511,12 @@ const LAB_CATALOG_SEED = [
   { key: 'U_RBC', label: 'RBC (ปัสสาวะ)', unit: '/HPF', low: 2, high: 3, group: 'urine', aliases: ['URINERBC'] },
   { key: 'U_EPI', label: 'Epithelium - Squamous (ปัสสาวะ)', unit: '/HPF', low: 0, high: 1, group: 'urine', aliases: ['EPITHELIUM', 'SQUAMOUS'] },
   { key: 'UPCR', label: 'UPCR', unit: '', low: null, high: 0.4, group: 'urine', aliases: [] },
+  { key: 'COLOR', label: 'Color (สี ปัสสาวะ)', unit: '', low: null, high: null, group: 'urine', aliases: ['สี'], valueType: 'text' },
+  { key: 'TRANSPARENCY', label: 'Transparency (ความใส ปัสสาวะ)', unit: '', low: null, high: null, group: 'urine', aliases: ['ความขุ่น'], valueType: 'text' },
+  { key: 'CRYSTAL', label: 'Crystal (ปัสสาวะ)', unit: '', low: null, high: null, group: 'urine', aliases: [], valueType: 'text' },
+  { key: 'CAST', label: 'Cast (ปัสสาวะ)', unit: '', low: null, high: null, group: 'urine', aliases: [], valueType: 'text' },
+  { key: 'BACT', label: 'Bacteria (ปัสสาวะ)', unit: '', low: null, high: null, group: 'urine', aliases: ['BACTERIA'], valueType: 'text' },
+  { key: 'BLOODPARASITE', label: 'Blood Parasite', unit: '', low: null, high: null, group: 'other', aliases: ['BLOODPARASITEBP', 'PARASITE'], valueType: 'text' },
   { key: 'RBC', label: 'RBC', unit: 'M/µL', low: 6.54, high: 12.20, group: 'cbc', aliases: [] },
   { key: 'HCT', label: 'HCT', unit: '%', low: 30.3, high: 52.3, group: 'cbc', aliases: [] },
   { key: 'HGB', label: 'HGB', unit: 'g/dL', low: 9.8, high: 16.2, group: 'cbc', aliases: [] },
@@ -1081,11 +1087,15 @@ function renderLabValuesGrid(prefill) {
     entries.forEach(e => {
       const row = document.createElement('div');
       row.className = 'lab-input-row';
-      const refText = (e.low != null && e.high != null) ? `${e.low} - ${e.high} ${e.unit || ''}` : (e.unit || '');
+      const isText = e.valueType === 'text';
+      const refText = isText ? '' : ((e.low != null && e.high != null) ? `${e.low} - ${e.high} ${e.unit || ''}` : (e.unit || ''));
       const val = prefill[e.key] != null ? prefill[e.key] : '';
+      const inputHtml = isText
+        ? `<input type="text" class="lv-input" data-type="text" data-key="${e.key}" value="${(val || '').toString().replace(/"/g, '&quot;')}" placeholder="เช่น Not Found">`
+        : `<input type="number" step="any" class="lv-input" data-key="${e.key}" value="${val}">`;
       row.innerHTML = `
         <label class="field-label" style="margin:0;">${e.label} <span class="muted">(${e.key})</span></label>
-        <input type="number" step="any" class="lv-input" data-key="${e.key}" value="${val}">
+        ${inputHtml}
         <span class="ref-hint">${refText}</span>
       `;
       wrap.appendChild(row);
@@ -1096,7 +1106,8 @@ function renderLabValuesGrid(prefill) {
 function collectLabValuesFromGrid() {
   const values = {};
   document.querySelectorAll('.lv-input').forEach(inp => {
-    if (inp.value !== '') values[inp.dataset.key] = Number(inp.value);
+    if (inp.value === '') return;
+    values[inp.dataset.key] = inp.dataset.type === 'text' ? inp.value.trim() : Number(inp.value);
   });
   return values;
 }
@@ -1110,13 +1121,20 @@ document.getElementById('lab-import-btn').addEventListener('click', () => {
     const parts = line.split(/[,:\t]|\s{2,}/).map(s => s.trim()).filter(Boolean);
     if (parts.length < 2) { unmatched.push(line); return; }
     const rawKey = parts[0];
-    const numMatch = parts.slice(1).join(' ').match(/-?\d+(\.\d+)?/);
-    if (!numMatch) { unmatched.push(line); return; }
+    const rawValue = parts.slice(1).join(' ').trim();
     const entry = findLabCatalogEntry(rawKey);
     if (!entry) { unmatched.push(rawKey); return; }
     const input = document.querySelector(`.lv-input[data-key="${CSS.escape(entry.key)}"]`);
-    if (input) { input.value = numMatch[0]; matchedCount++; }
-    else { unmatched.push(rawKey); }
+    if (!input) { unmatched.push(rawKey); return; }
+    if (entry.valueType === 'text') {
+      input.value = rawValue;
+      matchedCount++;
+    } else {
+      const numMatch = rawValue.match(/-?\d+(\.\d+)?/);
+      if (!numMatch) { unmatched.push(line); return; }
+      input.value = numMatch[0];
+      matchedCount++;
+    }
   });
   const resultEl = document.getElementById('lab-import-result');
   if (!unmatched.length) {
@@ -1420,7 +1438,7 @@ function refreshLabHospitalDatalist() {
 }
 
 function labValueStatus(entry, num) {
-  if (!entry || (entry.low == null && entry.high == null)) return 'normal';
+  if (!entry || entry.valueType === 'text' || (entry.low == null && entry.high == null)) return 'normal';
   if (entry.low != null && num < entry.low) return 'low';
   if (entry.high != null && num > entry.high) return 'high';
   return 'normal';
@@ -1772,7 +1790,11 @@ function renderLabTrendSelect() {
   const testsForCat = labTests.filter(t => t.catId === selectedLabCat);
   const keyCounts = {};
   testsForCat.forEach(t => Object.keys(t.values || {}).forEach(k => { keyCounts[k] = (keyCounts[k] || 0) + 1; }));
-  const availableKeys = Object.keys(keyCounts).filter(k => keyCounts[k] >= 2);
+  const availableKeys = Object.keys(keyCounts).filter(k => {
+    if (keyCounts[k] < 2) return false;
+    const entry = labCatalog.find(e => e.key === k);
+    return !(entry && entry.valueType === 'text');
+  });
   const prevVal = sel.value;
   sel.innerHTML = '';
   if (!availableKeys.length) {
