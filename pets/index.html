@@ -420,6 +420,12 @@
             <input type="date" id="us-date">
           </div>
           <div>
+            <label class="field-label" for="us-hospital">โรงพยาบาล/คลินิก</label>
+            <input type="text" id="us-hospital" list="lab-hospital-list" placeholder="เช่น รพ.สัตว์...">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
             <label class="field-label" for="us-file">แนบไฟล์ PDF (ไม่บังคับ, ไม่เกิน 700KB)</label>
             <input type="file" id="us-file" accept="application/pdf,.pdf">
             <p class="muted" id="us-file-status" style="margin:4px 0 0;"></p>
@@ -1234,6 +1240,20 @@ function pdfFirstPageToImage(file) {
   });
 }
 
+// เบราว์เซอร์ (โดยเฉพาะ Chrome) บล็อกการเปิดหน้าใหม่ไปยัง data: URL โดยตรง (ขึ้นหน้าว่าง) จึงต้องแปลงเป็น blob: URL ก่อนค่อยเปิด
+function dataUrlToBlobUrl(dataUrl) {
+  try {
+    const [header, base64] = dataUrl.split(',');
+    const mimeMatch = header.match(/data:(.*?);base64/);
+    const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: mime });
+    return URL.createObjectURL(blob);
+  } catch (e) { console.error(e); return dataUrl; }
+}
+
 function isPdfFile(file) {
   return file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
 }
@@ -1408,7 +1428,7 @@ async function viewLabAttachment(testId, att) {
       const r = await window.storage.get(labAttachmentKey(testId, att.id));
       if (!r || !r.value) { if (w) w.close(); alert('ไม่พบไฟล์แนบนี้'); return; }
       if (att.type === 'pdf') {
-        if (w) w.location.href = r.value;
+        if (w) w.location.href = dataUrlToBlobUrl(r.value);
       } else {
         openPhotoModal([r.value]);
       }
@@ -1435,7 +1455,9 @@ document.getElementById('photo-modal').addEventListener('click', (e) => {
 function refreshLabHospitalDatalist() {
   const el = document.getElementById('lab-hospital-list');
   if (!el) return;
-  const hospitals = [...new Set(labTests.map(t => t.hospital).filter(Boolean))];
+  const hospitals = [...new Set(
+    labTests.map(t => t.hospital).concat(ultrasoundRecords.map(u => u.hospital)).filter(Boolean)
+  )];
   el.innerHTML = hospitals.map(h => `<option value="${h}"></option>`).join('');
 }
 
@@ -1689,7 +1711,7 @@ async function viewUltrasoundFile(id) {
   try {
     const r = await window.storage.get(ultrasoundFileKey(id));
     if (!r || !r.value) { if (w) w.close(); alert('ไม่พบไฟล์สำหรับรายการนี้'); return; }
-    if (w) w.location.href = r.value;
+    if (w) w.location.href = dataUrlToBlobUrl(r.value);
   } catch (e) { console.error(e); if (w) w.close(); alert('เปิดไฟล์ไม่สำเร็จ'); }
 }
 
@@ -1705,7 +1727,7 @@ function renderUltrasoundList() {
     div.className = 'visit-card';
     div.innerHTML = `
       <div class="row-between">
-        <span><strong>${fmtDateStr(u.date)}</strong></span>
+        <span><strong>${fmtDateStr(u.date)}</strong>${u.hospital ? ' · ' + u.hospital : ''}</span>
         <span>
           ${u.hasFile ? `<button class="btn" data-viewfile="${u.id}" style="padding:4px 10px;font-size:11.5px;margin-right:4px;">📄 ดูไฟล์ PDF</button>` : ''}
           <button class="del-btn" data-edit="${u.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
@@ -1733,6 +1755,7 @@ function startUltrasoundEdit(id) {
   if (!u) return;
   editingUltrasoundId = id;
   document.getElementById('us-date').value = u.date || '';
+  document.getElementById('us-hospital').value = u.hospital || '';
   document.getElementById('us-note').value = u.note || '';
   pendingUltrasoundFileDataUrl = null;
   pendingUltrasoundFileChanged = false;
@@ -1746,6 +1769,7 @@ function startUltrasoundEdit(id) {
 function cancelUltrasoundEdit() {
   editingUltrasoundId = null;
   document.getElementById('us-date').value = '';
+  document.getElementById('us-hospital').value = '';
   document.getElementById('us-note').value = '';
   pendingUltrasoundFileDataUrl = null;
   pendingUltrasoundFileChanged = false;
@@ -1764,6 +1788,7 @@ document.getElementById('us-save').addEventListener('click', async () => {
   const data = {
     catId: selectedLabCat,
     date,
+    hospital: document.getElementById('us-hospital').value.trim(),
     note: document.getElementById('us-note').value.trim()
   };
   let recId = editingUltrasoundId;
