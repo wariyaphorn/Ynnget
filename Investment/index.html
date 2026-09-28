@@ -287,7 +287,8 @@
     <section>
       <div class="card">
         <h2>ตารางค่าใช้จ่ายรายเดือนที่คาดการณ์ (12 เดือนข้างหน้า)</h2>
-        <p class="muted" style="margin:0 0 10px;">คำนวณจากค่าเฉลี่ยรายจ่ายจริงย้อนหลังในแอพ Budget แล้วปรับเพิ่มตามอัตราเงินเฟ้อที่ตั้งไว้</p>
+        <p class="muted" style="margin:0 0 10px;">คำนวณจากค่าเฉลี่ยรายจ่ายจริงย้อนหลังในแอพ Budget แล้วปรับเพิ่มตามอัตราเงินเฟ้อที่ตั้งไว้ — เลือกได้ว่าจะนำหมวดหมู่/เป้าหมายไหนมาคำนวณบ้าง</p>
+        <div id="ret-settings-wrap"></div>
         <div class="form-grid g2">
           <div>
             <p class="muted" style="margin:0 0 4px;">อัตราเงินเฟ้อต่อปี (%)</p>
@@ -367,6 +368,7 @@ const BUDGET_ENTRIES_KEY = 'household-ledger-entries';
 const BUDGET_CATEGORIES_KEY = 'household-ledger-categories';
 const BUDGET_WALLET_TX_KEY = 'household-ledger-wallet-transactions';
 const BUDGET_GOAL_TRANSFERS_KEY = 'household-ledger-goal-transfers';
+const RET_SETTINGS_KEY = 'household-investment-retirement-settings';
 
 let holdings = [];
 let contributions = [];
@@ -383,6 +385,7 @@ let budgetWalletTx = [];
 let budgetGoalTransfers = [];
 let budgetUsdRate = null;
 let investedAccountBalances = {}; // { accountId: totalTHB }
+let retSettings = { categories: null, goals: null }; // null = ใช้ค่าเริ่มต้นอัตโนมัติ, array = ผู้ใช้กำหนดเอง
 
 function budgetGetCat(key) { return budgetCatMap[key] || { key, label: 'ไม่ทราบหมวด (ลบแล้ว)', kind: 'expense', color: '#94A0AB' }; }
 
@@ -441,11 +444,13 @@ function fmt(n) { return '฿' + (n || 0).toLocaleString('th-TH', { minimumFract
 
 async function saveHoldings() { try { await window.storage.set(HOLDINGS_KEY, JSON.stringify(holdings)); } catch (e) { console.error(e); } }
 async function saveContributions() { try { await window.storage.set(CONTRIBUTIONS_KEY, JSON.stringify(contributions)); } catch (e) { console.error(e); } }
+async function saveRetSettings() { try { await window.storage.set(RET_SETTINGS_KEY, JSON.stringify(retSettings)); } catch (e) { console.error(e); } }
 
 async function load() {
   try { const r = await window.storage.get(HOLDINGS_KEY); holdings = r ? JSON.parse(r.value) : []; } catch (e) { holdings = []; }
   try { const r = await window.storage.get(CONTRIBUTIONS_KEY); contributions = r ? JSON.parse(r.value) : []; } catch (e) { contributions = []; }
   try { const r = await window.storage.get(MAINACCOUNTS_KEY); const a = r ? JSON.parse(r.value) : []; investedAccounts = a.filter(x => x.invested); } catch (e) { investedAccounts = []; }
+  try { const r = await window.storage.get(RET_SETTINGS_KEY); retSettings = r ? JSON.parse(r.value) : { categories: null, goals: null }; } catch (e) { retSettings = { categories: null, goals: null }; }
   try { await loadBudgetBalances(); } catch (e) { console.error(e); investedAccountBalances = {}; }
   document.getElementById('updated-note').textContent = 'ข้อมูลล่าสุดจากเซิร์ฟเวอร์';
   refreshAccountSelect();
@@ -870,20 +875,113 @@ function render() {
   renderSourceAccountsSummary();
   renderHoldingsSummary();
   renderHoldingsList();
+  renderRetirementSettings();
   renderRetirementMonthlyTable();
 }
 
 // ================= แผนเกษียณ: ตารางค่าใช้จ่ายรายเดือนที่คาดการณ์ =================
 const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const RET_GOAL_KIND_LABEL = { saving: 'เงินออม', periodic: 'ออมค่าใช้จ่าย', debt: 'หนี้' };
+const RET_GOAL_KIND_COLOR = { saving: '#5C9C82', periodic: '#B8901F', debt: '#B14A34' };
 
-// ค่าเฉลี่ยรายจ่ายจริงต่อเดือน แยกตามหมวดหมู่ จากรายการย้อนหลัง N เดือนล่าสุดในแอพ Budget
+function retAllExpenseCategories() { return budgetCategories.filter(c => c.kind === 'expense'); }
+function retDefaultGoalIds() { return budgetGoals.filter(g => (g.kind || 'saving') === 'periodic').map(g => g.id); }
+function retEffectiveCategoryKeys() { return retSettings.categories !== null ? retSettings.categories : retAllExpenseCategories().map(c => c.key); }
+function retEffectiveGoalIds() { return retSettings.goals !== null ? retSettings.goals : retDefaultGoalIds(); }
+
+// เลือกหมวดหมู่/เป้าหมายที่จะนำมาคำนวณค่าใช้จ่ายเกษียณ
+function renderRetirementSettings() {
+  const wrap = document.getElementById('ret-settings-wrap');
+  if (!wrap) return;
+  const allCats = retAllExpenseCategories();
+  const effCats = new Set(retEffectiveCategoryKeys());
+  const allGoals = budgetGoals;
+  const effGoals = new Set(retEffectiveGoalIds());
+
+  const catCheckboxes = allCats.length ? allCats.map(c => `
+    <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;padding:3px 0;">
+      <input type="checkbox" class="ret-cat-cb" data-key="${c.key}" ${effCats.has(c.key) ? 'checked' : ''} style="width:auto;">
+      <span>${c.label}</span>
+    </label>`).join('') : '<p class="empty">ยังไม่มีหมวดหมู่รายจ่ายในแอพ Budget</p>';
+
+  const goalCheckboxes = allGoals.length ? allGoals.map(g => {
+    const kind = g.kind || 'saving';
+    return `
+    <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;padding:3px 0;">
+      <input type="checkbox" class="ret-goal-cb" data-id="${g.id}" ${effGoals.has(g.id) ? 'checked' : ''} style="width:auto;">
+      <span>${g.name}</span>
+      <span style="background:${RET_GOAL_KIND_COLOR[kind]}22;color:${RET_GOAL_KIND_COLOR[kind]};font-size:10px;padding:1px 7px;border-radius:8px;font-weight:600;">${RET_GOAL_KIND_LABEL[kind]}</span>
+      ${!g.monthly ? '<span class="muted" style="font-size:10px;">(ยังไม่ตั้งยอดเก็บต่อเดือน)</span>' : ''}
+    </label>`;
+  }).join('') : '<p class="empty">ยังไม่มีเป้าหมายในแอพ Budget</p>';
+
+  wrap.innerHTML = `
+    <div class="card" style="background:var(--paper);margin-bottom:12px;">
+      <div class="row-between" style="margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+        <h2 style="font-size:13.5px;margin:0;">เลือกหมวดหมู่ค่าใช้จ่าย</h2>
+        <span>
+          <button class="btn" id="ret-cat-all" style="padding:4px 10px;font-size:11.5px;">เลือกทั้งหมด</button>
+          <button class="btn" id="ret-cat-none" style="padding:4px 10px;font-size:11.5px;">ไม่เลือกเลย</button>
+        </span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:2px 12px;">${catCheckboxes}</div>
+    </div>
+    <div class="card" style="background:var(--paper);margin-bottom:12px;">
+      <div class="row-between" style="margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+        <h2 style="font-size:13.5px;margin:0;">เลือกเป้าหมายที่จะนำมารวมเป็นค่าใช้จ่าย</h2>
+        <span>
+          <button class="btn" id="ret-goal-all" style="padding:4px 10px;font-size:11.5px;">เลือกทั้งหมด</button>
+          <button class="btn" id="ret-goal-none" style="padding:4px 10px;font-size:11.5px;">ไม่เลือกเลย</button>
+        </span>
+      </div>
+      <p class="muted" style="margin:0 0 6px;">ใช้ยอด "เก็บต่อเดือน" ที่ตั้งไว้ของแต่ละเป้าหมาย — ค่าเริ่มต้นติ๊กเฉพาะกลุ่ม "ออมค่าใช้จ่าย" เลือก/ไม่เลือกเป็นรายเป้าหมายได้อิสระ</p>
+      <div>${goalCheckboxes}</div>
+    </div>
+  `;
+
+  wrap.querySelectorAll('.ret-cat-cb').forEach(cb => cb.addEventListener('change', async () => {
+    const current = new Set(retEffectiveCategoryKeys());
+    if (cb.checked) current.add(cb.dataset.key); else current.delete(cb.dataset.key);
+    retSettings.categories = Array.from(current);
+    await saveRetSettings();
+    renderRetirementMonthlyTable();
+  }));
+  wrap.querySelectorAll('.ret-goal-cb').forEach(cb => cb.addEventListener('change', async () => {
+    const current = new Set(retEffectiveGoalIds());
+    if (cb.checked) current.add(cb.dataset.id); else current.delete(cb.dataset.id);
+    retSettings.goals = Array.from(current);
+    await saveRetSettings();
+    renderRetirementMonthlyTable();
+  }));
+  document.getElementById('ret-cat-all').addEventListener('click', async () => {
+    retSettings.categories = allCats.map(c => c.key);
+    await saveRetSettings(); renderRetirementSettings(); renderRetirementMonthlyTable();
+  });
+  document.getElementById('ret-cat-none').addEventListener('click', async () => {
+    retSettings.categories = [];
+    await saveRetSettings(); renderRetirementSettings(); renderRetirementMonthlyTable();
+  });
+  document.getElementById('ret-goal-all').addEventListener('click', async () => {
+    retSettings.goals = allGoals.map(g => g.id);
+    await saveRetSettings(); renderRetirementSettings(); renderRetirementMonthlyTable();
+  });
+  document.getElementById('ret-goal-none').addEventListener('click', async () => {
+    retSettings.goals = [];
+    await saveRetSettings(); renderRetirementSettings(); renderRetirementMonthlyTable();
+  });
+}
+
+// ค่าเฉลี่ยรายจ่ายจริงต่อเดือน แยกตามหมวดหมู่ (เฉพาะหมวดที่เลือกไว้) จากรายการย้อนหลัง N เดือนล่าสุดในแอพ Budget
+// รวมยอด "เก็บต่อเดือน" ของเป้าหมายที่เลือกไว้เข้าไปด้วย เสมือนเป็นรายจ่ายประจำอีกรายการหนึ่ง
 function computeAvgMonthlyExpenseByCategory(historyMonths) {
   const today = new Date();
   const cutoff = new Date(today.getFullYear(), today.getMonth() - historyMonths, 1);
   const cutoffISO = cutoff.toISOString().slice(0, 10);
+  const includeCats = new Set(retEffectiveCategoryKeys());
   const byCategory = {};
   budgetEntries.forEach(e => {
     if (!e.date || e.date < cutoffISO) return;
+    if (!includeCats.has(e.category)) return;
     const cat = budgetGetCat(e.category);
     if (cat.kind !== 'expense') return;
     if (!byCategory[e.category]) byCategory[e.category] = { label: cat.label, color: cat.color, total: 0 };
@@ -891,6 +989,20 @@ function computeAvgMonthlyExpenseByCategory(historyMonths) {
   });
   // เฉลี่ยต่อเดือน = ยอดรวม / จำนวนเดือนย้อนหลังที่ใช้คำนวณ
   Object.keys(byCategory).forEach(k => { byCategory[k].avgMonthly = byCategory[k].total / historyMonths; });
+
+  // เพิ่มเป้าหมายที่เลือกไว้ (ใช้ยอด "เก็บต่อเดือน" ที่ตั้งไว้ตรงๆ ไม่ใช่ค่าเฉลี่ยย้อนหลัง)
+  retEffectiveGoalIds().forEach(gid => {
+    const g = budgetGoals.find(x => x.id === gid);
+    if (!g || !g.monthly) return;
+    const kind = g.kind || 'saving';
+    byCategory['goal_' + gid] = {
+      label: g.name + ' (เป้าหมาย)',
+      color: RET_GOAL_KIND_COLOR[kind] || '#8E7CC3',
+      total: g.monthly * historyMonths,
+      avgMonthly: g.monthly
+    };
+  });
+
   return byCategory;
 }
 
