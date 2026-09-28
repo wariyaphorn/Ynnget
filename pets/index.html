@@ -344,6 +344,14 @@
   <div id="page-labs" class="page">
     <section>
       <div class="card">
+        <h2>ประวัติการตรวจ</h2>
+        <p class="muted" style="margin:0 0 10px;">รวมประวัติตรวจเลือดและผลตรวจภาพ/หัตถการทั้งหมด เรียงตามวันที่ล่าสุด</p>
+        <div id="history-combined-list"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
         <h2 id="lab-form-title">+ เพิ่มผลตรวจเลือด</h2>
         <p class="muted" style="margin:0 0 10px;">แนบรูปผลตรวจไว้อ้างอิง แล้วกรอกค่าที่ต้องการติดตามเอง หรือถ้าถามค่าจาก AI แชทอื่นมาแล้ว ก็วางข้อความ (เช่น "CREA,2.3") ที่ช่อง "นำเข้าจากข้อความ" เพื่อให้ระบบเติมให้อัตโนมัติ — ตรวจสอบตัวเลขอีกครั้งก่อนบันทึกเสมอ</p>
         <div class="child-tabs" id="lab-cat-tabs"></div>
@@ -406,15 +414,23 @@
 
     <section>
       <div class="card">
-        <h2>ประวัติผลตรวจ</h2>
-        <div id="lab-list"></div>
-      </div>
-    </section>
-
-    <section>
-      <div class="card">
-        <h2 id="us-form-title">+ บันทึกผลอัลตราซาวด์</h2>
-        <p class="muted" style="margin:0 0 10px;">แนบไฟล์ PDF ผลอัลตราซาวด์ (ไม่บังคับ) พร้อมบันทึกหมายเหตุ — ใช้แมวตัวที่เลือกไว้ด้านบน</p>
+        <h2 id="us-form-title">+ บันทึกผลตรวจภาพ/หัตถการ</h2>
+        <p class="muted" style="margin:0 0 10px;">เช่น อัลตราซาวด์, X-Ray, Echo หัวใจ แนบรูป/ไฟล์ PDF (ไม่บังคับ) พร้อมบันทึกหมายเหตุ — ใช้แมวตัวที่เลือกไว้ด้านบน</p>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="us-type">ประเภทการตรวจ</label>
+            <select id="us-type">
+              <option value="ultrasound">🔊 อัลตราซาวด์</option>
+              <option value="xray">🩻 X-Ray</option>
+              <option value="echo">💓 Echo (หัวใจ)</option>
+              <option value="other">🔬 อื่นๆ</option>
+            </select>
+          </div>
+          <div id="us-type-other-wrap" style="display:none;">
+            <label class="field-label" for="us-type-other">ระบุประเภท</label>
+            <input type="text" id="us-type-other" placeholder="เช่น CT Scan">
+          </div>
+        </div>
         <div class="form-grid g2">
           <div>
             <label class="field-label" for="us-date">วันที่ตรวจ</label>
@@ -427,7 +443,7 @@
         </div>
         <div class="form-grid">
           <div>
-            <label class="field-label" for="us-file">แนบรูป/ไฟล์ PDF ผลอัลตราซาวด์ (เลือกได้หลายไฟล์ ไม่บังคับ — PDF ใหญ่จะถูกแปลงเป็นรูปให้อัตโนมัติ)</label>
+            <label class="field-label" for="us-file">แนบรูป/ไฟล์ PDF ผลตรวจ (เลือกได้หลายไฟล์ ไม่บังคับ — PDF ใหญ่จะถูกแปลงเป็นรูปให้อัตโนมัติ)</label>
             <input type="file" id="us-file" accept="image/*,application/pdf,.pdf" multiple>
             <p class="muted" id="us-file-status" style="margin:4px 0 0;"></p>
             <div id="us-file-existing-list" style="margin-top:6px;"></div>
@@ -441,16 +457,9 @@
           </div>
         </div>
         <div style="display:flex;gap:8px;">
-          <button class="btn btn-primary" id="us-save" style="flex:1;">+ บันทึกผลอัลตราซาวด์</button>
+          <button class="btn btn-primary" id="us-save" style="flex:1;">+ บันทึกผลตรวจ</button>
           <button class="btn" id="us-cancel-edit" style="display:none;">ยกเลิก</button>
         </div>
-      </div>
-    </section>
-
-    <section>
-      <div class="card">
-        <h2>ประวัติอัลตราซาวด์</h2>
-        <div id="us-list"></div>
       </div>
     </section>
 
@@ -639,6 +648,18 @@ let pendingUltrasoundAttachments = [];
 let removedUltrasoundAttachmentIds = [];
 const LAB_ATTACHMENT_RAW_MAX_BYTES = 700 * 1024;
 const ULTRASOUND_MAX_BYTES = 700 * 1024; // ไฟล์ PDF ต้องไม่ใหญ่เกินนี้ (ก่อนแปลงเป็น base64) เพื่อไม่ให้เกินขีดจำกัดเอกสารของ Firestore
+const EXAM_TYPES = {
+  ultrasound: { label: 'อัลตราซาวด์', icon: '🔊' },
+  xray: { label: 'X-Ray', icon: '🩻' },
+  echo: { label: 'Echo (หัวใจ)', icon: '💓' },
+  other: { label: 'อื่นๆ', icon: '🔬' }
+};
+function examTypeInfo(u) {
+  const key = u.examType || 'ultrasound';
+  const base = EXAM_TYPES[key] || EXAM_TYPES.other;
+  const label = (key === 'other' && u.examTypeOther) ? u.examTypeOther : base.label;
+  return { key, label, icon: base.icon };
+}
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 function fmt(n) { return '฿' + Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -1644,97 +1665,150 @@ function labValueStatus(entry, num) {
   return 'normal';
 }
 
-function renderLabList() {
-  const listWrap = document.getElementById('lab-list');
+function renderCombinedHistoryList() {
+  const listWrap = document.getElementById('history-combined-list');
   if (!listWrap) return;
   listWrap.innerHTML = '';
   if (!cats.length) { listWrap.innerHTML = ''; return; }
-  const list = labTests.filter(t => t.catId === selectedLabCat).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  if (!list.length) { listWrap.innerHTML = '<p class="empty">ยังไม่มีประวัติผลตรวจของแมวตัวนี้</p>'; return; }
-  list.forEach(t => {
-    const abnormalCount = Object.keys(t.values || {}).filter(k => {
-      const entry = labCatalog.find(e => e.key === k);
-      return labValueStatus(entry, t.values[k]) !== 'normal';
-    }).length;
+  const labItems = labTests.filter(t => t.catId === selectedLabCat).map(t => ({ kind: 'lab', date: t.date, data: t }));
+  const examItems = ultrasoundRecords.filter(u => u.catId === selectedLabCat).map(u => ({ kind: 'exam', date: u.date, data: u }));
+  const items = labItems.concat(examItems).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  if (!items.length) { listWrap.innerHTML = '<p class="empty">ยังไม่มีประวัติการตรวจของแมวตัวนี้</p>'; return; }
+
+  items.forEach(item => {
     const div = document.createElement('div');
     div.className = 'visit-card';
-    const expanded = expandedLabIds.has(t.id);
-    let valuesHtml = '';
-    const attCount = (t.attachments && t.attachments.length) || (t.hasPhoto ? 1 : 0);
-    if (expanded) {
-      const labGroupOrder = ['chem', 'cbc', 'vitals', 'urine', 'other'];
-      const valuesByGroup = {};
-      Object.keys(t.values || {}).forEach(k => {
-        const entry = labCatalog.find(e => e.key === k) || { label: k, unit: '', group: 'other' };
-        const g = entry.group || 'other';
-        if (!valuesByGroup[g]) valuesByGroup[g] = [];
-        valuesByGroup[g].push({ entry, val: t.values[k] });
-      });
-      const rows = labGroupOrder.filter(g => valuesByGroup[g] && valuesByGroup[g].length).map(g => {
-        const itemsHtml = valuesByGroup[g].map(({ entry, val }) => {
-          const status = labValueStatus(entry, val);
-          const cls = status === 'normal' ? '' : status;
-          return `<div class="val-row"><span>${entry.label}</span><span class="val-num ${cls}">${val}${entry.unit ? ' ' + entry.unit : ''}</span></div>`;
+    if (item.kind === 'lab') {
+      const t = item.data;
+      const abnormalCount = Object.keys(t.values || {}).filter(k => {
+        const entry = labCatalog.find(e => e.key === k);
+        return labValueStatus(entry, t.values[k]) !== 'normal';
+      }).length;
+      const expanded = expandedLabIds.has(t.id);
+      let valuesHtml = '';
+      const attCount = (t.attachments && t.attachments.length) || (t.hasPhoto ? 1 : 0);
+      if (expanded) {
+        const labGroupOrder = ['chem', 'cbc', 'vitals', 'urine', 'other'];
+        const valuesByGroup = {};
+        Object.keys(t.values || {}).forEach(k => {
+          const entry = labCatalog.find(e => e.key === k) || { label: k, unit: '', group: 'other' };
+          const g = entry.group || 'other';
+          if (!valuesByGroup[g]) valuesByGroup[g] = [];
+          valuesByGroup[g].push({ entry, val: t.values[k] });
+        });
+        const rows = labGroupOrder.filter(g => valuesByGroup[g] && valuesByGroup[g].length).map(g => {
+          const itemsHtml = valuesByGroup[g].map(({ entry, val }) => {
+            const status = labValueStatus(entry, val);
+            const cls = status === 'normal' ? '' : status;
+            return `<div class="val-row"><span>${entry.label}</span><span class="val-num ${cls}">${val}${entry.unit ? ' ' + entry.unit : ''}</span></div>`;
+          }).join('');
+          return `<div class="lab-group-title" style="margin-top:6px;">${LAB_GROUP_LABELS[g] || g}</div>${itemsHtml}`;
         }).join('');
-        return `<div class="lab-group-title" style="margin-top:6px;">${LAB_GROUP_LABELS[g] || g}</div>${itemsHtml}`;
-      }).join('');
-      const atts = (t.attachments && t.attachments.length) ? t.attachments : (t.hasPhoto ? [{ id: '', legacy: true, type: 'image', name: 'รูปแนบ' }] : []);
-      const attsHtml = atts.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">${atts.map(a => `<button class="btn" data-viewatt="${t.id}" data-attid="${a.id}" style="padding:4px 10px;font-size:11.5px;">${a.type === 'pdf' ? '📄' : '🖼'} ${a.name || 'ไฟล์แนบ'}${a.storage === 'pages' ? ` (${a.pageCount} หน้า)` : ''}</button>`).join('')}</div>` : '';
-      valuesHtml = `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;">${rows || '<p class="empty">ไม่มีค่าที่บันทึกไว้</p>'}${attsHtml}</div>`;
+        const atts = (t.attachments && t.attachments.length) ? t.attachments : (t.hasPhoto ? [{ id: '', legacy: true, type: 'image', name: 'รูปแนบ' }] : []);
+        const attsHtml = atts.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">${atts.map(a => `<button class="btn" data-viewatt="${t.id}" data-attid="${a.id}" data-kind="lab" style="padding:4px 10px;font-size:11.5px;">${a.type === 'pdf' ? '📄' : '🖼'} ${a.name || 'ไฟล์แนบ'}${a.storage === 'pages' ? ` (${a.pageCount} หน้า)` : ''}</button>`).join('')}</div>` : '';
+        valuesHtml = `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;">${rows || '<p class="empty">ไม่มีค่าที่บันทึกไว้</p>'}${attsHtml}</div>`;
+      }
+      div.innerHTML = `
+        <div class="row-between">
+          <span data-toggle="${t.id}" style="cursor:pointer;">
+            <span class="badge" style="background:#5B8C6E;color:#fff;margin-right:4px;">🩸 ตรวจเลือด</span>
+            <strong>${fmtDateStr(t.date)}</strong>${t.hospital ? ' · ' + t.hospital : ''}
+            ${abnormalCount ? `<span class="badge badge-abnormal">ผิดปกติ ${abnormalCount}</span>` : '<span class="badge badge-normal">ปกติ</span>'}
+            ${attCount ? `<span class="badge" style="margin-left:4px;">📎 ${attCount}</span>` : ''}
+          </span>
+          <span>
+            <button class="del-btn" data-edit="${t.id}" data-kind="lab" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
+            <button class="del-btn" data-del="${t.id}" data-kind="lab" aria-label="ลบ">✕</button>
+          </span>
+        </div>
+        ${t.note ? `<p class="muted" style="margin:4px 0 0;">${t.note}</p>` : ''}
+        ${valuesHtml}
+      `;
+    } else {
+      const u = item.data;
+      const info = examTypeInfo(u);
+      const atts = ultrasoundRecordAttachments(u);
+      const attsHtml = atts.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">${atts.map(a => `<button class="btn" data-viewatt="${u.id}" data-attid="${a.id}" data-kind="exam" style="padding:4px 10px;font-size:11.5px;">${a.storage === 'pages' ? `🖼 ${a.name || 'ไฟล์'} (${a.pageCount || 0} หน้า)` : `${(a.type || 'pdf') === 'pdf' ? '📄' : '🖼'} ${a.name || 'ไฟล์แนบ'}`}</button>`).join('')}</div>` : '';
+      div.innerHTML = `
+        <div class="row-between">
+          <span>
+            <span class="badge" style="background:#B4623D;color:#fff;margin-right:4px;">${info.icon} ${info.label}</span>
+            <strong>${fmtDateStr(u.date)}</strong>${u.hospital ? ' · ' + u.hospital : ''}
+            ${atts.length ? `<span class="badge" style="margin-left:4px;">📎 ${atts.length}</span>` : ''}
+          </span>
+          <span>
+            <button class="del-btn" data-edit="${u.id}" data-kind="exam" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
+            <button class="del-btn" data-del="${u.id}" data-kind="exam" aria-label="ลบ">✕</button>
+          </span>
+        </div>
+        ${u.note ? `<p class="muted" style="margin:4px 0 0;">${u.note}</p>` : ''}
+        ${attsHtml}
+      `;
     }
-    div.innerHTML = `
-      <div class="row-between">
-        <span data-toggle="${t.id}" style="cursor:pointer;">
-          <strong>${fmtDateStr(t.date)}</strong>${t.hospital ? ' · ' + t.hospital : ''}
-          ${abnormalCount ? `<span class="badge badge-abnormal">ผิดปกติ ${abnormalCount}</span>` : '<span class="badge badge-normal">ปกติ</span>'}
-          ${attCount ? `<span class="badge" style="margin-left:4px;">📎 ${attCount}</span>` : ''}
-        </span>
-        <span>
-          <button class="del-btn" data-edit="${t.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
-          <button class="del-btn" data-del="${t.id}" aria-label="ลบ">✕</button>
-        </span>
-      </div>
-      ${t.note ? `<p class="muted" style="margin:4px 0 0;">${t.note}</p>` : ''}
-      ${valuesHtml}
-    `;
     listWrap.appendChild(div);
   });
+
   listWrap.querySelectorAll('[data-toggle]').forEach(el => el.addEventListener('click', () => {
     const id = el.dataset.toggle;
     if (expandedLabIds.has(id)) expandedLabIds.delete(id); else expandedLabIds.add(id);
-    renderLabList();
+    renderCombinedHistoryList();
   }));
   listWrap.querySelectorAll('[data-viewatt]').forEach(btn => btn.addEventListener('click', () => {
-    const t = labTests.find(x => x.id === btn.dataset.viewatt);
-    if (!t) return;
-    if (!btn.dataset.attid) { viewLabPhotoLegacy(t.id); return; }
-    const att = (t.attachments || []).find(a => a.id === btn.dataset.attid);
-    if (att) viewLabAttachment(t.id, att);
+    if (btn.dataset.kind === 'lab') {
+      const t = labTests.find(x => x.id === btn.dataset.viewatt);
+      if (!t) return;
+      if (!btn.dataset.attid) { viewLabPhotoLegacy(t.id); return; }
+      const att = (t.attachments || []).find(a => a.id === btn.dataset.attid);
+      if (att) viewLabAttachment(t.id, att);
+    } else {
+      const u = ultrasoundRecords.find(x => x.id === btn.dataset.viewatt);
+      if (!u) return;
+      const att = ultrasoundRecordAttachments(u).find(a => a.id === btn.dataset.attid);
+      if (att) viewUltrasoundAttachment(u.id, att);
+    }
+  }));
+  listWrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => {
+    if (btn.dataset.kind === 'lab') startLabEdit(btn.dataset.edit); else startUltrasoundEdit(btn.dataset.edit);
   }));
   listWrap.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
-    if (!confirm('ลบผลตรวจรายการนี้?')) return;
-    const t = labTests.find(x => x.id === btn.dataset.del);
-    labTests = labTests.filter(t2 => t2.id !== btn.dataset.del);
-    if (editingLabId === btn.dataset.del) cancelLabEdit();
-    await saveLabTests();
-    try { await window.storage.set(labPhotoKey(btn.dataset.del), ''); } catch (e) {}
-    if (t && t.attachments) {
-      for (const a of t.attachments) {
-        try {
-          if (a.storage === 'raw') {
-            await window.storage.set(labAttachmentKey(t.id, a.id), '');
-          } else {
-            for (let i = 0; i < (a.pageCount || 0); i++) {
-              await window.storage.set(labAttachmentPageKey(t.id, a.id, i), '');
+    if (btn.dataset.kind === 'lab') {
+      if (!confirm('ลบผลตรวจรายการนี้?')) return;
+      const t = labTests.find(x => x.id === btn.dataset.del);
+      labTests = labTests.filter(t2 => t2.id !== btn.dataset.del);
+      if (editingLabId === btn.dataset.del) cancelLabEdit();
+      await saveLabTests();
+      try { await window.storage.set(labPhotoKey(btn.dataset.del), ''); } catch (e) {}
+      if (t && t.attachments) {
+        for (const a of t.attachments) {
+          try {
+            if (a.storage === 'raw') {
+              await window.storage.set(labAttachmentKey(t.id, a.id), '');
+            } else {
+              for (let i = 0; i < (a.pageCount || 0); i++) {
+                await window.storage.set(labAttachmentPageKey(t.id, a.id, i), '');
+              }
             }
-          }
-        } catch (e) {}
+          } catch (e) {}
+        }
       }
+      render();
+    } else {
+      if (!confirm('ลบรายการตรวจนี้?')) return;
+      const u = ultrasoundRecords.find(x => x.id === btn.dataset.del);
+      ultrasoundRecords = ultrasoundRecords.filter(x => x.id !== btn.dataset.del);
+      if (editingUltrasoundId === btn.dataset.del) cancelUltrasoundEdit();
+      await saveUltrasoundRecords();
+      if (u) {
+        for (const att of ultrasoundRecordAttachments(u)) {
+          await deleteUltrasoundAttachmentContent(u.id, att);
+        }
+      }
+      renderCombinedHistoryList();
     }
-    render();
   }));
-  listWrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => startLabEdit(btn.dataset.edit)));
 }
+function renderLabList() { renderCombinedHistoryList(); }
+function renderUltrasoundList() { renderCombinedHistoryList(); }
 
 function startLabEdit(id) {
   const t = labTests.find(x => x.id === id);
@@ -1984,57 +2058,13 @@ async function deleteUltrasoundAttachmentContent(recId, att) {
   } catch (e) {}
 }
 
-function renderUltrasoundList() {
-  const listWrap = document.getElementById('us-list');
-  if (!listWrap) return;
-  listWrap.innerHTML = '';
-  if (!cats.length) { listWrap.innerHTML = ''; return; }
-  const list = ultrasoundRecords.filter(u => u.catId === selectedLabCat).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  if (!list.length) { listWrap.innerHTML = '<p class="empty">ยังไม่มีประวัติอัลตราซาวด์ของแมวตัวนี้</p>'; return; }
-  list.forEach(u => {
-    const atts = ultrasoundRecordAttachments(u);
-    const div = document.createElement('div');
-    div.className = 'visit-card';
-    const attsHtml = atts.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">${atts.map(a => `<button class="btn" data-viewatt="${u.id}" data-attid="${a.id}" style="padding:4px 10px;font-size:11.5px;">${a.storage === 'pages' ? `🖼 ${a.name || 'ไฟล์'} (${a.pageCount || 0} หน้า)` : `${(a.type || 'pdf') === 'pdf' ? '📄' : '🖼'} ${a.name || 'ไฟล์แนบ'}`}</button>`).join('')}</div>` : '';
-    div.innerHTML = `
-      <div class="row-between">
-        <span><strong>${fmtDateStr(u.date)}</strong>${u.hospital ? ' · ' + u.hospital : ''}${atts.length ? ` <span class="badge">📎 ${atts.length}</span>` : ''}</span>
-        <span>
-          <button class="del-btn" data-edit="${u.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
-          <button class="del-btn" data-del="${u.id}" aria-label="ลบ">✕</button>
-        </span>
-      </div>
-      ${u.note ? `<p class="muted" style="margin:4px 0 0;">${u.note}</p>` : ''}
-      ${attsHtml}
-    `;
-    listWrap.appendChild(div);
-  });
-  listWrap.querySelectorAll('[data-viewatt]').forEach(btn => btn.addEventListener('click', () => {
-    const u = ultrasoundRecords.find(x => x.id === btn.dataset.viewatt);
-    if (!u) return;
-    const att = ultrasoundRecordAttachments(u).find(a => a.id === btn.dataset.attid);
-    if (att) viewUltrasoundAttachment(u.id, att);
-  }));
-  listWrap.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
-    if (!confirm('ลบรายการอัลตราซาวด์นี้?')) return;
-    const u = ultrasoundRecords.find(x => x.id === btn.dataset.del);
-    ultrasoundRecords = ultrasoundRecords.filter(x => x.id !== btn.dataset.del);
-    if (editingUltrasoundId === btn.dataset.del) cancelUltrasoundEdit();
-    await saveUltrasoundRecords();
-    if (u) {
-      for (const att of ultrasoundRecordAttachments(u)) {
-        await deleteUltrasoundAttachmentContent(u.id, att);
-      }
-    }
-    renderUltrasoundList();
-  }));
-  listWrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => startUltrasoundEdit(btn.dataset.edit)));
-}
-
 function startUltrasoundEdit(id) {
   const u = ultrasoundRecords.find(x => x.id === id);
   if (!u) return;
   editingUltrasoundId = id;
+  document.getElementById('us-type').value = u.examType || 'ultrasound';
+  document.getElementById('us-type-other').value = u.examTypeOther || '';
+  document.getElementById('us-type-other-wrap').style.display = (u.examType === 'other') ? '' : 'none';
   document.getElementById('us-date').value = u.date || '';
   document.getElementById('us-hospital').value = u.hospital || '';
   document.getElementById('us-note').value = u.note || '';
@@ -2044,13 +2074,16 @@ function startUltrasoundEdit(id) {
   document.getElementById('us-file-status').textContent = '';
   renderExistingUltrasoundAttachments(u);
   renderPendingUltrasoundAttachments();
-  document.getElementById('us-form-title').textContent = '✏️ แก้ไขผลอัลตราซาวด์';
+  document.getElementById('us-form-title').textContent = '✏️ แก้ไขผลตรวจ';
   document.getElementById('us-save').textContent = '💾 บันทึกการแก้ไข';
   document.getElementById('us-cancel-edit').style.display = 'inline-block';
   document.getElementById('us-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function cancelUltrasoundEdit() {
   editingUltrasoundId = null;
+  document.getElementById('us-type').value = 'ultrasound';
+  document.getElementById('us-type-other').value = '';
+  document.getElementById('us-type-other-wrap').style.display = 'none';
   document.getElementById('us-date').value = '';
   document.getElementById('us-hospital').value = '';
   document.getElementById('us-note').value = '';
@@ -2060,11 +2093,14 @@ function cancelUltrasoundEdit() {
   document.getElementById('us-file-status').textContent = '';
   document.getElementById('us-file-existing-list').innerHTML = '';
   document.getElementById('us-file-pending-list').innerHTML = '';
-  document.getElementById('us-form-title').textContent = '+ บันทึกผลอัลตราซาวด์';
-  document.getElementById('us-save').textContent = '+ บันทึกผลอัลตราซาวด์';
+  document.getElementById('us-form-title').textContent = '+ บันทึกผลตรวจภาพ/หัตถการ';
+  document.getElementById('us-save').textContent = '+ บันทึกผลตรวจ';
   document.getElementById('us-cancel-edit').style.display = 'none';
 }
 document.getElementById('us-cancel-edit').addEventListener('click', cancelUltrasoundEdit);
+document.getElementById('us-type').addEventListener('change', (e) => {
+  document.getElementById('us-type-other-wrap').style.display = (e.target.value === 'other') ? '' : 'none';
+});
 
 document.getElementById('us-save').addEventListener('click', async () => {
   if (!selectedLabCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
@@ -2076,8 +2112,11 @@ document.getElementById('us-save').addEventListener('click', async () => {
   const keptAttachments = originalAttachments.filter(a => !removedUltrasoundAttachmentIds.includes(a.id));
   const toDelete = originalAttachments.filter(a => removedUltrasoundAttachmentIds.includes(a.id));
 
+  const examType = document.getElementById('us-type').value || 'ultrasound';
   const data = {
     catId: selectedLabCat,
+    examType,
+    examTypeOther: examType === 'other' ? document.getElementById('us-type-other').value.trim() : '',
     date,
     hospital: document.getElementById('us-hospital').value.trim(),
     note: document.getElementById('us-note').value.trim(),
@@ -2100,12 +2139,12 @@ document.getElementById('us-save').addEventListener('click', async () => {
     try {
       if (a.storage === 'raw') {
         await window.storage.set(ultrasoundAttachmentKey(recId, a.id), a.content);
-        newAttMeta.push({ id: a.id, name: a.name, storage: 'raw' });
+        newAttMeta.push({ id: a.id, name: a.name, storage: 'raw', type: a.type });
       } else {
         for (let i = 0; i < a.pages.length; i++) {
           await window.storage.set(ultrasoundAttachmentPageKey(recId, a.id, i), a.pages[i]);
         }
-        newAttMeta.push({ id: a.id, name: a.name, storage: 'pages', pageCount: a.pages.length });
+        newAttMeta.push({ id: a.id, name: a.name, storage: 'pages', pageCount: a.pages.length, type: a.type });
       }
     } catch (e) { console.error(e); }
   }
