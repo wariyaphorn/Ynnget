@@ -1192,7 +1192,6 @@ function renderMonthlyHistory() {
   wrap.innerHTML = '';
   const months = new Set();
   entries.forEach(e => months.add(e.date.slice(0, 7)));
-  walletTransactions.forEach(t => months.add(t.date.slice(0, 7)));
   months.add(currentViewMonth);
   const sorted = [...months].sort().reverse();
   if (sorted.length === 0) { wrap.innerHTML = '<p class="empty">ยังไม่มีข้อมูล</p>'; return; }
