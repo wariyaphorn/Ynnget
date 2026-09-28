@@ -427,9 +427,11 @@
         </div>
         <div class="form-grid">
           <div>
-            <label class="field-label" for="us-file">แนบไฟล์ PDF (ไม่บังคับ — ไฟล์ใหญ่จะถูกแปลงเป็นรูปให้อัตโนมัติ)</label>
-            <input type="file" id="us-file" accept="application/pdf,.pdf">
+            <label class="field-label" for="us-file">แนบไฟล์ PDF (เลือกได้หลายไฟล์ ไม่บังคับ — ไฟล์ใหญ่จะถูกแปลงเป็นรูปให้อัตโนมัติ)</label>
+            <input type="file" id="us-file" accept="application/pdf,.pdf" multiple>
             <p class="muted" id="us-file-status" style="margin:4px 0 0;"></p>
+            <div id="us-file-existing-list" style="margin-top:6px;"></div>
+            <div id="us-file-pending-list" style="margin-top:6px;"></div>
           </div>
         </div>
         <div class="form-grid">
@@ -631,9 +633,8 @@ let pendingLabAttachments = [];
 let removedLabAttachmentIds = [];
 let photoModalPages = [];
 let photoModalIndex = 0;
-let pendingUltrasoundFileDataUrl = null;
-let pendingUltrasoundPages = null;
-let pendingUltrasoundFileChanged = false;
+let pendingUltrasoundAttachments = [];
+let removedUltrasoundAttachmentIds = [];
 const LAB_ATTACHMENT_RAW_MAX_BYTES = 700 * 1024;
 const ULTRASOUND_MAX_BYTES = 700 * 1024; // ไฟล์ PDF ต้องไม่ใหญ่เกินนี้ (ก่อนแปลงเป็น base64) เพื่อไม่ให้เกินขีดจำกัดเอกสารของ Firestore
 
@@ -1855,60 +1856,119 @@ function renderLabTab() {
   renderUltrasoundList();
 }
 
-/* ---------------- Ultrasound records (PDF + note) ---------------- */
+/* ---------------- Ultrasound records (PDF + note, แนบได้หลายไฟล์) ---------------- */
 function ultrasoundFileKey(id) { return 'pet-ultrasound-file-' + id; }
 function ultrasoundPageKey(id, pageIdx) { return ultrasoundFileKey(id) + '-p' + pageIdx; }
+// attId === '__legacy__' หมายถึงไฟล์เดียวแบบเก่า (ก่อนรองรับหลายไฟล์) ให้ใช้ key แบบเดิมโดยไม่มี attId ต่อท้าย
+function ultrasoundAttachmentKey(recId, attId) {
+  return attId === '__legacy__' ? ultrasoundFileKey(recId) : ultrasoundFileKey(recId) + '-' + attId;
+}
+function ultrasoundAttachmentPageKey(recId, attId, pageIdx) {
+  return attId === '__legacy__' ? ultrasoundPageKey(recId, pageIdx) : ultrasoundAttachmentKey(recId, attId) + '-p' + pageIdx;
+}
+function ultrasoundRecordAttachments(u) {
+  if (u.attachments && u.attachments.length) return u.attachments;
+  if (u.hasFile) return [{ id: '__legacy__', name: 'ไฟล์แนบ', storage: u.fileStorage || 'raw', pageCount: u.filePageCount }];
+  return [];
+}
 
 document.getElementById('us-file').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
+  const files = Array.from(e.target.files || []);
   const statusEl = document.getElementById('us-file-status');
-  if (!file) return;
-  pendingUltrasoundFileDataUrl = null;
-  pendingUltrasoundPages = null;
-  pendingUltrasoundFileChanged = false;
-  if (file.size <= ULTRASOUND_MAX_BYTES) {
+  if (!files.length) return;
+  statusEl.textContent = 'กำลังประมวลผลไฟล์...';
+  for (const file of files) {
+    const att = { id: genId(), name: file.name || 'ไฟล์แนบ' };
     try {
-      pendingUltrasoundFileDataUrl = await fileToDataUrl(file);
-      pendingUltrasoundFileChanged = true;
-      statusEl.textContent = '✅ แนบไฟล์แล้ว (จะถูกบันทึกตอนกดบันทึกผลอัลตราซาวด์)';
+      if (file.size <= ULTRASOUND_MAX_BYTES) {
+        att.storage = 'raw';
+        att.content = await fileToDataUrl(file);
+      } else {
+        att.storage = 'pages';
+        att.pages = await pdfAllPagesToImages(file);
+      }
+      pendingUltrasoundAttachments.push(att);
     } catch (err) {
       console.error(err);
-      statusEl.textContent = 'แนบไฟล์ไม่สำเร็จ ลองใหม่อีกครั้ง';
+      statusEl.textContent = `แนบไฟล์ "${file.name}" ไม่สำเร็จ ลองใหม่อีกครั้ง`;
     }
-    return;
   }
-  // ไฟล์ใหญ่เกิน 700KB — แปลงทุกหน้าเป็นรูปบีบอัดแทน (เหมือนไฟล์แนบผลตรวจเลือด) แทนที่จะปฏิเสธไฟล์
-  statusEl.textContent = `ไฟล์ใหญ่ (${Math.round(file.size / 1024)}KB) กำลังแปลงทุกหน้าเป็นรูป...`;
-  try {
-    pendingUltrasoundPages = await pdfAllPagesToImages(file);
-    pendingUltrasoundFileChanged = true;
-    statusEl.textContent = `✅ แปลงเป็นรูปแล้ว ${pendingUltrasoundPages.length} หน้า (จะถูกบันทึกตอนกดบันทึกผลอัลตราซาวด์)`;
-  } catch (err) {
-    console.error(err);
-    statusEl.textContent = 'แปลง PDF ไม่สำเร็จ ลองใหม่อีกครั้ง';
-  }
+  e.target.value = '';
+  renderPendingUltrasoundAttachments();
+  statusEl.textContent = pendingUltrasoundAttachments.length
+    ? `✅ เตรียมไฟล์แนบ ${pendingUltrasoundAttachments.length} ไฟล์ (จะถูกบันทึกตอนกดบันทึกผลอัลตราซาวด์)`
+    : statusEl.textContent;
 });
 
-async function viewUltrasoundFile(id) {
-  const u = ultrasoundRecords.find(x => x.id === id);
-  const isPages = u && u.fileStorage === 'pages';
-  const w = isPages ? null : window.open('', '_blank');
+function renderPendingUltrasoundAttachments() {
+  const wrap = document.getElementById('us-file-pending-list');
+  if (!wrap) return;
+  if (!pendingUltrasoundAttachments.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = pendingUltrasoundAttachments.map(a => `
+    <span class="chip-condition" style="display:inline-flex;align-items:center;gap:6px;margin:2px 4px 2px 0;">
+      📄 ${a.name}${a.storage === 'pages' ? ` (${a.pages.length} หน้า)` : ''}
+      <button type="button" data-removependingus="${a.id}" style="border:none;background:none;color:var(--rust);cursor:pointer;font-weight:700;">✕</button>
+    </span>
+  `).join('');
+  wrap.querySelectorAll('[data-removependingus]').forEach(btn => btn.addEventListener('click', () => {
+    pendingUltrasoundAttachments = pendingUltrasoundAttachments.filter(a => a.id !== btn.dataset.removependingus);
+    renderPendingUltrasoundAttachments();
+  }));
+}
+
+function renderExistingUltrasoundAttachments(u) {
+  const wrap = document.getElementById('us-file-existing-list');
+  if (!wrap) return;
+  const atts = ultrasoundRecordAttachments(u).filter(a => !removedUltrasoundAttachmentIds.includes(a.id));
+  if (!atts.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = atts.map(a => `
+    <span class="chip-condition" style="display:inline-flex;align-items:center;gap:6px;margin:2px 4px 2px 0;">
+      📄 ${a.name || 'ไฟล์แนบ'}${a.storage === 'pages' ? ` (${a.pageCount || 0} หน้า)` : ''}
+      <button type="button" data-viewexistingus="${a.id}" style="border:none;background:none;color:var(--ink-light);cursor:pointer;">👁</button>
+      <button type="button" data-removeexistingus="${a.id}" style="border:none;background:none;color:var(--rust);cursor:pointer;font-weight:700;">✕</button>
+    </span>
+  `).join('');
+  wrap.querySelectorAll('[data-viewexistingus]').forEach(btn => btn.addEventListener('click', () => {
+    const att = atts.find(a => a.id === btn.dataset.viewexistingus);
+    if (att) viewUltrasoundAttachment(u.id, att);
+  }));
+  wrap.querySelectorAll('[data-removeexistingus]').forEach(btn => btn.addEventListener('click', () => {
+    removedUltrasoundAttachmentIds.push(btn.dataset.removeexistingus);
+    renderExistingUltrasoundAttachments(u);
+  }));
+}
+
+async function viewUltrasoundAttachment(recId, att) {
+  const needsPopup = att.storage === 'raw';
+  const w = needsPopup ? window.open('', '_blank') : null;
   try {
-    if (isPages) {
+    if (att.storage === 'raw') {
+      const r = await window.storage.get(ultrasoundAttachmentKey(recId, att.id));
+      if (!r || !r.value) { if (w) w.close(); alert('ไม่พบไฟล์แนบนี้'); return; }
+      if (w) w.location.href = dataUrlToBlobUrl(r.value);
+    } else {
       const pages = [];
-      for (let i = 0; i < (u.filePageCount || 0); i++) {
+      for (let i = 0; i < (att.pageCount || 0); i++) {
         try {
-          const r = await window.storage.get(ultrasoundPageKey(id, i));
+          const r = await window.storage.get(ultrasoundAttachmentPageKey(recId, att.id, i));
           pages.push(r && r.value ? r.value : '');
         } catch (e) { pages.push(''); }
       }
       openPhotoModal(pages);
-      return;
     }
-    const r = await window.storage.get(ultrasoundFileKey(id));
-    if (!r || !r.value) { if (w) w.close(); alert('ไม่พบไฟล์สำหรับรายการนี้'); return; }
-    if (w) w.location.href = dataUrlToBlobUrl(r.value);
   } catch (e) { console.error(e); if (w) w.close(); alert('เปิดไฟล์ไม่สำเร็จ'); }
+}
+
+async function deleteUltrasoundAttachmentContent(recId, att) {
+  try {
+    if (att.storage === 'raw') {
+      await window.storage.set(ultrasoundAttachmentKey(recId, att.id), '');
+    } else {
+      for (let i = 0; i < (att.pageCount || 0); i++) {
+        await window.storage.set(ultrasoundAttachmentPageKey(recId, att.id, i), '');
+      }
+    }
+  } catch (e) {}
 }
 
 function renderUltrasoundList() {
@@ -1919,34 +1979,39 @@ function renderUltrasoundList() {
   const list = ultrasoundRecords.filter(u => u.catId === selectedLabCat).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   if (!list.length) { listWrap.innerHTML = '<p class="empty">ยังไม่มีประวัติอัลตราซาวด์ของแมวตัวนี้</p>'; return; }
   list.forEach(u => {
+    const atts = ultrasoundRecordAttachments(u);
     const div = document.createElement('div');
     div.className = 'visit-card';
+    const attsHtml = atts.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">${atts.map(a => `<button class="btn" data-viewatt="${u.id}" data-attid="${a.id}" style="padding:4px 10px;font-size:11.5px;">${a.storage === 'pages' ? `🖼 ${a.name || 'ไฟล์'} (${a.pageCount || 0} หน้า)` : `📄 ${a.name || 'ไฟล์ PDF'}`}</button>`).join('')}</div>` : '';
     div.innerHTML = `
       <div class="row-between">
-        <span><strong>${fmtDateStr(u.date)}</strong>${u.hospital ? ' · ' + u.hospital : ''}</span>
+        <span><strong>${fmtDateStr(u.date)}</strong>${u.hospital ? ' · ' + u.hospital : ''}${atts.length ? ` <span class="badge">📎 ${atts.length}</span>` : ''}</span>
         <span>
-          ${u.hasFile ? `<button class="btn" data-viewfile="${u.id}" style="padding:4px 10px;font-size:11.5px;margin-right:4px;">${u.fileStorage === 'pages' ? `🖼 ดูไฟล์ (${u.filePageCount || 0} หน้า)` : '📄 ดูไฟล์ PDF'}</button>` : ''}
           <button class="del-btn" data-edit="${u.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
           <button class="del-btn" data-del="${u.id}" aria-label="ลบ">✕</button>
         </span>
       </div>
       ${u.note ? `<p class="muted" style="margin:4px 0 0;">${u.note}</p>` : ''}
+      ${attsHtml}
     `;
     listWrap.appendChild(div);
   });
-  listWrap.querySelectorAll('[data-viewfile]').forEach(btn => btn.addEventListener('click', () => viewUltrasoundFile(btn.dataset.viewfile)));
+  listWrap.querySelectorAll('[data-viewatt]').forEach(btn => btn.addEventListener('click', () => {
+    const u = ultrasoundRecords.find(x => x.id === btn.dataset.viewatt);
+    if (!u) return;
+    const att = ultrasoundRecordAttachments(u).find(a => a.id === btn.dataset.attid);
+    if (att) viewUltrasoundAttachment(u.id, att);
+  }));
   listWrap.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
     if (!confirm('ลบรายการอัลตราซาวด์นี้?')) return;
     const u = ultrasoundRecords.find(x => x.id === btn.dataset.del);
     ultrasoundRecords = ultrasoundRecords.filter(x => x.id !== btn.dataset.del);
     if (editingUltrasoundId === btn.dataset.del) cancelUltrasoundEdit();
     await saveUltrasoundRecords();
-    if (u && u.fileStorage === 'pages') {
-      for (let i = 0; i < (u.filePageCount || 0); i++) {
-        try { await window.storage.set(ultrasoundPageKey(u.id, i), ''); } catch (e) {}
+    if (u) {
+      for (const att of ultrasoundRecordAttachments(u)) {
+        await deleteUltrasoundAttachmentContent(u.id, att);
       }
-    } else {
-      try { await window.storage.set(ultrasoundFileKey(btn.dataset.del), ''); } catch (e) {}
     }
     renderUltrasoundList();
   }));
@@ -1960,13 +2025,12 @@ function startUltrasoundEdit(id) {
   document.getElementById('us-date').value = u.date || '';
   document.getElementById('us-hospital').value = u.hospital || '';
   document.getElementById('us-note').value = u.note || '';
-  pendingUltrasoundFileDataUrl = null;
-  pendingUltrasoundPages = null;
-  pendingUltrasoundFileChanged = false;
+  pendingUltrasoundAttachments = [];
+  removedUltrasoundAttachmentIds = [];
   document.getElementById('us-file').value = '';
-  document.getElementById('us-file-status').textContent = u.hasFile
-    ? (u.fileStorage === 'pages' ? `มีไฟล์แนบอยู่แล้ว (${u.filePageCount || 0} หน้า, เลือกไฟล์ใหม่เพื่อแทนที่)` : 'มีไฟล์แนบอยู่แล้ว (เลือกไฟล์ใหม่เพื่อแทนที่)')
-    : '';
+  document.getElementById('us-file-status').textContent = '';
+  renderExistingUltrasoundAttachments(u);
+  renderPendingUltrasoundAttachments();
   document.getElementById('us-form-title').textContent = '✏️ แก้ไขผลอัลตราซาวด์';
   document.getElementById('us-save').textContent = '💾 บันทึกการแก้ไข';
   document.getElementById('us-cancel-edit').style.display = 'inline-block';
@@ -1977,11 +2041,12 @@ function cancelUltrasoundEdit() {
   document.getElementById('us-date').value = '';
   document.getElementById('us-hospital').value = '';
   document.getElementById('us-note').value = '';
-  pendingUltrasoundFileDataUrl = null;
-  pendingUltrasoundPages = null;
-  pendingUltrasoundFileChanged = false;
+  pendingUltrasoundAttachments = [];
+  removedUltrasoundAttachmentIds = [];
   document.getElementById('us-file').value = '';
   document.getElementById('us-file-status').textContent = '';
+  document.getElementById('us-file-existing-list').innerHTML = '';
+  document.getElementById('us-file-pending-list').innerHTML = '';
   document.getElementById('us-form-title').textContent = '+ บันทึกผลอัลตราซาวด์';
   document.getElementById('us-save').textContent = '+ บันทึกผลอัลตราซาวด์';
   document.getElementById('us-cancel-edit').style.display = 'none';
@@ -1992,54 +2057,56 @@ document.getElementById('us-save').addEventListener('click', async () => {
   if (!selectedLabCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
   const date = document.getElementById('us-date').value;
   if (!date) { alert('กรุณากรอกวันที่ตรวจ'); return; }
+
+  const idx = editingUltrasoundId ? ultrasoundRecords.findIndex(u => u.id === editingUltrasoundId) : -1;
+  const originalAttachments = idx > -1 ? ultrasoundRecordAttachments(ultrasoundRecords[idx]) : [];
+  const keptAttachments = originalAttachments.filter(a => !removedUltrasoundAttachmentIds.includes(a.id));
+  const toDelete = originalAttachments.filter(a => removedUltrasoundAttachmentIds.includes(a.id));
+
   const data = {
     catId: selectedLabCat,
     date,
     hospital: document.getElementById('us-hospital').value.trim(),
-    note: document.getElementById('us-note').value.trim()
+    note: document.getElementById('us-note').value.trim(),
+    attachments: keptAttachments.slice(),
+    hasFile: false,
+    fileStorage: undefined,
+    filePageCount: undefined
   };
+
   let recId = editingUltrasoundId;
-  let prevFile = null;
-  if (editingUltrasoundId) {
-    const idx = ultrasoundRecords.findIndex(u => u.id === editingUltrasoundId);
-    if (idx > -1) {
-      prevFile = { fileStorage: ultrasoundRecords[idx].fileStorage, filePageCount: ultrasoundRecords[idx].filePageCount };
-      if (pendingUltrasoundFileChanged) {
-        data.hasFile = true;
-        data.fileStorage = pendingUltrasoundPages ? 'pages' : 'raw';
-        data.filePageCount = pendingUltrasoundPages ? pendingUltrasoundPages.length : undefined;
-      } else {
-        data.hasFile = ultrasoundRecords[idx].hasFile || false;
-        data.fileStorage = ultrasoundRecords[idx].fileStorage;
-        data.filePageCount = ultrasoundRecords[idx].filePageCount;
-      }
-      ultrasoundRecords[idx] = Object.assign({}, ultrasoundRecords[idx], data);
-    }
+  if (idx > -1) {
+    ultrasoundRecords[idx] = Object.assign({}, ultrasoundRecords[idx], data);
   } else {
     recId = genId();
-    data.hasFile = !!(pendingUltrasoundFileDataUrl || pendingUltrasoundPages);
-    data.fileStorage = pendingUltrasoundPages ? 'pages' : 'raw';
-    data.filePageCount = pendingUltrasoundPages ? pendingUltrasoundPages.length : undefined;
     ultrasoundRecords.push(Object.assign({ id: recId }, data));
   }
-  await saveUltrasoundRecords();
-  if (pendingUltrasoundFileChanged) {
-    // มีไฟล์เดิมอยู่ (ไม่ว่าเก็บแบบไหน) ให้ลบทิ้งก่อนเขียนไฟล์ใหม่เข้าไปแทน
-    if (prevFile && prevFile.fileStorage === 'pages') {
-      for (let i = 0; i < (prevFile.filePageCount || 0); i++) {
-        try { await window.storage.set(ultrasoundPageKey(recId, i), ''); } catch (e) {}
+
+  const newAttMeta = [];
+  for (const a of pendingUltrasoundAttachments) {
+    try {
+      if (a.storage === 'raw') {
+        await window.storage.set(ultrasoundAttachmentKey(recId, a.id), a.content);
+        newAttMeta.push({ id: a.id, name: a.name, storage: 'raw' });
+      } else {
+        for (let i = 0; i < a.pages.length; i++) {
+          await window.storage.set(ultrasoundAttachmentPageKey(recId, a.id, i), a.pages[i]);
+        }
+        newAttMeta.push({ id: a.id, name: a.name, storage: 'pages', pageCount: a.pages.length });
       }
-    } else if (prevFile) {
-      try { await window.storage.set(ultrasoundFileKey(recId), ''); } catch (e) {}
-    }
-    if (pendingUltrasoundPages) {
-      for (let i = 0; i < pendingUltrasoundPages.length; i++) {
-        try { await window.storage.set(ultrasoundPageKey(recId, i), pendingUltrasoundPages[i]); } catch (e) { console.error(e); }
-      }
-    } else if (pendingUltrasoundFileDataUrl) {
-      try { await window.storage.set(ultrasoundFileKey(recId), pendingUltrasoundFileDataUrl); } catch (e) { console.error(e); }
-    }
+    } catch (e) { console.error(e); }
   }
+
+  const finalIdx = ultrasoundRecords.findIndex(u => u.id === recId);
+  if (finalIdx > -1) {
+    ultrasoundRecords[finalIdx].attachments = keptAttachments.concat(newAttMeta);
+  }
+  await saveUltrasoundRecords();
+
+  for (const a of toDelete) {
+    await deleteUltrasoundAttachmentContent(recId, a);
+  }
+
   cancelUltrasoundEdit();
   renderUltrasoundList();
 });
