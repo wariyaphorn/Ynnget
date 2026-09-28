@@ -185,7 +185,7 @@
     <button class="page-tab active" data-page="cats">แมวของฉัน</button>
     <button class="page-tab" data-page="vaccine">วัคซีน</button>
     <button class="page-tab" data-page="checkup">นัดหมอ</button>
-    <button class="page-tab" data-page="labs">ผลตรวจเลือด</button>
+    <button class="page-tab" data-page="labs">ผลตรวจ</button>
     <button class="page-tab" data-page="labcatalog">ตั้งค่าค่าตรวจ</button>
   </nav>
 
@@ -344,6 +344,13 @@
   <div id="page-labs" class="page">
     <section>
       <div class="card">
+        <p class="muted" style="margin:0 0 8px;">เลือกแมว</p>
+        <div class="child-tabs" id="lab-cat-tabs"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
         <h2>ประวัติการตรวจ</h2>
         <p class="muted" style="margin:0 0 10px;">รวมประวัติตรวจเลือดและผลตรวจภาพ/หัตถการทั้งหมด เรียงตามวันที่ล่าสุด</p>
         <div id="history-combined-list"></div>
@@ -352,9 +359,17 @@
 
     <section>
       <div class="card">
+        <h2>แนวโน้มค่าแล็บ</h2>
+        <p class="muted" style="margin:0 0 10px;">เลือกค่าที่ต้องการดูแนวโน้มของแมวตัวที่เลือกไว้ด้านบน (ต้องมีข้อมูลอย่างน้อย 2 ครั้ง)</p>
+        <select id="lab-trend-select" style="max-width:320px;margin-bottom:12px;"></select>
+        <div id="lab-trend-chart"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
         <h2 id="lab-form-title">+ เพิ่มผลตรวจเลือด</h2>
         <p class="muted" style="margin:0 0 10px;">แนบรูปผลตรวจไว้อ้างอิง แล้วกรอกค่าที่ต้องการติดตามเอง หรือถ้าถามค่าจาก AI แชทอื่นมาแล้ว ก็วางข้อความ (เช่น "CREA,2.3") ที่ช่อง "นำเข้าจากข้อความ" เพื่อให้ระบบเติมให้อัตโนมัติ — ตรวจสอบตัวเลขอีกครั้งก่อนบันทึกเสมอ</p>
-        <div class="child-tabs" id="lab-cat-tabs"></div>
         <div class="form-grid g2">
           <div>
             <label class="field-label" for="lab-date">วันที่ตรวจ</label>
@@ -472,15 +487,6 @@
           <button class="btn btn-primary" id="us-save" style="flex:1;">+ บันทึกผลตรวจ</button>
           <button class="btn" id="us-cancel-edit" style="display:none;">ยกเลิก</button>
         </div>
-      </div>
-    </section>
-
-    <section>
-      <div class="card">
-        <h2>แนวโน้มค่าแล็บ</h2>
-        <p class="muted" style="margin:0 0 10px;">เลือกค่าที่ต้องการดูแนวโน้มของแมวตัวที่เลือกไว้ด้านบน (ต้องมีข้อมูลอย่างน้อย 2 ครั้ง)</p>
-        <select id="lab-trend-select" style="max-width:320px;margin-bottom:12px;"></select>
-        <div id="lab-trend-chart"></div>
       </div>
     </section>
   </div>
