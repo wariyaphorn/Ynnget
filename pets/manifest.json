@@ -1,0 +1,16 @@
+{
+  "name": "สุขภาพแมว - YNN Family",
+  "short_name": "สุขภาพแมว",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FBF6F0",
+  "theme_color": "#C97C3D",
+  "icons": [
+    {
+      "src": "../icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
