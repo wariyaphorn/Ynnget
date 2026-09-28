@@ -386,6 +386,8 @@ let budgetGoalTransfers = [];
 let budgetUsdRate = null;
 let investedAccountBalances = {}; // { accountId: totalTHB }
 let retSettings = { categories: null, goals: null }; // null = ใช้ค่าเริ่มต้นอัตโนมัติ, array = ผู้ใช้กำหนดเอง
+let retCatPanelOpen = false;
+let retGoalPanelOpen = false;
 
 function budgetGetCat(key) { return budgetCatMap[key] || { key, label: 'ไม่ทราบหมวด (ลบแล้ว)', kind: 'expense', color: '#94A0AB' }; }
 
@@ -915,29 +917,55 @@ function renderRetirementSettings() {
     </label>`;
   }).join('') : '<p class="empty">ยังไม่มีเป้าหมายในแอพ Budget</p>';
 
+  const catCount = allCats.length, catSelectedCount = allCats.filter(c => effCats.has(c.key)).length;
+  const goalCount = allGoals.length, goalSelectedCount = allGoals.filter(g => effGoals.has(g.id)).length;
+
   wrap.innerHTML = `
     <div class="card" style="background:var(--paper);margin-bottom:12px;">
-      <div class="row-between" style="margin-bottom:6px;flex-wrap:wrap;gap:6px;">
-        <h2 style="font-size:13.5px;margin:0;">เลือกหมวดหมู่ค่าใช้จ่าย</h2>
-        <span>
-          <button class="btn" id="ret-cat-all" style="padding:4px 10px;font-size:11.5px;">เลือกทั้งหมด</button>
-          <button class="btn" id="ret-cat-none" style="padding:4px 10px;font-size:11.5px;">ไม่เลือกเลย</button>
-        </span>
+      <div class="row-between" data-summary-toggle="ret-cat" style="cursor:pointer;flex-wrap:wrap;gap:6px;">
+        <h2 style="font-size:13.5px;margin:0;">เลือกหมวดหมู่ค่าใช้จ่าย <span class="muted" style="font-weight:400;">(เลือกอยู่ ${catSelectedCount}/${catCount})</span></h2>
+        <span style="font-size:13px;color:var(--text-secondary);">${retCatPanelOpen ? '▲ ซ่อน' : '▼ แสดง'}</span>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:2px 12px;">${catCheckboxes}</div>
+      ${retCatPanelOpen ? `
+      <div style="margin-top:10px;">
+        <div class="row-between" style="margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+          <span></span>
+          <span>
+            <button class="btn" id="ret-cat-all" style="padding:4px 10px;font-size:11.5px;">เลือกทั้งหมด</button>
+            <button class="btn" id="ret-cat-none" style="padding:4px 10px;font-size:11.5px;">ไม่เลือกเลย</button>
+          </span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:2px 12px;">${catCheckboxes}</div>
+      </div>` : ''}
     </div>
     <div class="card" style="background:var(--paper);margin-bottom:12px;">
-      <div class="row-between" style="margin-bottom:6px;flex-wrap:wrap;gap:6px;">
-        <h2 style="font-size:13.5px;margin:0;">เลือกเป้าหมายที่จะนำมารวมเป็นค่าใช้จ่าย</h2>
-        <span>
-          <button class="btn" id="ret-goal-all" style="padding:4px 10px;font-size:11.5px;">เลือกทั้งหมด</button>
-          <button class="btn" id="ret-goal-none" style="padding:4px 10px;font-size:11.5px;">ไม่เลือกเลย</button>
-        </span>
+      <div class="row-between" data-summary-toggle="ret-goal" style="cursor:pointer;flex-wrap:wrap;gap:6px;">
+        <h2 style="font-size:13.5px;margin:0;">เลือกเป้าหมายที่จะนำมารวมเป็นค่าใช้จ่าย <span class="muted" style="font-weight:400;">(เลือกอยู่ ${goalSelectedCount}/${goalCount})</span></h2>
+        <span style="font-size:13px;color:var(--text-secondary);">${retGoalPanelOpen ? '▲ ซ่อน' : '▼ แสดง'}</span>
       </div>
-      <p class="muted" style="margin:0 0 6px;">ใช้ยอด "เก็บต่อเดือน" ที่ตั้งไว้ของแต่ละเป้าหมาย — ค่าเริ่มต้นติ๊กเฉพาะกลุ่ม "ออมค่าใช้จ่าย" เลือก/ไม่เลือกเป็นรายเป้าหมายได้อิสระ</p>
-      <div>${goalCheckboxes}</div>
+      ${retGoalPanelOpen ? `
+      <div style="margin-top:10px;">
+        <div class="row-between" style="margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+          <span></span>
+          <span>
+            <button class="btn" id="ret-goal-all" style="padding:4px 10px;font-size:11.5px;">เลือกทั้งหมด</button>
+            <button class="btn" id="ret-goal-none" style="padding:4px 10px;font-size:11.5px;">ไม่เลือกเลย</button>
+          </span>
+        </div>
+        <p class="muted" style="margin:0 0 6px;">ใช้ยอด "เก็บต่อเดือน" ที่ตั้งไว้ของแต่ละเป้าหมาย — ค่าเริ่มต้นติ๊กเฉพาะกลุ่ม "ออมค่าใช้จ่าย" เลือก/ไม่เลือกเป็นรายเป้าหมายได้อิสระ</p>
+        <div>${goalCheckboxes}</div>
+      </div>` : ''}
     </div>
   `;
+
+  wrap.querySelector('[data-summary-toggle="ret-cat"]').addEventListener('click', () => {
+    retCatPanelOpen = !retCatPanelOpen;
+    renderRetirementSettings();
+  });
+  wrap.querySelector('[data-summary-toggle="ret-goal"]').addEventListener('click', () => {
+    retGoalPanelOpen = !retGoalPanelOpen;
+    renderRetirementSettings();
+  });
 
   wrap.querySelectorAll('.ret-cat-cb').forEach(cb => cb.addEventListener('change', async () => {
     const current = new Set(retEffectiveCategoryKeys());
@@ -953,19 +981,19 @@ function renderRetirementSettings() {
     await saveRetSettings();
     renderRetirementMonthlyTable();
   }));
-  document.getElementById('ret-cat-all').addEventListener('click', async () => {
+  document.getElementById('ret-cat-all')?.addEventListener('click', async () => {
     retSettings.categories = allCats.map(c => c.key);
     await saveRetSettings(); renderRetirementSettings(); renderRetirementMonthlyTable();
   });
-  document.getElementById('ret-cat-none').addEventListener('click', async () => {
+  document.getElementById('ret-cat-none')?.addEventListener('click', async () => {
     retSettings.categories = [];
     await saveRetSettings(); renderRetirementSettings(); renderRetirementMonthlyTable();
   });
-  document.getElementById('ret-goal-all').addEventListener('click', async () => {
+  document.getElementById('ret-goal-all')?.addEventListener('click', async () => {
     retSettings.goals = allGoals.map(g => g.id);
     await saveRetSettings(); renderRetirementSettings(); renderRetirementMonthlyTable();
   });
-  document.getElementById('ret-goal-none').addEventListener('click', async () => {
+  document.getElementById('ret-goal-none')?.addEventListener('click', async () => {
     retSettings.goals = [];
     await saveRetSettings(); renderRetirementSettings(); renderRetirementMonthlyTable();
   });
