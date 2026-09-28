@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>สุขภาพแมว</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#C97C3D">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="icon" href="../icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=Kanit:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-auth-compat.js"></script>
+<script>
+  // --- Firebase-backed storage — ใช้ project เดียวกับแอปงบประมาณ (รหัสครัวเรือนเดียวกัน) ---
+  var firebaseConfig = {
+    apiKey: "AIzaSyAc4fTRghYTArUAXkIFWPvIGbdt9xlbz3g",
+    authDomain: "household-budget-c31ce.firebaseapp.com",
+    projectId: "household-budget-c31ce",
+    storageBucket: "household-budget-c31ce.firebasestorage.app",
+    messagingSenderId: "905564068568",
+    appId: "1:905564068568:web:e8e227e3922f0e8d8a15ad",
+    measurementId: "G-PBHHL9749D"
+  };
+  firebase.initializeApp(firebaseConfig);
+  var __db = firebase.firestore();
+  var __auth = firebase.auth();
+
+  window.HOUSEHOLD_ID = localStorage.getItem('household-id') || '';
+  window.setHouseholdId = function(id) {
+    id = (id || '').trim();
+    if (!id) return false;
+    localStorage.setItem('household-id', id);
+    window.HOUSEHOLD_ID = id;
+    return true;
+  };
+  if (!window.HOUSEHOLD_ID) {
+    var __entered = window.prompt(
+      'ตั้งรหัสครัวเรือน (Household ID)\n\n' +
+      'ใส่รหัสเดียวกับที่ใช้ในแอปงบประมาณครัวเรือน เพื่อให้เห็นข้อมูลชุดเดียวกัน:',
+      ''
+    );
+    if (!window.setHouseholdId(__entered)) {
+      window.setHouseholdId('default-household');
+    }
+  }
+
+  function __storageDocRef(key) {
+    return __db.collection('households').doc(window.HOUSEHOLD_ID).collection('data').doc(key);
+  }
+
+  window.storage = {
+    get: async function(key) {
+      var snap = await __storageDocRef(key).get();
+      if (!snap.exists) return null;
+      var d = snap.data();
+      return { value: d && typeof d.value === 'string' ? d.value : null };
+    },
+    set: async function(key, value) {
+      await __storageDocRef(key).set({
+        value: value,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      if (key !== '__meta') {
+        try {
+          await __storageDocRef('__meta').set({
+            lastModified: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        } catch (e) { console.error(e); }
+      }
+    }
+  };
+</script>
+<style>
+  :root {
+    --ink: #5B3A29;
+    --ink-light: #7A4F36;
+    --paper: #FBF6F0;
+    --card: #FFFFFF;
+    --gold: #E0A458;
+    --sage: #C97C3D;
+    --rust: #D9534F;
+    --lilac: #8E7CC3;
+    --text-primary: #3A2B22;
+    --text-secondary: #8A6F5C;
+    --text-muted: #BFA98E;
+    --border: #EFE0D0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); font-family: 'Sarabun', sans-serif; color: var(--text-primary); line-height: 1.6; padding: 1.5rem 1rem 4rem; }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 8px; }
+  h1 { font-family: 'Kanit', sans-serif; font-weight: 600; font-size: 24px; margin: 0; color: var(--ink); }
+  .subtitle { font-size: 13px; color: var(--text-secondary); margin: 4px 0 0; }
+  h2 { font-family: 'Kanit', sans-serif; font-weight: 500; font-size: 16px; color: var(--ink); margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 1.25rem 1.4rem; box-shadow: 0 2px 10px rgba(91,58,41,.06); }
+  section { margin-bottom: 1.5rem; }
+  .muted { color: var(--text-muted); font-size: 12px; }
+  .secondary-text { color: var(--text-secondary); font-size: 12px; }
+  .btn { border: 1px solid var(--border); background: var(--card); border-radius: 10px; padding: 8px 16px; font-family: 'Sarabun'; font-size: 13px; cursor: pointer; color: var(--text-primary); transition: background .15s, transform .1s; }
+  .btn:hover { background: var(--paper); }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: var(--sage); color: #fff; border-color: var(--sage); font-weight: 600; }
+  .btn-primary:hover { background: var(--ink-light); }
+  .btn-danger-ghost { background: none; color: var(--rust); border-color: #F6CFC5; }
+  .btn-danger-ghost:hover { background: #FDEEEA; }
+  .headerlink { font-size: 13px; font-family: 'Sarabun'; font-weight: 400; color: var(--text-secondary); text-decoration: none; border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; vertical-align: middle; margin-left: 6px; background: var(--card); }
+  .headerlink:hover { border-color: var(--sage); color: var(--ink); }
+  .page-tabs { display: flex; gap: 8px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .page-tab { border: 1px solid var(--border); background: var(--card); border-radius: 20px; padding: 9px 18px; font-family: 'Sarabun'; font-size: 13.5px; cursor: pointer; color: var(--text-secondary); font-weight: 500; }
+  .page-tab.active { background: var(--sage); color: #fff; border-color: var(--sage); }
+  .page { display: none; }
+  .page.active { display: block; }
+  .visit-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 0.9rem 1.1rem; margin-bottom: 8px; }
+  .row-between { display: flex; justify-content: space-between; align-items: center; }
+  .form-grid { display: grid; gap: 10px; margin-bottom: 8px; }
+  .g2 { grid-template-columns: 1fr 1fr; }
+  .g3 { grid-template-columns: 1fr 1fr 1fr; }
+  .g4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  input, select, textarea { font-family: 'Sarabun'; font-size: 13px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--text-primary); width: 100%; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--sage); }
+  .empty { color: var(--text-muted); font-size: 13px; }
+  .child-tabs { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .child-tab { border: 1px solid var(--border); background: var(--card); border-radius: 20px; padding: 7px 16px; font-size: 13px; cursor: pointer; color: var(--text-secondary); font-weight: 500; }
+  .child-tab.active { background: var(--sage); color: #fff; border-color: var(--sage); }
+  .setup-row { display: grid; grid-template-columns: 100px 1fr 1fr 1fr; gap: 8px; align-items: center; margin-bottom: 10px; }
+  @media (max-width: 640px) {
+    .setup-row { grid-template-columns: 1fr; }
+    .g2, .g3, .g4 { grid-template-columns: 1fr; }
+  }
+  .del-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; }
+  .del-btn:hover { color: var(--rust); }
+  .modal-overlay { position: fixed; inset: 0; z-index: 5000; background: rgba(58,43,34,.5); display: none; align-items: center; justify-content: center; padding: 20px; }
+  .modal-card { background: var(--card); border-radius: 18px; padding: 1.5rem; max-width: 460px; width: 100%; max-height: 88vh; overflow-y: auto; box-shadow: 0 12px 40px rgba(0,0,0,.2); }
+  .modal-card h3 { font-family: 'Kanit', sans-serif; font-weight: 500; color: var(--ink); margin: 0 0 4px; font-size: 17px; }
+  .modal-sub { color: var(--text-secondary); font-size: 12.5px; margin: 0 0 16px; }
+  label.field-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 12px; font-size: 11.5px; margin: 2px 4px 2px 0; border: 1px solid transparent; }
+  .chip-condition { background: #FDEEDC; color: #8A4E1D; border-color: #F3D3A0; }
+  .badge { display: inline-block; font-size: 10.5px; padding: 2px 9px; border-radius: 10px; margin-left: 6px; font-weight: 600; vertical-align: middle; }
+  .badge-normal { background: #E4F6EE; color: #1F7A4E; }
+  .badge-abnormal { background: #FCE3DD; color: #C0402A; }
+  .val-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px dashed var(--border); font-size: 12.5px; }
+  .val-row:last-child { border-bottom: none; }
+  .val-num { font-weight: 600; }
+  .val-num.high { color: var(--rust); }
+  .val-num.low { color: #2B6CB0; }
+  .cat-avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--gold); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-family: 'Kanit'; font-weight: 600; font-size: 15px; flex-shrink: 0; }
+  .lab-group-title { font-family: 'Kanit'; font-weight: 500; font-size: 13px; color: var(--ink); margin: 14px 0 6px; }
+  .lab-input-row { display: grid; grid-template-columns: 1.3fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .lab-input-row .ref-hint { font-size: 10.5px; color: var(--text-muted); white-space: nowrap; }
+  @media (max-width: 640px) { .lab-input-row { grid-template-columns: 1fr; } .lab-input-row .ref-hint { text-align: left; } }
+</style>
+</head>
+<body>
+<div id="login-overlay" style="position:fixed;inset:0;z-index:9999;background:#5B3A29;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center;font-family:'Sarabun',sans-serif;">
+  <div style="background:#fff;border-radius:20px;padding:36px 28px;max-width:360px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);">
+    <div style="font-size:36px;margin-bottom:6px;">🐱</div>
+    <h2 style="font-family:'Kanit',sans-serif;color:#5B3A29;margin:0 0 6px;">สุขภาพแมว</h2>
+    <p style="color:#8A6F5C;font-size:13px;margin:0 0 20px;">เข้าสู่ระบบด้วยบัญชี Google ที่ได้รับอนุญาตเท่านั้น</p>
+    <button id="google-signin-btn" style="width:100%;padding:11px;border-radius:10px;border:1px solid #EFE0D0;background:#fff;font-family:'Sarabun';font-size:14px;cursor:pointer;">เข้าสู่ระบบด้วย Google</button>
+    <p id="login-message" style="margin:16px 0 0;color:#D9534F;font-size:13px;"></p>
+  </div>
+</div>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>🐱 สุขภาพแมว <a href="../apps/" class="headerlink" title="สลับแอป YNN">🏠 แอปอื่นๆ</a></h1>
+      <p class="subtitle" id="updated-note">กำลังโหลดข้อมูล...</p>
+      <p class="subtitle" id="code-version" style="margin-top:2px;">เวอร์ชันโค้ด: กำลังตรวจสอบ...</p>
+    </div>
+  </header>
+
+  <nav class="page-tabs">
+    <button class="page-tab active" data-page="cats">แมวของฉัน</button>
+    <button class="page-tab" data-page="vaccine">วัคซีน</button>
+    <button class="page-tab" data-page="checkup">นัดหมอ</button>
+    <button class="page-tab" data-page="labs">ผลตรวจเลือด</button>
+  </nav>
+
+  <div id="page-cats" class="page active">
+    <section>
+      <div class="card">
+        <h2>รายชื่อแมว</h2>
+        <p class="muted" style="margin:0 0 10px;">บันทึกโรคประจำตัวไว้ที่นี่ เพื่อใช้อ้างอิงเวลาดูผลตรวจเลือดของแมวแต่ละตัว</p>
+        <div id="cats-list"></div>
+      </div>
+    </section>
+    <section>
+      <div class="card">
+        <h2 id="cat-form-title">+ เพิ่มแมวตัวใหม่</h2>
+        <div class="form-grid g3">
+          <div>
+            <label class="field-label" for="cat-name">ชื่อแมว</label>
+            <input type="text" id="cat-name" placeholder="เช่น ต้อยติ่ง">
+          </div>
+          <div>
+            <label class="field-label" for="cat-breed">สายพันธุ์</label>
+            <input type="text" id="cat-breed" placeholder="ไม่บังคับ">
+          </div>
+          <div>
+            <label class="field-label" for="cat-gender">เพศ</label>
+            <select id="cat-gender">
+              <option value="">ไม่ระบุ</option>
+              <option value="male">เพศผู้</option>
+              <option value="male-neutered">เพศผู้ (ทำหมันแล้ว)</option>
+              <option value="female">เพศเมีย</option>
+              <option value="female-spayed">เพศเมีย (ทำหมันแล้ว)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid g3">
+          <div>
+            <label class="field-label" for="cat-birth">วันเกิด (โดยประมาณได้)</label>
+            <input type="date" id="cat-birth">
+          </div>
+          <div style="grid-column: span 2;">
+            <label class="field-label" for="cat-conditions">โรคประจำตัว (คั่นด้วยจุลภาค ถ้ามีหลายโรค)</label>
+            <input type="text" id="cat-conditions" placeholder="เช่น ไตเรื้อรัง, ไทรอยด์เป็นพิษ">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label class="field-label" for="cat-note">หมายเหตุ</label>
+            <input type="text" id="cat-note" placeholder="ไม่บังคับ">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="cat-add" style="flex:1;">+ เพิ่มแมว</button>
+          <button class="btn" id="cat-cancel-edit" style="display:none;">ยกเลิก</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="page-vaccine" class="page">
+    <section>
+      <div class="card">
+        <h2>วัคซีน</h2>
+        <p class="muted" style="margin:0 0 10px;">บันทึกวัคซีนที่ฉีดแล้วและวันนัดกระตุ้นครั้งถัดไป — วันนัดจะขึ้นสีแดงถ้าเลยกำหนด และสีส้มถ้าใกล้ถึงกำหนด (ภายใน 30 วัน)</p>
+        <div class="child-tabs" id="vaccine-cat-tabs"></div>
+        <div id="vaccine-list"></div>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="vc-name">ชื่อวัคซีน</label>
+            <input type="text" id="vc-name" list="vc-name-list" placeholder="เช่น FVRCP, พิษสุนัขบ้า, FeLV">
+            <datalist id="vc-name-list">
+              <option value="FVRCP (ไข้หัดแมว/หวัดแมว)"></option>
+              <option value="พิษสุนัขบ้า (Rabies)"></option>
+              <option value="FeLV (มะเร็งเม็ดเลือดขาวแมว)"></option>
+            </datalist>
+          </div>
+          <div>
+            <label class="field-label" for="vc-date">วันที่ฉีด</label>
+            <input type="date" id="vc-date">
+          </div>
+        </div>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="vc-next">วันนัดกระตุ้นครั้งถัดไป</label>
+            <input type="date" id="vc-next">
+          </div>
+          <div>
+            <label class="field-label" for="vc-cost">ค่าใช้จ่าย (บาท)</label>
+            <input type="number" id="vc-cost" placeholder="ไม่บังคับ" min="0">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label class="field-label" for="vc-note">หมายเหตุ</label>
+            <input type="text" id="vc-note" placeholder="ไม่บังคับ">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="vc-add" style="flex:1;">+ บันทึกวัคซีน</button>
+          <button class="btn" id="vc-cancel-edit" style="display:none;">ยกเลิก</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="page-checkup" class="page">
+    <section>
+      <div class="card">
+        <h2>นัดหมอ / ตรวจสุขภาพ</h2>
+        <p class="muted" style="margin:0 0 10px;">บันทึกได้ทั้งตรวจสุขภาพประจำปีและนัด Follow up อาการเจ็บป่วยหรือโรคประจำตัว</p>
+        <div class="child-tabs" id="checkup-cat-tabs"></div>
+        <div id="checkup-list"></div>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="chk-date">วันที่พบหมอ/ตรวจ</label>
+            <input type="date" id="chk-date">
+          </div>
+          <div>
+            <label class="field-label" for="chk-note">รายละเอียด/อาการ</label>
+            <input type="text" id="chk-note" placeholder="เช่น ตรวจสุขภาพประจำปี, Follow up ไตเรื้อรัง">
+          </div>
+        </div>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="chk-hospital">โรงพยาบาล/คลินิก</label>
+            <input type="text" id="chk-hospital" list="chk-hospital-list" placeholder="เช่น รพ.สัตว์...">
+            <datalist id="chk-hospital-list"></datalist>
+          </div>
+          <div>
+            <label class="field-label" for="chk-doctor">คุณหมอ</label>
+            <input type="text" id="chk-doctor" placeholder="ไม่บังคับ">
+          </div>
+        </div>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="chk-cost">ค่าใช้จ่าย (บาท)</label>
+            <input type="number" id="chk-cost" placeholder="ไม่บังคับ" min="0">
+          </div>
+          <div>
+            <label class="field-label" for="chk-next">วันนัดครั้งถัดไป</label>
+            <input type="date" id="chk-next">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="chk-add" style="flex:1;">+ บันทึกนัด</button>
+          <button class="btn" id="chk-cancel-edit" style="display:none;">ยกเลิก</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="page-labs" class="page">
+    <section>
+      <div class="card">
+        <h2 id="lab-form-title">+ เพิ่มผลตรวจเลือด</h2>
+        <p class="muted" style="margin:0 0 10px;">แนบรูปผลตรวจไว้อ้างอิง แล้วกรอกค่าที่ต้องการติดตามเอง หรือถ้าถามค่าจาก AI แชทอื่นมาแล้ว ก็วางข้อความ (เช่น "CREA,2.3") ที่ช่อง "นำเข้าจากข้อความ" เพื่อให้ระบบเติมให้อัตโนมัติ — ตรวจสอบตัวเลขอีกครั้งก่อนบันทึกเสมอ</p>
+        <div class="child-tabs" id="lab-cat-tabs"></div>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="lab-date">วันที่ตรวจ</label>
+            <input type="date" id="lab-date">
+          </div>
+          <div>
+            <label class="field-label" for="lab-hospital">โรงพยาบาล/คลินิก</label>
+            <input type="text" id="lab-hospital" list="lab-hospital-list" placeholder="เช่น รพ.สัตว์...">
+            <datalist id="lab-hospital-list"></datalist>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label class="field-label" for="lab-note">หมายเหตุ</label>
+            <input type="text" id="lab-note" placeholder="ไม่บังคับ">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label class="field-label" for="lab-photo">แนบรูปผลตรวจ (ไม่บังคับ)</label>
+            <input type="file" id="lab-photo" accept="image/*">
+            <p class="muted" id="lab-photo-status" style="margin:4px 0 0;"></p>
+          </div>
+        </div>
+
+        <div class="card" style="background:var(--paper);margin:12px 0;">
+          <h2 style="font-size:13.5px;">นำเข้าจากข้อความ</h2>
+          <p class="muted" style="margin:0 0 8px;">วางข้อความรูปแบบ "ชื่อค่า,ตัวเลข" บรรทัดละ 1 ค่า เช่น CREA,2.3</p>
+          <textarea id="lab-import-text" rows="3" placeholder="CREA,2.3&#10;BUN,21&#10;GLU,134"></textarea>
+          <div style="margin-top:8px;">
+            <button class="btn" id="lab-import-btn">แปลงข้อความ → เติมค่าให้อัตโนมัติ</button>
+            <span class="muted" id="lab-import-result" style="margin-left:8px;"></span>
+          </div>
+        </div>
+
+        <div id="lab-values-grid"></div>
+
+        <div class="card" style="background:var(--paper);margin:12px 0;">
+          <h2 style="font-size:13.5px;">+ เพิ่มค่าที่ต้องการติดตามเอง</h2>
+          <div class="form-grid g4">
+            <input type="text" id="lv-new-label" placeholder="ชื่อค่า เช่น T4">
+            <input type="text" id="lv-new-unit" placeholder="หน่วย (ไม่บังคับ)">
+            <input type="number" step="any" id="lv-new-low" placeholder="ต่ำสุด (ไม่บังคับ)">
+            <input type="number" step="any" id="lv-new-high" placeholder="สูงสุด (ไม่บังคับ)">
+          </div>
+          <button class="btn" id="lv-new-add">+ เพิ่มค่านี้</button>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-primary" id="lab-save" style="flex:1;">+ บันทึกผลตรวจ</button>
+          <button class="btn" id="lab-cancel-edit" style="display:none;">ยกเลิก</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
+        <h2>ประวัติผลตรวจ</h2>
+        <div id="lab-list"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
+        <h2>แนวโน้มค่าแล็บ</h2>
+        <p class="muted" style="margin:0 0 10px;">เลือกค่าที่ต้องการดูแนวโน้มของแมวตัวที่เลือกไว้ด้านบน (ต้องมีข้อมูลอย่างน้อย 2 ครั้ง)</p>
+        <select id="lab-trend-select" style="max-width:320px;margin-bottom:12px;"></select>
+        <div id="lab-trend-chart"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="modal-overlay" id="photo-modal">
+  <div class="modal-card" style="max-width:520px;text-align:center;">
+    <h3>รูปผลตรวจ</h3>
+    <img id="photo-modal-img" src="" style="max-width:100%;border-radius:10px;margin:10px 0;">
+    <button class="btn" id="photo-modal-close">ปิด</button>
+  </div>
+</div>
+
+<script>
+const MEMBERS_KEY = 'household-ledger-members';
+const CATS_KEY = 'pet-cats';
+const VACCINE_RECORDS_KEY = 'pet-vaccine-records';
+const CHECKUP_RECORDS_KEY = 'pet-checkup-records';
+const LAB_CATALOG_KEY = 'pet-lab-catalog';
+const LAB_TESTS_KEY = 'pet-lab-tests';
+
+const defaultCats = () => [];
+const defaultVaccineRecords = () => [];
+const defaultCheckupRecords = () => [];
+const defaultLabTests = () => [];
+
+const LAB_CATALOG_SEED = [
+  { key: 'GLU', label: 'Glucose (น้ำตาลในเลือด)', unit: 'mg/dL', low: 71, high: 159, group: 'chem', aliases: ['GLUCOSE'] },
+  { key: 'CREA', label: 'Creatinine (ค่าไต)', unit: 'mg/dL', low: 0.8, high: 2.4, group: 'chem', aliases: ['CREATININE'] },
+  { key: 'BUN', label: 'BUN (ค่าไต)', unit: 'mg/dL', low: 16, high: 36, group: 'chem', aliases: ['UREA'] },
+  { key: 'BUN/CREA', label: 'BUN/CREA Ratio', unit: '', low: null, high: null, group: 'chem', aliases: ['BUNCREA', 'BUN CREA'] },
+  { key: 'SDMA', label: 'SDMA (ค่าไต)', unit: 'µg/dL', low: 0, high: 14, group: 'chem', aliases: [] },
+  { key: 'PHOS', label: 'Phosphorus', unit: 'mg/dL', low: 3.1, high: 7.5, group: 'chem', aliases: ['PHOSPHORUS'] },
+  { key: 'CA', label: 'Calcium', unit: 'mg/dL', low: 7.8, high: 11.3, group: 'chem', aliases: ['CALCIUM'] },
+  { key: 'TP', label: 'Total Protein', unit: 'g/dL', low: 5.7, high: 8.9, group: 'chem', aliases: ['TOTALPROTEIN'] },
+  { key: 'ALB', label: 'Albumin', unit: 'g/dL', low: 2.3, high: 3.9, group: 'chem', aliases: ['ALBUMIN'] },
+  { key: 'GLOB', label: 'Globulin', unit: 'g/dL', low: 2.8, high: 5.1, group: 'chem', aliases: ['GLOBULIN'] },
+  { key: 'ALB/GLOB', label: 'Albumin/Globulin Ratio', unit: '', low: null, high: null, group: 'chem', aliases: ['ALBGLOB', 'AG RATIO', 'AGRATIO'] },
+  { key: 'ALT', label: 'ALT (ตับ)', unit: 'U/L', low: 12, high: 130, group: 'chem', aliases: [] },
+  { key: 'ALKP', label: 'ALKP / ALP (ตับ)', unit: 'U/L', low: 14, high: 111, group: 'chem', aliases: ['ALP', 'ALKALINEPHOSPHATASE'] },
+  { key: 'GGT', label: 'GGT (ตับ)', unit: 'U/L', low: 0, high: 4, group: 'chem', aliases: [] },
+  { key: 'TBIL', label: 'Total Bilirubin', unit: 'mg/dL', low: 0.0, high: 0.9, group: 'chem', aliases: ['BILIRUBIN', 'TOTALBILIRUBIN'] },
+  { key: 'CHOL', label: 'Cholesterol', unit: 'mg/dL', low: 65, high: 225, group: 'chem', aliases: ['CHOLESTEROL'] },
+  { key: 'AMYL', label: 'Amylase', unit: 'U/L', low: 500, high: 1500, group: 'chem', aliases: ['AMYLASE'] },
+  { key: 'LIPA', label: 'Lipase', unit: 'U/L', low: 100, high: 1400, group: 'chem', aliases: ['LIPASE'] },
+  { key: 'TT4', label: 'TT4 (ไทรอยด์)', unit: 'µg/dL', low: 0.8, high: 4.7, group: 'chem', aliases: ['T4'] },
+  { key: 'RBC', label: 'RBC', unit: 'M/µL', low: 6.54, high: 12.20, group: 'cbc', aliases: [] },
+  { key: 'HCT', label: 'HCT', unit: '%', low: 30.3, high: 52.3, group: 'cbc', aliases: [] },
+  { key: 'HGB', label: 'HGB', unit: 'g/dL', low: 9.8, high: 16.2, group: 'cbc', aliases: [] },
+  { key: 'MCV', label: 'MCV', unit: 'fL', low: 35.9, high: 53.8, group: 'cbc', aliases: [] },
+  { key: 'MCH', label: 'MCH', unit: 'pg', low: 11.8, high: 17.3, group: 'cbc', aliases: [] },
+  { key: 'MCHC', label: 'MCHC', unit: 'g/dL', low: 28.1, high: 35.8, group: 'cbc', aliases: [] },
+  { key: 'RDW', label: 'RDW', unit: '%', low: 15.0, high: 27.0, group: 'cbc', aliases: [] },
+  { key: 'RETIC', label: 'Reticulocyte', unit: 'K/µL', low: 3.0, high: 50.0, group: 'cbc', aliases: [] },
+  { key: 'WBC', label: 'WBC', unit: 'K/µL', low: 2.87, high: 17.02, group: 'cbc', aliases: [] },
+  { key: 'NEU', label: 'Neutrophil', unit: 'K/µL', low: 2.30, high: 10.29, group: 'cbc', aliases: ['NEUTROPHIL'] },
+  { key: 'LYM', label: 'Lymphocyte', unit: 'K/µL', low: 0.92, high: 6.88, group: 'cbc', aliases: ['LYMPHOCYTE'] },
+  { key: 'MONO', label: 'Monocyte', unit: 'K/µL', low: 0.05, high: 0.67, group: 'cbc', aliases: ['MONOCYTE'] },
+  { key: 'EOS', label: 'Eosinophil', unit: 'K/µL', low: 0.17, high: 1.57, group: 'cbc', aliases: ['EOSINOPHIL'] },
+  { key: 'BASO', label: 'Basophil', unit: 'K/µL', low: 0.01, high: 0.26, group: 'cbc', aliases: ['BASOPHIL'] },
+  { key: 'PLT', label: 'Platelet', unit: 'K/µL', low: 151, high: 600, group: 'cbc', aliases: ['PLATELET'] },
+  { key: 'MPV', label: 'MPV', unit: 'fL', low: 11.4, high: 21.6, group: 'cbc', aliases: [] },
+  { key: 'PCT', label: 'PCT', unit: '%', low: 0.17, high: 0.86, group: 'cbc', aliases: [] }
+];
+
+const LAB_GROUP_LABELS = { chem: 'เคมีเลือด (Chemistry)', cbc: 'ความสมบูรณ์เม็ดเลือด (CBC)', other: 'อื่นๆ' };
+
+let members = [];
+let cats = [];
+let vaccineRecords = [];
+let checkupRecords = [];
+let labCatalog = [];
+let labTests = [];
+
+let editingCatId = null;
+let editingVaccineId = null;
+let editingCheckupId = null;
+let editingLabId = null;
+
+let selectedVaccineCat = null;
+let selectedCheckupCat = null;
+let selectedLabCat = null;
+let labTrendSelectedKey = null;
+let expandedLabIds = new Set();
+let pendingLabPhotoDataUrl = null;
+let pendingLabPhotoChanged = false;
+
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function fmt(n) { return '฿' + Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtDateStr(iso) { return iso ? new Date(iso + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : ''; }
+function toISO(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+function catById(id) { return cats.find(c => c.id === id); }
+function catLabel(cat) { return cat ? cat.name : '(ไม่พบแมว)'; }
+function currentAgeLabel(cat) {
+  if (!cat || !cat.birthDate) return '';
+  const b = new Date(cat.birthDate + 'T00:00:00'), e = new Date();
+  if (isNaN(b)) return '';
+  let y = e.getFullYear() - b.getFullYear();
+  let m = e.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && e.getDate() < b.getDate())) y--;
+  return y >= 0 ? ' (' + y + ' ปี)' : '';
+}
+
+async function saveCats() { try { await window.storage.set(CATS_KEY, JSON.stringify(cats)); } catch (e) { console.error(e); } }
+async function saveVaccineRecords() { try { await window.storage.set(VACCINE_RECORDS_KEY, JSON.stringify(vaccineRecords)); } catch (e) { console.error(e); } }
+async function saveCheckupRecords() { try { await window.storage.set(CHECKUP_RECORDS_KEY, JSON.stringify(checkupRecords)); } catch (e) { console.error(e); } }
+async function saveLabCatalog() { try { await window.storage.set(LAB_CATALOG_KEY, JSON.stringify(labCatalog)); } catch (e) { console.error(e); } }
+async function saveLabTests() { try { await window.storage.set(LAB_TESTS_KEY, JSON.stringify(labTests)); } catch (e) { console.error(e); } }
+
+async function load() {
+  try { const r = await window.storage.get(MEMBERS_KEY); members = r ? JSON.parse(r.value) : []; } catch (e) { members = []; }
+  try { const r = await window.storage.get(CATS_KEY); cats = r ? JSON.parse(r.value) : defaultCats(); } catch (e) { cats = defaultCats(); }
+  try { const r = await window.storage.get(VACCINE_RECORDS_KEY); vaccineRecords = r ? JSON.parse(r.value) : defaultVaccineRecords(); } catch (e) { vaccineRecords = defaultVaccineRecords(); }
+  try { const r = await window.storage.get(CHECKUP_RECORDS_KEY); checkupRecords = r ? JSON.parse(r.value) : defaultCheckupRecords(); } catch (e) { checkupRecords = defaultCheckupRecords(); }
+  try { const r = await window.storage.get(LAB_CATALOG_KEY); labCatalog = r && JSON.parse(r.value).length ? JSON.parse(r.value) : LAB_CATALOG_SEED.slice(); } catch (e) { labCatalog = LAB_CATALOG_SEED.slice(); }
+  try { const r = await window.storage.get(LAB_TESTS_KEY); labTests = r ? JSON.parse(r.value) : defaultLabTests(); } catch (e) { labTests = defaultLabTests(); }
+
+  try {
+    const r1 = await window.storage.get(CATS_KEY); if (!r1) await saveCats();
+    const r2 = await window.storage.get(VACCINE_RECORDS_KEY); if (!r2) await saveVaccineRecords();
+    const r3 = await window.storage.get(CHECKUP_RECORDS_KEY); if (!r3) await saveCheckupRecords();
+    const r4 = await window.storage.get(LAB_CATALOG_KEY); if (!r4) await saveLabCatalog();
+    const r5 = await window.storage.get(LAB_TESTS_KEY); if (!r5) await saveLabTests();
+  } catch (e) { console.error(e); }
+
+  if (!selectedVaccineCat && cats.length) selectedVaccineCat = cats[0].id;
+  if (!selectedCheckupCat && cats.length) selectedCheckupCat = cats[0].id;
+  if (!selectedLabCat && cats.length) selectedLabCat = cats[0].id;
+
+  render();
+}
+
+function watchLastModified() {
+  try {
+    __db.collection('households').doc(window.HOUSEHOLD_ID).collection('data').doc('__meta')
+      .onSnapshot(function(snap) {
+        const el = document.getElementById('updated-note');
+        if (!el) return;
+        const ts = snap.exists && snap.data().lastModified;
+        if (!ts) { el.textContent = 'ยังไม่มีการเปลี่ยนแปลงข้อมูล'; return; }
+        el.textContent = 'ข้อมูลเปลี่ยนแปลงล่าสุด ' + ts.toDate().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
+      }, function(err) { console.error(err); });
+  } catch (e) { console.error(e); }
+}
+
+async function loadCodeVersion() {
+  const el = document.getElementById('code-version');
+  if (!el) return;
+  try {
+    const cached = sessionStorage.getItem('pets-code-version-cache');
+    if (cached) { el.textContent = cached; return; }
+  } catch (e) {}
+  try {
+    const res = await fetch('https://api.github.com/repos/wariyaphorn/Ynnget/commits?path=pets/index.html&per_page=1');
+    if (!res.ok) throw new Error('GitHub API error ' + res.status);
+    const data = await res.json();
+    if (Array.isArray(data) && data[0] && data[0].commit && data[0].commit.committer) {
+      const d = new Date(data[0].commit.committer.date);
+      const label = 'เวอร์ชันโค้ด (แก้ไขล่าสุดบน GitHub): ' + d.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
+      el.textContent = label;
+      try { sessionStorage.setItem('pets-code-version-cache', label); } catch (e) {}
+    } else {
+      el.textContent = 'เวอร์ชันโค้ด: ไม่สามารถดึงข้อมูลได้ในขณะนี้';
+    }
+  } catch (e) {
+    console.error(e);
+    el.textContent = 'เวอร์ชันโค้ด: ไม่สามารถดึงข้อมูลได้ในขณะนี้';
+  }
+}
+loadCodeVersion();
+
+/* ---------------- Page tabs ---------------- */
+document.querySelectorAll('.page-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.page-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('page-' + btn.dataset.page).classList.add('active');
+  });
+});
+
+function render() {
+  renderCatsTab();
+  renderVaccineTab();
+  renderCheckupTab();
+  renderLabTab();
+}
+
+/* ---------------- Cats tab ---------------- */
+function renderCatsTab() {
+  const wrap = document.getElementById('cats-list');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (!cats.length) { wrap.innerHTML = '<p class="empty">ยังไม่มีข้อมูลแมว เพิ่มได้จากฟอร์มด้านล่าง</p>'; return; }
+  cats.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'visit-card';
+    const conditions = (c.conditions || []).map(x => `<span class="chip chip-condition">${x}</span>`).join('');
+    div.innerHTML = `
+      <div class="row-between">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="cat-avatar">${(c.name || '?').charAt(0)}</span>
+          <div>
+            <strong>${c.name}</strong>${currentAgeLabel(c)}
+            <p class="muted" style="margin:2px 0 0;">${[c.breed, c.gender ? genderLabel(c.gender) : ''].filter(Boolean).join(' · ')}</p>
+          </div>
+        </div>
+        <span>
+          <button class="del-btn" data-edit="${c.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
+          <button class="del-btn" data-del="${c.id}" aria-label="ลบ">✕</button>
+        </span>
+      </div>
+      ${conditions ? `<div style="margin-top:8px;">${conditions}</div>` : ''}
+      ${c.note ? `<p class="muted" style="margin:6px 0 0;">${c.note}</p>` : ''}
+    `;
+    wrap.appendChild(div);
+  });
+  wrap.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('ลบแมวตัวนี้? (ประวัติวัคซีน/นัดหมอ/ผลตรวจของแมวตัวนี้จะยังอยู่แต่จะไม่โยงกับชื่อนี้แล้ว)')) return;
+    cats = cats.filter(c => c.id !== btn.dataset.del);
+    if (editingCatId === btn.dataset.del) cancelCatEdit();
+    await saveCats(); render();
+  }));
+  wrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => startCatEdit(btn.dataset.edit)));
+}
+
+function genderLabel(g) {
+  return { male: 'เพศผู้', 'male-neutered': 'เพศผู้ (ทำหมันแล้ว)', female: 'เพศเมีย', 'female-spayed': 'เพศเมีย (ทำหมันแล้ว)' }[g] || '';
+}
+
+function startCatEdit(id) {
+  const c = catById(id);
+  if (!c) return;
+  editingCatId = id;
+  document.getElementById('cat-name').value = c.name || '';
+  document.getElementById('cat-breed').value = c.breed || '';
+  document.getElementById('cat-gender').value = c.gender || '';
+  document.getElementById('cat-birth').value = c.birthDate || '';
+  document.getElementById('cat-conditions').value = (c.conditions || []).join(', ');
+  document.getElementById('cat-note').value = c.note || '';
+  document.getElementById('cat-form-title').textContent = '✏️ แก้ไขข้อมูลแมว';
+  document.getElementById('cat-add').textContent = '💾 บันทึกการแก้ไข';
+  document.getElementById('cat-cancel-edit').style.display = 'inline-block';
+  document.getElementById('cat-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function cancelCatEdit() {
+  editingCatId = null;
+  document.getElementById('cat-name').value = '';
+  document.getElementById('cat-breed').value = '';
+  document.getElementById('cat-gender').value = '';
+  document.getElementById('cat-birth').value = '';
+  document.getElementById('cat-conditions').value = '';
+  document.getElementById('cat-note').value = '';
+  document.getElementById('cat-form-title').textContent = '+ เพิ่มแมวตัวใหม่';
+  document.getElementById('cat-add').textContent = '+ เพิ่มแมว';
+  document.getElementById('cat-cancel-edit').style.display = 'none';
+}
+document.getElementById('cat-cancel-edit').addEventListener('click', cancelCatEdit);
+document.getElementById('cat-add').addEventListener('click', async () => {
+  const name = document.getElementById('cat-name').value.trim();
+  if (!name) { alert('กรุณากรอกชื่อแมว'); return; }
+  const conditions = document.getElementById('cat-conditions').value.split(',').map(s => s.trim()).filter(Boolean);
+  const data = {
+    name,
+    breed: document.getElementById('cat-breed').value.trim(),
+    gender: document.getElementById('cat-gender').value,
+    birthDate: document.getElementById('cat-birth').value || '',
+    conditions,
+    note: document.getElementById('cat-note').value.trim()
+  };
+  if (editingCatId) {
+    const idx = cats.findIndex(c => c.id === editingCatId);
+    if (idx > -1) cats[idx] = Object.assign({}, cats[idx], data);
+  } else {
+    cats.push(Object.assign({ id: genId() }, data));
+  }
+  cancelCatEdit();
+  await saveCats(); render();
+});
+
+/* ---------------- Vaccine tab ---------------- */
+function renderCatTabsInto(wrapId, selectedGetSet) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (!cats.length) { wrap.innerHTML = '<p class="empty">ยังไม่มีข้อมูลแมว ไปที่แท็บ "แมวของฉัน" ก่อน</p>'; return; }
+  cats.forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'child-tab' + (selectedGetSet.get() === c.id ? ' active' : '');
+    btn.textContent = catLabel(c) + currentAgeLabel(c);
+    btn.addEventListener('click', () => { selectedGetSet.set(c.id); render(); });
+    wrap.appendChild(btn);
+  });
+}
+
+function vaccineDueInfo(rec) {
+  if (!rec.nextDue) return null;
+  const today = toISO(new Date());
+  const daysLeft = Math.round((new Date(rec.nextDue) - new Date(today)) / 86400000);
+  let color = 'var(--text-secondary)', extra = '';
+  if (daysLeft < 0) { color = 'var(--rust)'; extra = ' (เลยกำหนดแล้ว)'; }
+  else if (daysLeft <= 30) { color = 'var(--gold)'; extra = ` (อีก ${daysLeft} วัน)`; }
+  return { text: 'นัดกระตุ้นครั้งถัดไป ' + fmtDateStr(rec.nextDue) + extra, color };
+}
+
+function renderVaccineTab() {
+  renderCatTabsInto('vaccine-cat-tabs', { get: () => selectedVaccineCat, set: v => { selectedVaccineCat = v; } });
+  const listWrap = document.getElementById('vaccine-list');
+  if (!listWrap) return;
+  listWrap.innerHTML = '';
+  if (!cats.length) { listWrap.innerHTML = ''; return; }
+  const list = vaccineRecords.filter(r => r.catId === selectedVaccineCat).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  if (!list.length) { listWrap.innerHTML = '<p class="empty">ยังไม่มีประวัติวัคซีน</p>'; }
+  else {
+    list.forEach(r => {
+      const div = document.createElement('div');
+      div.className = 'visit-card';
+      const due = vaccineDueInfo(r);
+      div.innerHTML = `<div class="row-between">
+          <span><strong>${r.vaccineName}</strong>${r.date ? ' · ' + fmtDateStr(r.date) : ''}</span>
+          <span>
+            <button class="del-btn" data-edit="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
+            <button class="del-btn" data-del="${r.id}" aria-label="ลบ">✕</button>
+          </span>
+        </div>
+        ${r.note ? `<p class="muted" style="margin:4px 0 0;">${r.note}</p>` : ''}
+        <p style="margin:4px 0 0;font-size:12.5px;">
+          ${r.cost != null ? fmt(r.cost) + (due ? ' · ' : '') : ''}${due ? `<span style="color:${due.color};font-weight:600;">${due.text}</span>` : ''}
+        </p>`;
+      listWrap.appendChild(div);
+    });
+  }
+  listWrap.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('ลบรายการนี้?')) return;
+    vaccineRecords = vaccineRecords.filter(r => r.id !== btn.dataset.del);
+    if (editingVaccineId === btn.dataset.del) cancelVaccineEdit();
+    await saveVaccineRecords(); render();
+  }));
+  listWrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => startVaccineEdit(btn.dataset.edit)));
+}
+
+function startVaccineEdit(id) {
+  const r = vaccineRecords.find(x => x.id === id);
+  if (!r) return;
+  editingVaccineId = id;
+  document.getElementById('vc-name').value = r.vaccineName || '';
+  document.getElementById('vc-date').value = r.date || '';
+  document.getElementById('vc-next').value = r.nextDue || '';
+  document.getElementById('vc-cost').value = r.cost != null ? r.cost : '';
+  document.getElementById('vc-note').value = r.note || '';
+  document.getElementById('vc-add').textContent = '💾 บันทึกการแก้ไข';
+  document.getElementById('vc-cancel-edit').style.display = 'inline-block';
+  document.getElementById('vc-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function cancelVaccineEdit() {
+  editingVaccineId = null;
+  document.getElementById('vc-name').value = '';
+  document.getElementById('vc-date').value = '';
+  document.getElementById('vc-next').value = '';
+  document.getElementById('vc-cost').value = '';
+  document.getElementById('vc-note').value = '';
+  document.getElementById('vc-add').textContent = '+ บันทึกวัคซีน';
+  document.getElementById('vc-cancel-edit').style.display = 'none';
+}
+document.getElementById('vc-cancel-edit').addEventListener('click', cancelVaccineEdit);
+document.getElementById('vc-add').addEventListener('click', async () => {
+  if (!selectedVaccineCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
+  const vaccineName = document.getElementById('vc-name').value.trim();
+  const date = document.getElementById('vc-date').value;
+  if (!vaccineName || !date) { alert('กรุณากรอกชื่อวัคซีนและวันที่ฉีด'); return; }
+  const costVal = document.getElementById('vc-cost').value;
+  const data = {
+    catId: selectedVaccineCat,
+    vaccineName,
+    date,
+    nextDue: document.getElementById('vc-next').value || '',
+    cost: costVal !== '' ? Number(costVal) : null,
+    note: document.getElementById('vc-note').value.trim()
+  };
+  if (editingVaccineId) {
+    const idx = vaccineRecords.findIndex(r => r.id === editingVaccineId);
+    if (idx > -1) vaccineRecords[idx] = Object.assign({}, vaccineRecords[idx], data);
+  } else {
+    vaccineRecords.push(Object.assign({ id: genId() }, data));
+  }
+  cancelVaccineEdit();
+  await saveVaccineRecords(); render();
+});
+
+/* ---------------- Checkup tab ---------------- */
+function renderCheckupTab() {
+  renderCatTabsInto('checkup-cat-tabs', { get: () => selectedCheckupCat, set: v => { selectedCheckupCat = v; } });
+  const listWrap = document.getElementById('checkup-list');
+  if (!listWrap) return;
+  listWrap.innerHTML = '';
+  if (!cats.length) { listWrap.innerHTML = ''; return; }
+  const list = checkupRecords.filter(r => r.catId === selectedCheckupCat).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  if (!list.length) { listWrap.innerHTML = '<p class="empty">ยังไม่มีประวัตินัดหมอ</p>'; }
+  else {
+    list.forEach(r => {
+      const div = document.createElement('div');
+      div.className = 'visit-card';
+      const placeParts = [r.hospital, r.doctor ? 'หมอ ' + r.doctor : ''].filter(Boolean).join(' · ');
+      div.innerHTML = `<div class="row-between">
+          <span><strong>${fmtDateStr(r.date)}</strong>${r.note ? ' · ' + r.note : ''}</span>
+          <span>
+            <button class="del-btn" data-edit="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
+            <button class="del-btn" data-del="${r.id}" aria-label="ลบ">✕</button>
+          </span>
+        </div>
+        ${placeParts ? `<p class="muted" style="margin:4px 0 0;">${placeParts}</p>` : ''}
+        <p class="muted" style="margin:4px 0 0;">
+          ${r.cost != null ? fmt(r.cost) + ' · ' : ''}${r.nextDate ? 'นัดครั้งถัดไป: ' + fmtDateStr(r.nextDate) : ''}
+        </p>`;
+      listWrap.appendChild(div);
+    });
+  }
+  listWrap.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('ลบรายการนี้?')) return;
+    checkupRecords = checkupRecords.filter(r => r.id !== btn.dataset.del);
+    if (editingCheckupId === btn.dataset.del) cancelCheckupEdit();
+    await saveCheckupRecords(); render();
+  }));
+  listWrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => startCheckupEdit(btn.dataset.edit)));
+  refreshCheckupDatalist();
+}
+function refreshCheckupDatalist() {
+  const el = document.getElementById('chk-hospital-list');
+  if (!el) return;
+  const hospitals = [...new Set(checkupRecords.map(r => r.hospital).filter(Boolean))];
+  el.innerHTML = hospitals.map(h => `<option value="${h}"></option>`).join('');
+}
+function startCheckupEdit(id) {
+  const r = checkupRecords.find(x => x.id === id);
+  if (!r) return;
+  editingCheckupId = id;
+  document.getElementById('chk-date').value = r.date || '';
+  document.getElementById('chk-note').value = r.note || '';
+  document.getElementById('chk-hospital').value = r.hospital || '';
+  document.getElementById('chk-doctor').value = r.doctor || '';
+  document.getElementById('chk-cost').value = r.cost != null ? r.cost : '';
+  document.getElementById('chk-next').value = r.nextDate || '';
+  document.getElementById('chk-add').textContent = '💾 บันทึกการแก้ไข';
+  document.getElementById('chk-cancel-edit').style.display = 'inline-block';
+  document.getElementById('chk-date').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function cancelCheckupEdit() {
+  editingCheckupId = null;
+  document.getElementById('chk-date').value = '';
+  document.getElementById('chk-note').value = '';
+  document.getElementById('chk-hospital').value = '';
+  document.getElementById('chk-doctor').value = '';
+  document.getElementById('chk-cost').value = '';
+  document.getElementById('chk-next').value = '';
+  document.getElementById('chk-add').textContent = '+ บันทึกนัด';
+  document.getElementById('chk-cancel-edit').style.display = 'none';
+}
+document.getElementById('chk-cancel-edit').addEventListener('click', cancelCheckupEdit);
+document.getElementById('chk-add').addEventListener('click', async () => {
+  if (!selectedCheckupCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
+  const date = document.getElementById('chk-date').value;
+  if (!date) { alert('กรุณากรอกวันที่'); return; }
+  const costVal = document.getElementById('chk-cost').value;
+  const data = {
+    catId: selectedCheckupCat,
+    date,
+    note: document.getElementById('chk-note').value.trim(),
+    hospital: document.getElementById('chk-hospital').value.trim(),
+    doctor: document.getElementById('chk-doctor').value.trim(),
+    cost: costVal !== '' ? Number(costVal) : null,
+    nextDate: document.getElementById('chk-next').value || ''
+  };
+  if (editingCheckupId) {
+    const idx = checkupRecords.findIndex(r => r.id === editingCheckupId);
+    if (idx > -1) checkupRecords[idx] = Object.assign({}, checkupRecords[idx], data);
+  } else {
+    checkupRecords.push(Object.assign({ id: genId() }, data));
+  }
+  cancelCheckupEdit();
+  await saveCheckupRecords(); render();
+});
+
+/* ---------------- Lab tab ---------------- */
+function normKey(s) { return (s || '').toString().trim().toUpperCase().replace(/[^A-Z0-9/]/g, ''); }
+function findLabCatalogEntry(rawKey) {
+  const n = normKey(rawKey);
+  return labCatalog.find(e => normKey(e.key) === n || (e.aliases || []).some(a => normKey(a) === n));
+}
+
+function renderLabValuesGrid(prefill) {
+  prefill = prefill || {};
+  const wrap = document.getElementById('lab-values-grid');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  const groups = ['chem', 'cbc', 'other'];
+  groups.forEach(g => {
+    const entries = labCatalog.filter(e => (e.group || 'other') === g);
+    if (!entries.length) return;
+    const title = document.createElement('div');
+    title.className = 'lab-group-title';
+    title.textContent = LAB_GROUP_LABELS[g] || g;
+    wrap.appendChild(title);
+    entries.forEach(e => {
+      const row = document.createElement('div');
+      row.className = 'lab-input-row';
+      const refText = (e.low != null && e.high != null) ? `${e.low} - ${e.high} ${e.unit || ''}` : (e.unit || '');
+      const val = prefill[e.key] != null ? prefill[e.key] : '';
+      row.innerHTML = `
+        <label class="field-label" style="margin:0;">${e.label} <span class="muted">(${e.key})</span></label>
+        <input type="number" step="any" class="lv-input" data-key="${e.key}" value="${val}">
+        <span class="ref-hint">${refText}</span>
+      `;
+      wrap.appendChild(row);
+    });
+  });
+}
+
+function collectLabValuesFromGrid() {
+  const values = {};
+  document.querySelectorAll('.lv-input').forEach(inp => {
+    if (inp.value !== '') values[inp.dataset.key] = Number(inp.value);
+  });
+  return values;
+}
+
+document.getElementById('lab-import-btn').addEventListener('click', () => {
+  const text = document.getElementById('lab-import-text').value;
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  let matchedCount = 0, unmatchedCount = 0;
+  lines.forEach(line => {
+    const parts = line.split(/[,:\t]|\s{2,}/).map(s => s.trim()).filter(Boolean);
+    if (parts.length < 2) { unmatchedCount++; return; }
+    const rawKey = parts[0];
+    const numMatch = parts.slice(1).join(' ').match(/-?\d+(\.\d+)?/);
+    if (!numMatch) { unmatchedCount++; return; }
+    const entry = findLabCatalogEntry(rawKey);
+    if (!entry) { unmatchedCount++; return; }
+    const input = document.querySelector(`.lv-input[data-key="${CSS.escape(entry.key)}"]`);
+    if (input) { input.value = numMatch[0]; matchedCount++; }
+    else { unmatchedCount++; }
+  });
+  document.getElementById('lab-import-result').textContent = `เติมค่าให้แล้ว ${matchedCount} ค่า${unmatchedCount ? ` (จับคู่ไม่ได้ ${unmatchedCount} บรรทัด — กรอกเองได้)` : ''}`;
+});
+
+document.getElementById('lv-new-add').addEventListener('click', async () => {
+  const label = document.getElementById('lv-new-label').value.trim();
+  if (!label) { alert('กรุณากรอกชื่อค่า'); return; }
+  const key = normKey(label);
+  if (labCatalog.some(e => normKey(e.key) === key)) { alert('มีค่านี้อยู่แล้ว'); return; }
+  const low = document.getElementById('lv-new-low').value;
+  const high = document.getElementById('lv-new-high').value;
+  labCatalog.push({
+    key,
+    label,
+    unit: document.getElementById('lv-new-unit').value.trim(),
+    low: low !== '' ? Number(low) : null,
+    high: high !== '' ? Number(high) : null,
+    group: 'other',
+    aliases: []
+  });
+  document.getElementById('lv-new-label').value = '';
+  document.getElementById('lv-new-unit').value = '';
+  document.getElementById('lv-new-low').value = '';
+  document.getElementById('lv-new-high').value = '';
+  await saveLabCatalog();
+  renderLabValuesGrid(collectLabValuesFromGrid());
+});
+
+// บีบอัดรูปก่อนเก็บ (ย่อขนาด + ลดคุณภาพ) เพื่อไม่ให้เอกสารใหญ่เกินขีดจำกัดของ Firestore
+function compressImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const maxDim = 1400;
+        let w = img.width, h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+          else { w = Math.round(w * maxDim / h); h = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+document.getElementById('lab-photo').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  const statusEl = document.getElementById('lab-photo-status');
+  if (!file) return;
+  statusEl.textContent = 'กำลังบีบอัดรูป...';
+  try {
+    pendingLabPhotoDataUrl = await compressImageFile(file);
+    pendingLabPhotoChanged = true;
+    statusEl.textContent = '✅ แนบรูปแล้ว (จะถูกบันทึกตอนกดบันทึกผลตรวจ)';
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = 'แนบรูปไม่สำเร็จ ลองใหม่อีกครั้ง';
+  }
+});
+
+function labPhotoKey(testId) { return 'pet-lab-photo-' + testId; }
+
+async function viewLabPhoto(testId) {
+  try {
+    const r = await window.storage.get(labPhotoKey(testId));
+    if (!r || !r.value) { alert('ไม่พบรูปสำหรับรายการนี้'); return; }
+    document.getElementById('photo-modal-img').src = r.value;
+    document.getElementById('photo-modal').style.display = 'flex';
+  } catch (e) { console.error(e); alert('โหลดรูปไม่สำเร็จ'); }
+}
+document.getElementById('photo-modal-close').addEventListener('click', () => {
+  document.getElementById('photo-modal').style.display = 'none';
+});
+document.getElementById('photo-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'photo-modal') document.getElementById('photo-modal').style.display = 'none';
+});
+
+function refreshLabHospitalDatalist() {
+  const el = document.getElementById('lab-hospital-list');
+  if (!el) return;
+  const hospitals = [...new Set(labTests.map(t => t.hospital).filter(Boolean))];
+  el.innerHTML = hospitals.map(h => `<option value="${h}"></option>`).join('');
+}
+
+function labValueStatus(entry, num) {
+  if (!entry || entry.low == null || entry.high == null) return 'normal';
+  if (num < entry.low) return 'low';
+  if (num > entry.high) return 'high';
+  return 'normal';
+}
+
+function renderLabList() {
+  const listWrap = document.getElementById('lab-list');
+  if (!listWrap) return;
+  listWrap.innerHTML = '';
+  if (!cats.length) { listWrap.innerHTML = ''; return; }
+  const list = labTests.filter(t => t.catId === selectedLabCat).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  if (!list.length) { listWrap.innerHTML = '<p class="empty">ยังไม่มีประวัติผลตรวจของแมวตัวนี้</p>'; return; }
+  list.forEach(t => {
+    const abnormalCount = Object.keys(t.values || {}).filter(k => {
+      const entry = labCatalog.find(e => e.key === k);
+      return labValueStatus(entry, t.values[k]) !== 'normal';
+    }).length;
+    const div = document.createElement('div');
+    div.className = 'visit-card';
+    const expanded = expandedLabIds.has(t.id);
+    let valuesHtml = '';
+    if (expanded) {
+      const rows = Object.keys(t.values || {}).map(k => {
+        const entry = labCatalog.find(e => e.key === k) || { label: k, unit: '' };
+        const status = labValueStatus(entry, t.values[k]);
+        const cls = status === 'normal' ? '' : status;
+        return `<div class="val-row"><span>${entry.label}</span><span class="val-num ${cls}">${t.values[k]}${entry.unit ? ' ' + entry.unit : ''}</span></div>`;
+      }).join('');
+      valuesHtml = `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;">${rows || '<p class="empty">ไม่มีค่าที่บันทึกไว้</p>'}</div>`;
+    }
+    div.innerHTML = `
+      <div class="row-between">
+        <span data-toggle="${t.id}" style="cursor:pointer;">
+          <strong>${fmtDateStr(t.date)}</strong>${t.hospital ? ' · ' + t.hospital : ''}
+          ${abnormalCount ? `<span class="badge badge-abnormal">ผิดปกติ ${abnormalCount}</span>` : '<span class="badge badge-normal">ปกติ</span>'}
+        </span>
+        <span>
+          ${t.hasPhoto ? `<button class="btn" data-viewphoto="${t.id}" style="padding:4px 10px;font-size:11.5px;margin-right:4px;">🖼 ดูรูป</button>` : ''}
+          <button class="del-btn" data-edit="${t.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
+          <button class="del-btn" data-del="${t.id}" aria-label="ลบ">✕</button>
+        </span>
+      </div>
+      ${t.note ? `<p class="muted" style="margin:4px 0 0;">${t.note}</p>` : ''}
+      ${valuesHtml}
+    `;
+    listWrap.appendChild(div);
+  });
+  listWrap.querySelectorAll('[data-toggle]').forEach(el => el.addEventListener('click', () => {
+    const id = el.dataset.toggle;
+    if (expandedLabIds.has(id)) expandedLabIds.delete(id); else expandedLabIds.add(id);
+    renderLabList();
+  }));
+  listWrap.querySelectorAll('[data-viewphoto]').forEach(btn => btn.addEventListener('click', () => viewLabPhoto(btn.dataset.viewphoto)));
+  listWrap.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('ลบผลตรวจรายการนี้?')) return;
+    labTests = labTests.filter(t => t.id !== btn.dataset.del);
+    if (editingLabId === btn.dataset.del) cancelLabEdit();
+    await saveLabTests();
+    try { await window.storage.set(labPhotoKey(btn.dataset.del), ''); } catch (e) {}
+    render();
+  }));
+  listWrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => startLabEdit(btn.dataset.edit)));
+}
+
+function startLabEdit(id) {
+  const t = labTests.find(x => x.id === id);
+  if (!t) return;
+  editingLabId = id;
+  document.getElementById('lab-date').value = t.date || '';
+  document.getElementById('lab-hospital').value = t.hospital || '';
+  document.getElementById('lab-note').value = t.note || '';
+  pendingLabPhotoDataUrl = null;
+  pendingLabPhotoChanged = false;
+  document.getElementById('lab-photo').value = '';
+  document.getElementById('lab-photo-status').textContent = t.hasPhoto ? 'มีรูปแนบอยู่แล้ว (เลือกไฟล์ใหม่เพื่อแทนที่)' : '';
+  renderLabValuesGrid(t.values || {});
+  document.getElementById('lab-form-title').textContent = '✏️ แก้ไขผลตรวจเลือด';
+  document.getElementById('lab-save').textContent = '💾 บันทึกการแก้ไข';
+  document.getElementById('lab-cancel-edit').style.display = 'inline-block';
+  document.getElementById('lab-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function cancelLabEdit() {
+  editingLabId = null;
+  document.getElementById('lab-date').value = '';
+  document.getElementById('lab-hospital').value = '';
+  document.getElementById('lab-note').value = '';
+  document.getElementById('lab-import-text').value = '';
+  document.getElementById('lab-import-result').textContent = '';
+  pendingLabPhotoDataUrl = null;
+  pendingLabPhotoChanged = false;
+  document.getElementById('lab-photo').value = '';
+  document.getElementById('lab-photo-status').textContent = '';
+  renderLabValuesGrid({});
+  document.getElementById('lab-form-title').textContent = '+ เพิ่มผลตรวจเลือด';
+  document.getElementById('lab-save').textContent = '+ บันทึกผลตรวจ';
+  document.getElementById('lab-cancel-edit').style.display = 'none';
+}
+document.getElementById('lab-cancel-edit').addEventListener('click', cancelLabEdit);
+
+document.getElementById('lab-save').addEventListener('click', async () => {
+  if (!selectedLabCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
+  const date = document.getElementById('lab-date').value;
+  if (!date) { alert('กรุณากรอกวันที่ตรวจ'); return; }
+  const values = collectLabValuesFromGrid();
+  const data = {
+    catId: selectedLabCat,
+    date,
+    hospital: document.getElementById('lab-hospital').value.trim(),
+    note: document.getElementById('lab-note').value.trim(),
+    values
+  };
+  let testId = editingLabId;
+  if (editingLabId) {
+    const idx = labTests.findIndex(t => t.id === editingLabId);
+    if (idx > -1) {
+      data.hasPhoto = pendingLabPhotoChanged ? true : (labTests[idx].hasPhoto || false);
+      labTests[idx] = Object.assign({}, labTests[idx], data);
+    }
+  } else {
+    testId = genId();
+    data.hasPhoto = !!pendingLabPhotoDataUrl;
+    labTests.push(Object.assign({ id: testId }, data));
+  }
+  await saveLabTests();
+  if (pendingLabPhotoChanged && pendingLabPhotoDataUrl) {
+    try { await window.storage.set(labPhotoKey(testId), pendingLabPhotoDataUrl); } catch (e) { console.error(e); }
+  }
+  cancelLabEdit();
+  render();
+});
+
+/* ---------------- Lab trend chart ---------------- */
+function renderLabTab() {
+  renderCatTabsInto('lab-cat-tabs', { get: () => selectedLabCat, set: v => { selectedLabCat = v; expandedLabIds = new Set(); } });
+  if (!editingLabId) renderLabValuesGrid(collectLabValuesFromGrid());
+  renderLabList();
+  refreshLabHospitalDatalist();
+  renderLabTrendSelect();
+  renderLabTrendChart();
+}
+
+function renderLabTrendSelect() {
+  const sel = document.getElementById('lab-trend-select');
+  if (!sel) return;
+  const testsForCat = labTests.filter(t => t.catId === selectedLabCat);
+  const keyCounts = {};
+  testsForCat.forEach(t => Object.keys(t.values || {}).forEach(k => { keyCounts[k] = (keyCounts[k] || 0) + 1; }));
+  const availableKeys = Object.keys(keyCounts).filter(k => keyCounts[k] >= 2);
+  const prevVal = sel.value;
+  sel.innerHTML = '';
+  if (!availableKeys.length) {
+    sel.innerHTML = '<option value="">(ยังไม่มีค่าที่มีข้อมูลตั้งแต่ 2 ครั้งขึ้นไป)</option>';
+    labTrendSelectedKey = null;
+    return;
+  }
+  availableKeys.sort();
+  availableKeys.forEach(k => {
+    const entry = labCatalog.find(e => e.key === k) || { label: k };
+    const opt = document.createElement('option');
+    opt.value = k; opt.textContent = `${entry.label} (${k})`;
+    sel.appendChild(opt);
+  });
+  if (availableKeys.includes(prevVal)) sel.value = prevVal;
+  else if (availableKeys.includes(labTrendSelectedKey)) sel.value = labTrendSelectedKey;
+  labTrendSelectedKey = sel.value;
+}
+document.getElementById('lab-trend-select').addEventListener('change', (e) => {
+  labTrendSelectedKey = e.target.value;
+  renderLabTrendChart();
+});
+
+function renderLabTrendChart() {
+  const wrap = document.getElementById('lab-trend-chart');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (!labTrendSelectedKey) { wrap.innerHTML = '<p class="empty">เลือกค่าที่ต้องการดูแนวโน้มด้านบน</p>'; return; }
+  const entry = labCatalog.find(e => e.key === labTrendSelectedKey) || { label: labTrendSelectedKey, unit: '' };
+  const points = labTests
+    .filter(t => t.catId === selectedLabCat && t.values && t.values[labTrendSelectedKey] != null)
+    .map(t => ({ date: t.date, val: t.values[labTrendSelectedKey] }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (points.length < 2) { wrap.innerHTML = '<p class="empty">ข้อมูลไม่พอสำหรับกราฟแนวโน้ม</p>'; return; }
+
+  const W = 640, H = 220, padL = 46, padR = 14, padT = 16, padB = 30;
+  const vals = points.map(p => p.val);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (entry.low != null) lo = Math.min(lo, entry.low);
+  if (entry.high != null) hi = Math.max(hi, entry.high);
+  const span = (hi - lo) || 1;
+  lo -= span * 0.1; hi += span * 0.1;
+  const xScale = i => padL + (i / (points.length - 1)) * (W - padL - padR);
+  const yScale = v => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
+
+  let refBandSvg = '';
+  if (entry.low != null && entry.high != null) {
+    const yTop = yScale(entry.high), yBot = yScale(entry.low);
+    refBandSvg = `<rect x="${padL}" y="${yTop}" width="${W - padL - padR}" height="${yBot - yTop}" fill="#2A9D8F" opacity="0.12"></rect>`;
+  }
+
+  const linePts = points.map((p, i) => `${xScale(i)},${yScale(p.val)}`).join(' ');
+  const dots = points.map((p, i) => {
+    const status = labValueStatus(entry, p.val);
+    const color = status === 'normal' ? '#C97C3D' : '#D9534F';
+    return `<circle cx="${xScale(i)}" cy="${yScale(p.val)}" r="4" fill="${color}" stroke="#fff" stroke-width="1.5"><title>${fmtDateStr(p.date)}: ${p.val}${entry.unit ? ' ' + entry.unit : ''}</title></circle>`;
+  }).join('');
+
+  const gridLines = [lo + (hi - lo) * 0.25, lo + (hi - lo) * 0.5, lo + (hi - lo) * 0.75].map(v =>
+    `<line x1="${padL}" y1="${yScale(v)}" x2="${W - padR}" y2="${yScale(v)}" stroke="#EFE0D0" stroke-width="1"></line>
+     <text x="${padL - 6}" y="${yScale(v) + 4}" text-anchor="end" font-size="10" fill="#8A6F5C">${v.toFixed(1)}</text>`
+  ).join('');
+
+  const xLabelStep = Math.max(1, Math.ceil(points.length / 6));
+  const xLabels = points.map((p, i) => (i % xLabelStep === 0 || i === points.length - 1)
+    ? `<text x="${xScale(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#8A6F5C">${fmtDateStr(p.date).replace(/, \d{4}$/, '')}</text>` : '').join('');
+
+  wrap.innerHTML = `
+    <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:var(--ink);">${entry.label} (${entry.key})${entry.low != null ? ` · ช่วงปกติ ${entry.low}-${entry.high} ${entry.unit || ''}` : ''}</p>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">
+      ${refBandSvg}
+      ${gridLines}
+      <polyline points="${linePts}" fill="none" stroke="#C97C3D" stroke-width="2"></polyline>
+      ${dots}
+      ${xLabels}
+    </svg>
+  `;
+}
+
+/* ---------------- Auth gate ---------------- */
+(function initAuthGate() {
+  var overlay = document.getElementById('login-overlay');
+  var msgEl = document.getElementById('login-message');
+  var btn = document.getElementById('google-signin-btn');
+  var __loaded = false;
+
+  function showLogin(message) { if (msgEl) msgEl.textContent = message || ''; if (overlay) overlay.style.display = 'flex'; }
+  function hideLogin() { if (overlay) overlay.style.display = 'none'; }
+
+  btn.addEventListener('click', function() {
+    if (msgEl) msgEl.textContent = '';
+    __auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(function(err) {
+      console.error(err);
+      showLogin('เข้าสู่ระบบไม่สำเร็จ ลองใหม่อีกครั้ง');
+    });
+  });
+
+  __auth.onAuthStateChanged(async function(user) {
+    if (!user) { hideLogin(); showLogin(''); return; }
+    try {
+      await __db.collection('households').doc(window.HOUSEHOLD_ID).collection('data').doc(MEMBERS_KEY).get();
+      hideLogin();
+      if (!__loaded) {
+        __loaded = true;
+        await load();
+        watchLastModified();
+      }
+    } catch (e) {
+      await __auth.signOut();
+      showLogin('บัญชี ' + user.email + ' ไม่ได้รับอนุญาตให้เข้าใช้งานระบบนี้');
+    }
+  });
+})();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
