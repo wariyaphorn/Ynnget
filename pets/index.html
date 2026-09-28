@@ -1400,12 +1400,14 @@ async function viewLabPhotoLegacy(testId) {
 }
 
 async function viewLabAttachment(testId, att) {
+  // เปิดหน้าต่างใหม่ "ทันที" ตอนคลิก (ก่อน await ใดๆ) เพราะเบราว์เซอร์จะบล็อก/เปิดเป็นหน้าว่างถ้า window.open() มาทีหลัง async — พอได้ข้อมูลแล้วค่อยเซ็ต location
+  const needsPopup = att.storage === 'raw' && att.type === 'pdf';
+  const w = needsPopup ? window.open('', '_blank') : null;
   try {
     if (att.storage === 'raw') {
       const r = await window.storage.get(labAttachmentKey(testId, att.id));
-      if (!r || !r.value) { alert('ไม่พบไฟล์แนบนี้'); return; }
+      if (!r || !r.value) { if (w) w.close(); alert('ไม่พบไฟล์แนบนี้'); return; }
       if (att.type === 'pdf') {
-        const w = window.open();
         if (w) w.location.href = r.value;
       } else {
         openPhotoModal([r.value]);
@@ -1420,7 +1422,7 @@ async function viewLabAttachment(testId, att) {
       }
       openPhotoModal(pages);
     }
-  } catch (e) { console.error(e); alert('เปิดไฟล์ไม่สำเร็จ'); }
+  } catch (e) { console.error(e); if (w) w.close(); alert('เปิดไฟล์ไม่สำเร็จ'); }
 }
 
 document.getElementById('photo-modal-close').addEventListener('click', () => {
@@ -1683,12 +1685,12 @@ document.getElementById('us-file').addEventListener('change', (e) => {
 });
 
 async function viewUltrasoundFile(id) {
+  const w = window.open('', '_blank');
   try {
     const r = await window.storage.get(ultrasoundFileKey(id));
-    if (!r || !r.value) { alert('ไม่พบไฟล์สำหรับรายการนี้'); return; }
-    const w = window.open();
+    if (!r || !r.value) { if (w) w.close(); alert('ไม่พบไฟล์สำหรับรายการนี้'); return; }
     if (w) w.location.href = r.value;
-  } catch (e) { console.error(e); alert('เปิดไฟล์ไม่สำเร็จ'); }
+  } catch (e) { console.error(e); if (w) w.close(); alert('เปิดไฟล์ไม่สำเร็จ'); }
 }
 
 function renderUltrasoundList() {
