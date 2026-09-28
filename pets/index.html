@@ -497,7 +497,13 @@ const LAB_CATALOG_SEED = [
   { key: 'AMYL', label: 'Amylase', unit: 'U/L', low: 500, high: 1500, group: 'chem', aliases: ['AMYLASE'] },
   { key: 'LIPA', label: 'Lipase', unit: 'U/L', low: 100, high: 1400, group: 'chem', aliases: ['LIPASE'] },
   { key: 'TT4', label: 'TT4 (ไทรอยด์)', unit: 'µg/dL', low: 0.8, high: 4.7, group: 'chem', aliases: ['T4'] },
+  { key: 'FRUCT', label: 'Fructosamine', unit: 'µmol/L', low: 219, high: 347, group: 'chem', aliases: ['FRUCTOSAMINE'] },
   { key: 'BP', label: 'ความดันโลหิต (Systolic)', unit: 'mmHg', low: null, high: null, group: 'vitals', aliases: ['BLOODPRESSURE', 'ความดัน', 'SBP'] },
+  { key: 'SG', label: 'Specific Gravity (ปัสสาวะ)', unit: '', low: 1.02, high: 1.04, group: 'urine', aliases: ['SPECIFICGRAVITY'] },
+  { key: 'U_WBC', label: 'WBC (ปัสสาวะ)', unit: '/HPF', low: 0, high: 1, group: 'urine', aliases: ['URINEWBC'] },
+  { key: 'U_RBC', label: 'RBC (ปัสสาวะ)', unit: '/HPF', low: 2, high: 3, group: 'urine', aliases: ['URINERBC'] },
+  { key: 'U_EPI', label: 'Epithelium - Squamous (ปัสสาวะ)', unit: '/HPF', low: 0, high: 1, group: 'urine', aliases: ['EPITHELIUM', 'SQUAMOUS'] },
+  { key: 'UPCR', label: 'UPCR', unit: '', low: null, high: 0.4, group: 'urine', aliases: [] },
   { key: 'RBC', label: 'RBC', unit: 'M/µL', low: 6.54, high: 12.20, group: 'cbc', aliases: [] },
   { key: 'HCT', label: 'HCT', unit: '%', low: 30.3, high: 52.3, group: 'cbc', aliases: [] },
   { key: 'HGB', label: 'HGB', unit: 'g/dL', low: 9.8, high: 16.2, group: 'cbc', aliases: [] },
@@ -524,7 +530,7 @@ const LAB_CATALOG_SEED = [
   { key: 'PCT', label: 'PCT', unit: '%', low: 0.17, high: 0.86, group: 'cbc', aliases: [] }
 ];
 
-const LAB_GROUP_LABELS = { chem: 'เคมีเลือด (Chemistry)', cbc: 'ความสมบูรณ์เม็ดเลือด (CBC)', vitals: 'สัญญาณชีพ (Vitals)', other: 'อื่นๆ' };
+const LAB_GROUP_LABELS = { chem: 'เคมีเลือด (Chemistry)', cbc: 'ความสมบูรณ์เม็ดเลือด (CBC)', vitals: 'สัญญาณชีพ (Vitals)', urine: 'ตรวจปัสสาวะ (Urine)', other: 'อื่นๆ' };
 
 let members = [];
 let cats = [];
@@ -1052,7 +1058,7 @@ function renderLabValuesGrid(prefill) {
   const wrap = document.getElementById('lab-values-grid');
   if (!wrap) return;
   wrap.innerHTML = '';
-  const groups = ['chem', 'cbc', 'vitals', 'other'];
+  const groups = ['chem', 'cbc', 'vitals', 'urine', 'other'];
   groups.forEach(g => {
     const entries = labCatalog.filter(e => (e.group || 'other') === g);
     if (!entries.length) return;
@@ -1245,9 +1251,9 @@ function refreshLabHospitalDatalist() {
 }
 
 function labValueStatus(entry, num) {
-  if (!entry || entry.low == null || entry.high == null) return 'normal';
-  if (num < entry.low) return 'low';
-  if (num > entry.high) return 'high';
+  if (!entry || (entry.low == null && entry.high == null)) return 'normal';
+  if (entry.low != null && num < entry.low) return 'low';
+  if (entry.high != null && num > entry.high) return 'high';
   return 'normal';
 }
 
