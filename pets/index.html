@@ -365,9 +365,11 @@
         </div>
         <div class="form-grid">
           <div>
-            <label class="field-label" for="lab-photo">แนบรูป/ไฟล์ PDF ผลตรวจ (ไม่บังคับ)</label>
-            <input type="file" id="lab-photo" accept="image/*,application/pdf,.pdf">
+            <label class="field-label" for="lab-photo">แนบรูป/ไฟล์ PDF ผลตรวจ (เลือกได้หลายไฟล์ ไม่บังคับ)</label>
+            <input type="file" id="lab-photo" accept="image/*,application/pdf,.pdf" multiple>
             <p class="muted" id="lab-photo-status" style="margin:4px 0 0;"></p>
+            <div id="lab-photo-existing-list" style="margin-top:6px;"></div>
+            <div id="lab-photo-pending-list" style="margin-top:6px;"></div>
           </div>
         </div>
 
@@ -458,6 +460,11 @@
   <div class="modal-card" style="max-width:520px;text-align:center;">
     <h3>รูปผลตรวจ</h3>
     <img id="photo-modal-img" src="" style="max-width:100%;border-radius:10px;margin:10px 0;">
+    <div id="photo-modal-nav" style="display:none;justify-content:center;gap:10px;align-items:center;margin-bottom:10px;">
+      <button class="btn" id="photo-modal-prev" style="padding:4px 12px;">← ก่อนหน้า</button>
+      <span id="photo-modal-pageinfo" class="muted" style="font-size:12.5px;"></span>
+      <button class="btn" id="photo-modal-next" style="padding:4px 12px;">ถัดไป →</button>
+    </div>
     <button class="btn" id="photo-modal-close">ปิด</button>
   </div>
 </div>
@@ -553,8 +560,13 @@ let labTrendSelectedKey = null;
 let expandedLabIds = new Set();
 let pendingLabPhotoDataUrl = null;
 let pendingLabPhotoChanged = false;
+let pendingLabAttachments = [];
+let removedLabAttachmentIds = [];
+let photoModalPages = [];
+let photoModalIndex = 0;
 let pendingUltrasoundFileDataUrl = null;
 let pendingUltrasoundFileChanged = false;
+const LAB_ATTACHMENT_RAW_MAX_BYTES = 700 * 1024;
 const ULTRASOUND_MAX_BYTES = 700 * 1024; // ไฟล์ PDF ต้องไม่ใหญ่เกินนี้ (ก่อนแปลงเป็น base64) เพื่อไม่ให้เกินขีดจำกัดเอกสารของ Firestore
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
@@ -1208,34 +1220,191 @@ function isPdfFile(file) {
   return file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
 }
 
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// แปลง PDF ทุกหน้าเป็นรูป (ใช้เมื่อไฟล์ใหญ่เกินกว่าจะเก็บทั้งไฟล์ได้) — ย่อขนาด/ลดคุณภาพมากกว่ารูปทั่วไปเพราะมีหลายหน้าต่อ 1 ไฟล์
+function pdfAllPagesToImages(file) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      if (!window.pdfjsLib) { reject(new Error('pdf.js ยังโหลดไม่สำเร็จ')); return; }
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const pages = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 1.5 });
+        const renderCanvas = document.createElement('canvas');
+        renderCanvas.width = viewport.width;
+        renderCanvas.height = viewport.height;
+        await page.render({ canvasContext: renderCanvas.getContext('2d'), viewport }).promise;
+        const maxDim = 1100;
+        let w = renderCanvas.width, h = renderCanvas.height;
+        let finalCanvas = renderCanvas;
+        if (w > maxDim || h > maxDim) {
+          let nw = w, nh = h;
+          if (w > h) { nh = Math.round(h * maxDim / w); nw = maxDim; }
+          else { nw = Math.round(w * maxDim / h); nh = maxDim; }
+          const c2 = document.createElement('canvas');
+          c2.width = nw; c2.height = nh;
+          c2.getContext('2d').drawImage(renderCanvas, 0, 0, nw, nh);
+          finalCanvas = c2;
+        }
+        pages.push(finalCanvas.toDataURL('image/jpeg', 0.6));
+      }
+      resolve(pages);
+    } catch (err) { reject(err); }
+  });
+}
+
 document.getElementById('lab-photo').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
+  const files = Array.from(e.target.files || []);
   const statusEl = document.getElementById('lab-photo-status');
-  if (!file) return;
-  const pdf = isPdfFile(file);
-  statusEl.textContent = pdf ? 'กำลังแปลงหน้าแรกของ PDF เป็นรูป...' : 'กำลังบีบอัดรูป...';
-  try {
-    pendingLabPhotoDataUrl = pdf ? await pdfFirstPageToImage(file) : await compressImageFile(file);
-    pendingLabPhotoChanged = true;
-    statusEl.textContent = pdf
-      ? '✅ แปลงหน้าแรกของ PDF เป็นรูปแล้ว (จะถูกบันทึกตอนกดบันทึกผลตรวจ — ถ้า PDF มีหลายหน้า จะเก็บเฉพาะหน้าแรก)'
-      : '✅ แนบรูปแล้ว (จะถูกบันทึกตอนกดบันทึกผลตรวจ)';
-  } catch (err) {
-    console.error(err);
-    statusEl.textContent = pdf ? 'แปลง PDF ไม่สำเร็จ ลองใหม่อีกครั้ง หรือแนบเป็นรูปภาพแทน' : 'แนบรูปไม่สำเร็จ ลองใหม่อีกครั้ง';
+  if (!files.length) return;
+  statusEl.textContent = 'กำลังประมวลผลไฟล์...';
+  for (const file of files) {
+    const att = { id: genId(), name: file.name || 'ไฟล์แนบ' };
+    try {
+      if (isPdfFile(file)) {
+        att.type = 'pdf';
+        if (file.size <= LAB_ATTACHMENT_RAW_MAX_BYTES) {
+          att.storage = 'raw';
+          att.content = await fileToDataUrl(file);
+        } else {
+          att.storage = 'pages';
+          att.pages = await pdfAllPagesToImages(file);
+        }
+      } else {
+        att.type = 'image';
+        att.storage = 'raw';
+        att.content = await compressImageFile(file);
+      }
+      pendingLabAttachments.push(att);
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = `แนบไฟล์ "${file.name}" ไม่สำเร็จ ลองใหม่อีกครั้ง`;
+    }
   }
+  e.target.value = '';
+  renderPendingLabAttachments();
+  statusEl.textContent = pendingLabAttachments.length
+    ? `✅ เตรียมไฟล์แนบ ${pendingLabAttachments.length} ไฟล์ (จะถูกบันทึกตอนกดบันทึกผลตรวจ)`
+    : statusEl.textContent;
 });
 
-function labPhotoKey(testId) { return 'pet-lab-photo-' + testId; }
+function renderPendingLabAttachments() {
+  const wrap = document.getElementById('lab-photo-pending-list');
+  if (!wrap) return;
+  if (!pendingLabAttachments.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = pendingLabAttachments.map(a => `
+    <span class="chip-condition" style="display:inline-flex;align-items:center;gap:6px;margin:2px 4px 2px 0;">
+      ${a.type === 'pdf' ? '📄' : '🖼'} ${a.name}${a.storage === 'pages' ? ` (${a.pages.length} หน้า)` : ''}
+      <button type="button" data-removepending="${a.id}" style="border:none;background:none;color:var(--rust);cursor:pointer;font-weight:700;">✕</button>
+    </span>
+  `).join('');
+  wrap.querySelectorAll('[data-removepending]').forEach(btn => btn.addEventListener('click', () => {
+    pendingLabAttachments = pendingLabAttachments.filter(a => a.id !== btn.dataset.removepending);
+    renderPendingLabAttachments();
+  }));
+}
 
-async function viewLabPhoto(testId) {
+function renderExistingLabAttachments(t) {
+  const wrap = document.getElementById('lab-photo-existing-list');
+  if (!wrap) return;
+  const atts = (t.attachments || []).filter(a => !removedLabAttachmentIds.includes(a.id));
+  const legacy = !!t.hasPhoto && !removedLabAttachmentIds.includes('__legacy__');
+  let html = atts.map(a => `
+    <span class="chip-condition" style="display:inline-flex;align-items:center;gap:6px;margin:2px 4px 2px 0;">
+      ${a.type === 'pdf' ? '📄' : '🖼'} ${a.name || 'ไฟล์แนบ'}${a.storage === 'pages' ? ` (${a.pageCount} หน้า)` : ''}
+      <button type="button" data-viewexisting="${a.id}" style="border:none;background:none;color:var(--ink-light);cursor:pointer;">👁</button>
+      <button type="button" data-removeexisting="${a.id}" style="border:none;background:none;color:var(--rust);cursor:pointer;font-weight:700;">✕</button>
+    </span>
+  `).join('');
+  if (legacy) {
+    html += `
+      <span class="chip-condition" style="display:inline-flex;align-items:center;gap:6px;margin:2px 4px 2px 0;">
+        🖼 รูปแนบ (เดิม)
+        <button type="button" data-viewexisting="__legacy__" style="border:none;background:none;color:var(--ink-light);cursor:pointer;">👁</button>
+        <button type="button" data-removeexisting="__legacy__" style="border:none;background:none;color:var(--rust);cursor:pointer;font-weight:700;">✕</button>
+      </span>`;
+  }
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('[data-viewexisting]').forEach(btn => btn.addEventListener('click', () => {
+    if (btn.dataset.viewexisting === '__legacy__') { viewLabPhotoLegacy(t.id); return; }
+    const att = atts.find(a => a.id === btn.dataset.viewexisting);
+    if (att) viewLabAttachment(t.id, att);
+  }));
+  wrap.querySelectorAll('[data-removeexisting]').forEach(btn => btn.addEventListener('click', () => {
+    removedLabAttachmentIds.push(btn.dataset.removeexisting);
+    renderExistingLabAttachments(t);
+  }));
+}
+
+function labPhotoKey(testId) { return 'pet-lab-photo-' + testId; }
+function labAttachmentKey(testId, attId) { return 'pet-lab-file-' + testId + '-' + attId; }
+function labAttachmentPageKey(testId, attId, pageIdx) { return labAttachmentKey(testId, attId) + '-p' + pageIdx; }
+
+function openPhotoModal(pages) {
+  photoModalPages = pages.filter(Boolean);
+  photoModalIndex = 0;
+  updatePhotoModalView();
+  document.getElementById('photo-modal').style.display = 'flex';
+}
+function updatePhotoModalView() {
+  document.getElementById('photo-modal-img').src = photoModalPages[photoModalIndex] || '';
+  const nav = document.getElementById('photo-modal-nav');
+  if (photoModalPages.length > 1) {
+    nav.style.display = 'flex';
+    document.getElementById('photo-modal-pageinfo').textContent = `หน้า ${photoModalIndex + 1}/${photoModalPages.length}`;
+  } else {
+    nav.style.display = 'none';
+  }
+}
+document.getElementById('photo-modal-prev').addEventListener('click', () => {
+  if (photoModalIndex > 0) { photoModalIndex--; updatePhotoModalView(); }
+});
+document.getElementById('photo-modal-next').addEventListener('click', () => {
+  if (photoModalIndex < photoModalPages.length - 1) { photoModalIndex++; updatePhotoModalView(); }
+});
+
+async function viewLabPhotoLegacy(testId) {
   try {
     const r = await window.storage.get(labPhotoKey(testId));
     if (!r || !r.value) { alert('ไม่พบรูปสำหรับรายการนี้'); return; }
-    document.getElementById('photo-modal-img').src = r.value;
-    document.getElementById('photo-modal').style.display = 'flex';
+    openPhotoModal([r.value]);
   } catch (e) { console.error(e); alert('โหลดรูปไม่สำเร็จ'); }
 }
+
+async function viewLabAttachment(testId, att) {
+  try {
+    if (att.storage === 'raw') {
+      const r = await window.storage.get(labAttachmentKey(testId, att.id));
+      if (!r || !r.value) { alert('ไม่พบไฟล์แนบนี้'); return; }
+      if (att.type === 'pdf') {
+        const w = window.open();
+        if (w) w.location.href = r.value;
+      } else {
+        openPhotoModal([r.value]);
+      }
+    } else {
+      const pages = [];
+      for (let i = 0; i < (att.pageCount || 0); i++) {
+        try {
+          const r = await window.storage.get(labAttachmentPageKey(testId, att.id, i));
+          pages.push(r && r.value ? r.value : '');
+        } catch (e) { pages.push(''); }
+      }
+      openPhotoModal(pages);
+    }
+  } catch (e) { console.error(e); alert('เปิดไฟล์ไม่สำเร็จ'); }
+}
+
 document.getElementById('photo-modal-close').addEventListener('click', () => {
   document.getElementById('photo-modal').style.display = 'none';
 });
@@ -1273,6 +1442,7 @@ function renderLabList() {
     div.className = 'visit-card';
     const expanded = expandedLabIds.has(t.id);
     let valuesHtml = '';
+    const attCount = (t.attachments && t.attachments.length) || (t.hasPhoto ? 1 : 0);
     if (expanded) {
       const rows = Object.keys(t.values || {}).map(k => {
         const entry = labCatalog.find(e => e.key === k) || { label: k, unit: '' };
@@ -1280,16 +1450,18 @@ function renderLabList() {
         const cls = status === 'normal' ? '' : status;
         return `<div class="val-row"><span>${entry.label}</span><span class="val-num ${cls}">${t.values[k]}${entry.unit ? ' ' + entry.unit : ''}</span></div>`;
       }).join('');
-      valuesHtml = `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;">${rows || '<p class="empty">ไม่มีค่าที่บันทึกไว้</p>'}</div>`;
+      const atts = (t.attachments && t.attachments.length) ? t.attachments : (t.hasPhoto ? [{ id: '', legacy: true, type: 'image', name: 'รูปแนบ' }] : []);
+      const attsHtml = atts.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">${atts.map(a => `<button class="btn" data-viewatt="${t.id}" data-attid="${a.id}" style="padding:4px 10px;font-size:11.5px;">${a.type === 'pdf' ? '📄' : '🖼'} ${a.name || 'ไฟล์แนบ'}${a.storage === 'pages' ? ` (${a.pageCount} หน้า)` : ''}</button>`).join('')}</div>` : '';
+      valuesHtml = `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;">${rows || '<p class="empty">ไม่มีค่าที่บันทึกไว้</p>'}${attsHtml}</div>`;
     }
     div.innerHTML = `
       <div class="row-between">
         <span data-toggle="${t.id}" style="cursor:pointer;">
           <strong>${fmtDateStr(t.date)}</strong>${t.hospital ? ' · ' + t.hospital : ''}
           ${abnormalCount ? `<span class="badge badge-abnormal">ผิดปกติ ${abnormalCount}</span>` : '<span class="badge badge-normal">ปกติ</span>'}
+          ${attCount ? `<span class="badge" style="margin-left:4px;">📎 ${attCount}</span>` : ''}
         </span>
         <span>
-          ${t.hasPhoto ? `<button class="btn" data-viewphoto="${t.id}" style="padding:4px 10px;font-size:11.5px;margin-right:4px;">🖼 ดูรูป</button>` : ''}
           <button class="del-btn" data-edit="${t.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
           <button class="del-btn" data-del="${t.id}" aria-label="ลบ">✕</button>
         </span>
@@ -1304,13 +1476,33 @@ function renderLabList() {
     if (expandedLabIds.has(id)) expandedLabIds.delete(id); else expandedLabIds.add(id);
     renderLabList();
   }));
-  listWrap.querySelectorAll('[data-viewphoto]').forEach(btn => btn.addEventListener('click', () => viewLabPhoto(btn.dataset.viewphoto)));
+  listWrap.querySelectorAll('[data-viewatt]').forEach(btn => btn.addEventListener('click', () => {
+    const t = labTests.find(x => x.id === btn.dataset.viewatt);
+    if (!t) return;
+    if (!btn.dataset.attid) { viewLabPhotoLegacy(t.id); return; }
+    const att = (t.attachments || []).find(a => a.id === btn.dataset.attid);
+    if (att) viewLabAttachment(t.id, att);
+  }));
   listWrap.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
     if (!confirm('ลบผลตรวจรายการนี้?')) return;
-    labTests = labTests.filter(t => t.id !== btn.dataset.del);
+    const t = labTests.find(x => x.id === btn.dataset.del);
+    labTests = labTests.filter(t2 => t2.id !== btn.dataset.del);
     if (editingLabId === btn.dataset.del) cancelLabEdit();
     await saveLabTests();
     try { await window.storage.set(labPhotoKey(btn.dataset.del), ''); } catch (e) {}
+    if (t && t.attachments) {
+      for (const a of t.attachments) {
+        try {
+          if (a.storage === 'raw') {
+            await window.storage.set(labAttachmentKey(t.id, a.id), '');
+          } else {
+            for (let i = 0; i < (a.pageCount || 0); i++) {
+              await window.storage.set(labAttachmentPageKey(t.id, a.id, i), '');
+            }
+          }
+        } catch (e) {}
+      }
+    }
     render();
   }));
   listWrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => startLabEdit(btn.dataset.edit)));
@@ -1323,10 +1515,12 @@ function startLabEdit(id) {
   document.getElementById('lab-date').value = t.date || '';
   document.getElementById('lab-hospital').value = t.hospital || '';
   document.getElementById('lab-note').value = t.note || '';
-  pendingLabPhotoDataUrl = null;
-  pendingLabPhotoChanged = false;
+  pendingLabAttachments = [];
+  removedLabAttachmentIds = [];
   document.getElementById('lab-photo').value = '';
-  document.getElementById('lab-photo-status').textContent = t.hasPhoto ? 'มีรูปแนบอยู่แล้ว (เลือกไฟล์ใหม่เพื่อแทนที่)' : '';
+  document.getElementById('lab-photo-status').textContent = '';
+  renderExistingLabAttachments(t);
+  renderPendingLabAttachments();
   renderLabValuesGrid(t.values || {});
   document.getElementById('lab-form-title').textContent = '✏️ แก้ไขผลตรวจเลือด';
   document.getElementById('lab-save').textContent = '💾 บันทึกการแก้ไข';
@@ -1342,8 +1536,12 @@ function cancelLabEdit() {
   document.getElementById('lab-import-result').textContent = '';
   pendingLabPhotoDataUrl = null;
   pendingLabPhotoChanged = false;
+  pendingLabAttachments = [];
+  removedLabAttachmentIds = [];
   document.getElementById('lab-photo').value = '';
   document.getElementById('lab-photo-status').textContent = '';
+  document.getElementById('lab-photo-existing-list').innerHTML = '';
+  document.getElementById('lab-photo-pending-list').innerHTML = '';
   renderLabValuesGrid({});
   document.getElementById('lab-form-title').textContent = '+ เพิ่มผลตรวจเลือด';
   document.getElementById('lab-save').textContent = '+ บันทึกผลตรวจ';
@@ -1356,29 +1554,67 @@ document.getElementById('lab-save').addEventListener('click', async () => {
   const date = document.getElementById('lab-date').value;
   if (!date) { alert('กรุณากรอกวันที่ตรวจ'); return; }
   const values = collectLabValuesFromGrid();
+
+  const idx = editingLabId ? labTests.findIndex(t => t.id === editingLabId) : -1;
+  const originalAttachments = idx > -1 ? (labTests[idx].attachments || []) : [];
+  const removeLegacyPhoto = removedLabAttachmentIds.includes('__legacy__');
+  const keptAttachments = originalAttachments.filter(a => !removedLabAttachmentIds.includes(a.id));
+  const toDelete = originalAttachments.filter(a => removedLabAttachmentIds.includes(a.id));
+
   const data = {
     catId: selectedLabCat,
     date,
     hospital: document.getElementById('lab-hospital').value.trim(),
     note: document.getElementById('lab-note').value.trim(),
-    values
+    values,
+    attachments: keptAttachments.slice()
   };
+
   let testId = editingLabId;
-  if (editingLabId) {
-    const idx = labTests.findIndex(t => t.id === editingLabId);
-    if (idx > -1) {
-      data.hasPhoto = pendingLabPhotoChanged ? true : (labTests[idx].hasPhoto || false);
-      labTests[idx] = Object.assign({}, labTests[idx], data);
-    }
+  if (idx > -1) {
+    labTests[idx] = Object.assign({}, labTests[idx], data);
   } else {
     testId = genId();
-    data.hasPhoto = !!pendingLabPhotoDataUrl;
     labTests.push(Object.assign({ id: testId }, data));
   }
-  await saveLabTests();
-  if (pendingLabPhotoChanged && pendingLabPhotoDataUrl) {
-    try { await window.storage.set(labPhotoKey(testId), pendingLabPhotoDataUrl); } catch (e) { console.error(e); }
+
+  const newAttMeta = [];
+  for (const a of pendingLabAttachments) {
+    try {
+      if (a.storage === 'raw') {
+        await window.storage.set(labAttachmentKey(testId, a.id), a.content);
+        newAttMeta.push({ id: a.id, name: a.name, type: a.type, storage: 'raw' });
+      } else {
+        for (let i = 0; i < a.pages.length; i++) {
+          await window.storage.set(labAttachmentPageKey(testId, a.id, i), a.pages[i]);
+        }
+        newAttMeta.push({ id: a.id, name: a.name, type: a.type, storage: 'pages', pageCount: a.pages.length });
+      }
+    } catch (e) { console.error(e); }
   }
+
+  const finalIdx = labTests.findIndex(t => t.id === testId);
+  if (finalIdx > -1) {
+    labTests[finalIdx].attachments = keptAttachments.concat(newAttMeta);
+    if (removeLegacyPhoto) labTests[finalIdx].hasPhoto = false;
+  }
+  await saveLabTests();
+
+  if (removeLegacyPhoto) {
+    try { await window.storage.set(labPhotoKey(testId), ''); } catch (e) {}
+  }
+  for (const a of toDelete) {
+    try {
+      if (a.storage === 'raw') {
+        await window.storage.set(labAttachmentKey(testId, a.id), '');
+      } else {
+        for (let i = 0; i < (a.pageCount || 0); i++) {
+          await window.storage.set(labAttachmentPageKey(testId, a.id, i), '');
+        }
+      }
+    } catch (e) {}
+  }
+
   cancelLabEdit();
   render();
 });
