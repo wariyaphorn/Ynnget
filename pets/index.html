@@ -255,6 +255,9 @@
         <h2>วัคซีน</h2>
         <p class="muted" style="margin:0 0 10px;">บันทึกวัคซีนที่ฉีดแล้วและวันนัดกระตุ้นครั้งถัดไป — วันนัดจะขึ้นสีแดงถ้าเลยกำหนด และสีส้มถ้าใกล้ถึงกำหนด (ภายใน 30 วัน)</p>
         <div class="child-tabs" id="vaccine-cat-tabs"></div>
+        <div style="margin-bottom:8px;">
+          <button type="button" class="btn" id="vc-export-csv">📥 Export ข้อมูลวัคซีน (CSV, ทุกตัว)</button>
+        </div>
         <div id="vaccine-list"></div>
         <div class="form-grid">
           <div>
@@ -385,10 +388,14 @@
             <datalist id="lab-hospital-list"></datalist>
           </div>
         </div>
-        <div class="form-grid">
+        <div class="form-grid g2">
           <div>
             <label class="field-label" for="lab-note">หมายเหตุ</label>
             <input type="text" id="lab-note" placeholder="เช่น ตรวจสุขภาพประจำปี, Follow up">
+          </div>
+          <div>
+            <label class="field-label" for="lab-cost">ค่าใช้จ่าย (บาท)</label>
+            <input type="number" id="lab-cost" placeholder="ไม่บังคับ" min="0">
           </div>
         </div>
         <div class="form-grid">
@@ -1009,6 +1016,38 @@ function renderVaccineCatChecks(resetToDefault) {
     </label>
   `).join('');
 }
+function csvEscape(val) {
+  const s = (val == null ? '' : String(val));
+  if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+function exportVaccineCSV() {
+  if (!vaccineRecords.length) { alert('ยังไม่มีข้อมูลวัคซีนให้ export'); return; }
+  const rows = [['ชื่อแมว', 'วันที่ฉีด', 'ชื่อวัคซีน', 'วันนัดครั้งถัดไป', 'ค่าใช้จ่าย', 'หมายเหตุ']];
+  const sorted = vaccineRecords.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  sorted.forEach(r => {
+    const cat = cats.find(c => c.id === r.catId);
+    rows.push([
+      cat ? cat.name : '',
+      r.date || '',
+      r.vaccineName || '',
+      r.nextDue || '',
+      r.cost != null ? r.cost : '',
+      r.note || ''
+    ]);
+  });
+  const csv = '﻿' + rows.map(row => row.map(csvEscape).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'vaccine-records-' + toISO(new Date()) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+document.getElementById('vc-export-csv').addEventListener('click', exportVaccineCSV);
 function renderVaccineTab() {
   renderCatTabsInto('vaccine-cat-tabs', { get: () => selectedVaccineCat, set: v => { selectedVaccineCat = v; } });
   renderVaccineCatChecks();
@@ -1019,21 +1058,34 @@ function renderVaccineTab() {
   const list = vaccineRecords.filter(r => r.catId === selectedVaccineCat).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   if (!list.length) { listWrap.innerHTML = '<p class="empty">ยังไม่มีประวัติวัคซีน</p>'; }
   else {
+    // จัดกลุ่มรายการที่ฉีดวันเดียวกันไว้ในการ์ดเดียว อ่านง่ายขึ้นเวลาฉีดหลายวัคซีนพร้อมกัน
+    const groups = [];
+    const byDate = {};
     list.forEach(r => {
+      const key = r.date || '';
+      if (!byDate[key]) { byDate[key] = { date: key, records: [] }; groups.push(byDate[key]); }
+      byDate[key].records.push(r);
+    });
+    groups.forEach(g => {
       const div = document.createElement('div');
       div.className = 'visit-card';
-      const due = vaccineDueInfo(r);
-      div.innerHTML = `<div class="row-between">
-          <span><strong>${r.vaccineName}</strong>${r.date ? ' · ' + fmtDateStr(r.date) : ''}</span>
-          <span>
-            <button class="del-btn" data-edit="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
-            <button class="del-btn" data-del="${r.id}" aria-label="ลบ">✕</button>
-          </span>
-        </div>
-        ${r.note ? `<p class="muted" style="margin:4px 0 0;">${r.note}</p>` : ''}
-        <p style="margin:4px 0 0;font-size:12.5px;">
-          ${r.cost != null ? fmt(r.cost) + (due ? ' · ' : '') : ''}${due ? `<span style="color:${due.color};font-weight:600;">${due.text}</span>` : ''}
-        </p>`;
+      const rowsHtml = g.records.map(r => {
+        const due = vaccineDueInfo(r);
+        return `<div style="padding:6px 0;border-top:1px solid var(--border);">
+          <div class="row-between">
+            <strong>${r.vaccineName}</strong>
+            <span>
+              <button class="del-btn" data-edit="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
+              <button class="del-btn" data-del="${r.id}" aria-label="ลบ">✕</button>
+            </span>
+          </div>
+          ${r.note ? `<p class="muted" style="margin:2px 0 0;">${r.note}</p>` : ''}
+          <p style="margin:2px 0 0;font-size:12.5px;">
+            ${r.cost != null ? fmt(r.cost) + (due ? ' · ' : '') : ''}${due ? `<span style="color:${due.color};font-weight:600;">${due.text}</span>` : ''}
+          </p>
+        </div>`;
+      }).join('');
+      div.innerHTML = `<div class="row-between"><strong>${fmtDateStr(g.date)}</strong><span class="badge">${g.records.length} เข็ม</span></div>${rowsHtml}`;
       listWrap.appendChild(div);
     });
   }
@@ -1771,7 +1823,7 @@ function renderCombinedHistoryList() {
         <div class="row-between">
           <span data-toggle="${t.id}" style="cursor:pointer;">
             <span class="badge" style="background:#5B8C6E;color:#fff;margin-right:4px;">🩸 ตรวจเลือด</span>
-            <strong>${fmtDateStr(t.date)}</strong>${t.hospital ? ' · ' + t.hospital : ''}${t.note ? ' · ' + t.note : ''}
+            <strong>${fmtDateStr(t.date)}</strong>${t.hospital ? ' · ' + t.hospital : ''}${t.note ? ' · ' + t.note : ''}${t.cost != null ? ' · ' + fmt(t.cost) : ''}
             ${abnormalCount ? `<span class="badge badge-abnormal">ผิดปกติ ${abnormalCount}</span>` : '<span class="badge badge-normal">ปกติ</span>'}
             ${attCount ? `<span class="badge" style="margin-left:4px;">📎 ${attCount}</span>` : ''}
           </span>
@@ -1882,6 +1934,7 @@ function startLabEdit(id) {
   document.getElementById('lab-hospital').value = t.hospital || '';
   document.getElementById('lab-note').value = t.note || '';
   document.getElementById('lab-detail').value = t.detail || '';
+  document.getElementById('lab-cost').value = t.cost != null ? t.cost : '';
   pendingLabAttachments = [];
   removedLabAttachmentIds = [];
   document.getElementById('lab-photo').value = '';
@@ -1900,6 +1953,7 @@ function cancelLabEdit() {
   document.getElementById('lab-hospital').value = '';
   document.getElementById('lab-note').value = '';
   document.getElementById('lab-detail').value = '';
+  document.getElementById('lab-cost').value = '';
   document.getElementById('lab-import-text').value = '';
   document.getElementById('lab-import-result').textContent = '';
   pendingLabPhotoDataUrl = null;
@@ -1935,6 +1989,7 @@ document.getElementById('lab-save').addEventListener('click', async () => {
     hospital: document.getElementById('lab-hospital').value.trim(),
     note: document.getElementById('lab-note').value.trim(),
     detail: document.getElementById('lab-detail').value.trim(),
+    cost: (() => { const v = document.getElementById('lab-cost').value; return v !== '' ? Number(v) : null; })(),
     values,
     attachments: keptAttachments.slice()
   };
