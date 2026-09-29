@@ -256,22 +256,24 @@
         <p class="muted" style="margin:0 0 10px;">บันทึกวัคซีนที่ฉีดแล้วและวันนัดกระตุ้นครั้งถัดไป — วันนัดจะขึ้นสีแดงถ้าเลยกำหนด และสีส้มถ้าใกล้ถึงกำหนด (ภายใน 30 วัน)</p>
         <div class="child-tabs" id="vaccine-cat-tabs"></div>
         <div id="vaccine-list"></div>
-        <div class="form-grid g2">
+        <div class="form-grid">
           <div>
-            <label class="field-label" for="vc-name">ชื่อวัคซีน</label>
-            <input type="text" id="vc-name" list="vc-name-list" placeholder="เช่น FVRCP, พิษสุนัขบ้า, FeLV">
-            <datalist id="vc-name-list">
-              <option value="FVRCP (ไข้หัดแมว/หวัดแมว)"></option>
-              <option value="พิษสุนัขบ้า (Rabies)"></option>
-              <option value="FeLV (มะเร็งเม็ดเลือดขาวแมว)"></option>
-            </datalist>
+            <label class="field-label">วัคซีนที่ฉีดรอบนี้ (เลือกได้มากกว่า 1 ถ้าฉีดพร้อมกัน)</label>
+            <div id="vc-type-checks" style="display:flex;flex-direction:column;gap:8px;">
+              <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" class="vc-type-check" value="ไข้หัด-หวัดแมว (Panleukopenia/Rhinotracheitis/Calicivirus)" style="width:auto;"> ไข้หัด-หวัดแมว (Panleukopenia/Rhinotracheitis/Calicivirus)</label>
+              <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" class="vc-type-check" value="หนองในเทียม (Chlamydiosis)" style="width:auto;"> หนองในเทียม (Chlamydiosis)</label>
+              <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" class="vc-type-check" value="ลิวคีเมีย (FeLV)" style="width:auto;"> ลิวคีเมีย (FeLV)</label>
+              <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" class="vc-type-check" value="พิษสุนัขบ้า (Rabies)" style="width:auto;"> พิษสุนัขบ้า (Rabies)</label>
+              <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" class="vc-type-check" value="กลาก (Microsporum canis)" style="width:auto;"> กลาก (Microsporum canis)</label>
+              <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" id="vc-type-other-check" style="width:auto;"> อื่นๆ: <input type="text" id="vc-type-other" placeholder="ระบุชื่อวัคซีน" style="flex:1;min-width:120px;"></label>
+            </div>
           </div>
+        </div>
+        <div class="form-grid g3">
           <div>
             <label class="field-label" for="vc-date">วันที่ฉีด</label>
             <input type="date" id="vc-date">
           </div>
-        </div>
-        <div class="form-grid g2">
           <div>
             <label class="field-label" for="vc-next">วันนัดกระตุ้นครั้งถัดไป</label>
             <input type="date" id="vc-next">
@@ -354,12 +356,8 @@
         <h2>ประวัติการตรวจ</h2>
         <p class="muted" style="margin:0 0 10px;">รวมประวัติตรวจเลือดและผลตรวจภาพ/หัตถการทั้งหมด เรียงตามวันที่ล่าสุด</p>
         <div id="history-combined-list"></div>
-      </div>
-    </section>
 
-    <section>
-      <div class="card">
-        <h2>แนวโน้มค่าแล็บ</h2>
+        <h2 style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px;">แนวโน้มค่าแล็บ</h2>
         <p class="muted" style="margin:0 0 10px;">เลือกค่าที่ต้องการดูแนวโน้มของแมวตัวที่เลือกไว้ด้านบน (ต้องมีข้อมูลอย่างน้อย 2 ครั้ง)</p>
         <select id="lab-trend-select" style="max-width:320px;margin-bottom:12px;"></select>
         <div id="lab-trend-chart"></div>
@@ -1029,22 +1027,34 @@ function renderVaccineTab() {
   listWrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => startVaccineEdit(btn.dataset.edit)));
 }
 
+const VC_KNOWN_TYPES = ['ไข้หัด-หวัดแมว (Panleukopenia/Rhinotracheitis/Calicivirus)', 'หนองในเทียม (Chlamydiosis)', 'ลิวคีเมีย (FeLV)', 'พิษสุนัขบ้า (Rabies)', 'กลาก (Microsporum canis)'];
+function resetVaccineTypeChecks() {
+  document.querySelectorAll('.vc-type-check').forEach(cb => { cb.checked = false; });
+  document.getElementById('vc-type-other-check').checked = false;
+  document.getElementById('vc-type-other').value = '';
+}
 function startVaccineEdit(id) {
   const r = vaccineRecords.find(x => x.id === id);
   if (!r) return;
   editingVaccineId = id;
-  document.getElementById('vc-name').value = r.vaccineName || '';
+  resetVaccineTypeChecks();
+  if (VC_KNOWN_TYPES.includes(r.vaccineName)) {
+    document.querySelectorAll('.vc-type-check').forEach(cb => { cb.checked = (cb.value === r.vaccineName); });
+  } else {
+    document.getElementById('vc-type-other-check').checked = true;
+    document.getElementById('vc-type-other').value = r.vaccineName || '';
+  }
   document.getElementById('vc-date').value = r.date || '';
   document.getElementById('vc-next').value = r.nextDue || '';
   document.getElementById('vc-cost').value = r.cost != null ? r.cost : '';
   document.getElementById('vc-note').value = r.note || '';
   document.getElementById('vc-add').textContent = '💾 บันทึกการแก้ไข';
   document.getElementById('vc-cancel-edit').style.display = 'inline-block';
-  document.getElementById('vc-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  document.getElementById('vc-type-checks').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 function cancelVaccineEdit() {
   editingVaccineId = null;
-  document.getElementById('vc-name').value = '';
+  resetVaccineTypeChecks();
   document.getElementById('vc-date').value = '';
   document.getElementById('vc-next').value = '';
   document.getElementById('vc-cost').value = '';
@@ -1055,13 +1065,15 @@ function cancelVaccineEdit() {
 document.getElementById('vc-cancel-edit').addEventListener('click', cancelVaccineEdit);
 document.getElementById('vc-add').addEventListener('click', async () => {
   if (!selectedVaccineCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
-  const vaccineName = document.getElementById('vc-name').value.trim();
+  const vaccineNames = Array.from(document.querySelectorAll('.vc-type-check:checked')).map(cb => cb.value);
+  const otherChecked = document.getElementById('vc-type-other-check').checked;
+  const otherName = document.getElementById('vc-type-other').value.trim();
+  if (otherChecked && otherName) vaccineNames.push(otherName);
   const date = document.getElementById('vc-date').value;
-  if (!vaccineName || !date) { alert('กรุณากรอกชื่อวัคซีนและวันที่ฉีด'); return; }
+  if (!vaccineNames.length || !date) { alert('กรุณาเลือกวัคซีนอย่างน้อย 1 ชนิด และกรอกวันที่ฉีด'); return; }
   const costVal = document.getElementById('vc-cost').value;
-  const data = {
+  const baseData = {
     catId: selectedVaccineCat,
-    vaccineName,
     date,
     nextDue: document.getElementById('vc-next').value || '',
     cost: costVal !== '' ? Number(costVal) : null,
@@ -1069,9 +1081,11 @@ document.getElementById('vc-add').addEventListener('click', async () => {
   };
   if (editingVaccineId) {
     const idx = vaccineRecords.findIndex(r => r.id === editingVaccineId);
-    if (idx > -1) vaccineRecords[idx] = Object.assign({}, vaccineRecords[idx], data);
+    if (idx > -1) vaccineRecords[idx] = Object.assign({}, vaccineRecords[idx], baseData, { vaccineName: vaccineNames[0] });
   } else {
-    vaccineRecords.push(Object.assign({ id: genId() }, data));
+    vaccineNames.forEach(vaccineName => {
+      vaccineRecords.push(Object.assign({ id: genId() }, baseData, { vaccineName }));
+    });
   }
   cancelVaccineEdit();
   await saveVaccineRecords(); render();
