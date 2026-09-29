@@ -375,6 +375,14 @@
 
     <section>
       <div class="card">
+        <h2>ตารางสรุปผลตรวจ</h2>
+        <p class="muted" style="margin:0 0 10px;">ไล่ดูทุกค่าที่เคยตรวจของแมวตัวที่เลือกไว้ เทียบกันแต่ละครั้ง (เรียงคอลัมน์ใหม่ไปเก่า)</p>
+        <div id="lab-summary-table-wrap"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
         <h2 id="lab-form-title">+ เพิ่มผลตรวจเลือด</h2>
         <p class="muted" style="margin:0 0 10px;">แนบรูปผลตรวจไว้อ้างอิง แล้วกรอกค่าที่ต้องการติดตามเอง หรือถ้าถามค่าจาก AI แชทอื่นมาแล้ว ก็วางข้อความ (เช่น "CREA,2.3") ที่ช่อง "นำเข้าจากข้อความ" เพื่อให้ระบบเติมให้อัตโนมัติ — ตรวจสอบตัวเลขอีกครั้งก่อนบันทึกเสมอ</p>
         <div class="form-grid g2">
@@ -850,6 +858,7 @@ function renderCatsTab() {
           <div>
             <strong>${c.name}</strong>${currentAgeLabel(c)}
             <p class="muted" style="margin:2px 0 0;">${[c.breed, c.gender ? genderLabel(c.gender) : ''].filter(Boolean).join(' · ')}</p>
+            ${c.birthDate ? `<p class="muted" style="margin:2px 0 0;">🎂 เกิด ${fmtDateStr(c.birthDate)}</p>` : ''}
           </div>
         </div>
         <span>
@@ -1066,9 +1075,13 @@ function renderVaccineTab() {
       if (!byDate[key]) { byDate[key] = { date: key, records: [] }; groups.push(byDate[key]); }
       byDate[key].records.push(r);
     });
-    groups.forEach(g => {
+    const dateColors = ['#EAF3FF', '#FFF3E0', '#EAF7EC', '#F5EAFB', '#FFEAF0', '#EAFBF9'];
+    const dateAccents = ['#5B9BD5', '#E8A33D', '#4CAF7D', '#9B6BC7', '#E86A93', '#2FA79B'];
+    groups.forEach((g, gi) => {
       const div = document.createElement('div');
       div.className = 'visit-card';
+      const ci = gi % dateColors.length;
+      div.style.borderLeft = `5px solid ${dateAccents[ci]}`;
       const rowsHtml = g.records.map(r => {
         const due = vaccineDueInfo(r);
         return `<div style="padding:6px 0;border-top:1px solid var(--border);">
@@ -1085,7 +1098,7 @@ function renderVaccineTab() {
           </p>
         </div>`;
       }).join('');
-      div.innerHTML = `<div class="row-between"><strong>${fmtDateStr(g.date)}</strong><span class="badge">${g.records.length} เข็ม</span></div>${rowsHtml}`;
+      div.innerHTML = `<div class="row-between" style="background:${dateColors[ci]};margin:-0.9rem -1.1rem 0;padding:0.7rem 1.1rem;border-radius:13px 13px 0 0;"><strong style="color:${dateAccents[ci]};">${fmtDateStr(g.date)}</strong><span class="badge">${g.records.length} เข็ม</span></div>${rowsHtml}`;
       listWrap.appendChild(div);
     });
   }
@@ -1274,7 +1287,7 @@ function renderLabValuesGrid(prefill) {
   const wrap = document.getElementById('lab-values-grid');
   if (!wrap) return;
   wrap.innerHTML = '';
-  const groups = ['chem', 'cbc', 'vitals', 'urine', 'other'];
+  const groups = ['vitals', 'chem', 'cbc', 'urine', 'other'];
   groups.forEach(g => {
     const entries = labCatalog.filter(e => (e.group || 'other') === g);
     if (!entries.length) return;
@@ -2051,7 +2064,48 @@ function renderLabTab() {
   refreshLabHospitalDatalist();
   renderLabTrendSelect();
   renderLabTrendChart();
+  renderLabSummaryTable();
   renderUltrasoundList();
+}
+
+function renderLabSummaryTable() {
+  const wrap = document.getElementById('lab-summary-table-wrap');
+  if (!wrap) return;
+  const tests = labTests.filter(t => t.catId === selectedLabCat).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  if (!tests.length) { wrap.innerHTML = '<p class="empty">ยังไม่มีผลตรวจของแมวตัวนี้</p>'; return; }
+
+  // เอาเฉพาะค่าที่เคยมีการบันทึกจริงอย่างน้อย 1 ครั้ง จัดกลุ่มตามหมวดเหมือนหน้ากรอกผลตรวจ
+  const usedKeys = new Set();
+  tests.forEach(t => Object.keys(t.values || {}).forEach(k => usedKeys.add(k)));
+  const labGroupOrder = ['chem', 'cbc', 'vitals', 'urine', 'other'];
+  const rowsByGroup = {};
+  labCatalog.forEach(entry => {
+    if (!usedKeys.has(entry.key)) return;
+    const g = entry.group || 'other';
+    if (!rowsByGroup[g]) rowsByGroup[g] = [];
+    rowsByGroup[g].push(entry);
+  });
+
+  const headerCells = tests.map(t => `<th style="padding:6px 10px;text-align:center;white-space:nowrap;">${fmtDateStr(t.date)}</th>`).join('');
+  let bodyHtml = '';
+  labGroupOrder.filter(g => rowsByGroup[g] && rowsByGroup[g].length).forEach(g => {
+    bodyHtml += `<tr><td colspan="${tests.length + 1}" class="lab-group-title" style="padding-top:10px;">${LAB_GROUP_LABELS[g] || g}</td></tr>`;
+    rowsByGroup[g].forEach(entry => {
+      const cells = tests.map(t => {
+        const val = (t.values || {})[entry.key];
+        if (val == null || val === '') return '<td style="padding:5px 10px;text-align:center;color:var(--text-muted);">–</td>';
+        const status = labValueStatus(entry, val);
+        const cls = status === 'normal' ? '' : status;
+        return `<td class="val-num ${cls}" style="padding:5px 10px;text-align:center;">${val}</td>`;
+      }).join('');
+      bodyHtml += `<tr><td style="padding:5px 10px;white-space:nowrap;">${entry.label}${entry.unit ? ` (${entry.unit})` : ''}</td>${cells}</tr>`;
+    });
+  });
+
+  wrap.innerHTML = `<div style="overflow-x:auto;"><table style="border-collapse:collapse;font-size:12.5px;width:100%;">
+    <thead><tr><th style="padding:6px 10px;text-align:left;">ค่า</th>${headerCells}</tr></thead>
+    <tbody>${bodyHtml}</tbody>
+  </table></div>`;
 }
 
 /* ---------------- Ultrasound records (PDF + note, แนบได้หลายไฟล์) ---------------- */
