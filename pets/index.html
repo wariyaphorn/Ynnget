@@ -258,6 +258,12 @@
         <div id="vaccine-list"></div>
         <div class="form-grid">
           <div>
+            <label class="field-label">แมวที่ฉีดรอบนี้ (เลือกได้หลายตัวถ้าพาไปฉีดพร้อมกัน)</label>
+            <div id="vc-cat-checks" style="display:flex;flex-direction:column;gap:8px;"></div>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
             <label class="field-label">วัคซีนที่ฉีดรอบนี้ (เลือกได้มากกว่า 1 ถ้าฉีดพร้อมกัน)</label>
             <div id="vc-type-checks" style="display:flex;flex-direction:column;gap:8px;">
               <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" class="vc-type-check" value="ไข้หัด-หวัดแมว (Panleukopenia/Rhinotracheitis/Calicivirus)" style="width:auto;"> ไข้หัด-หวัดแมว (Panleukopenia/Rhinotracheitis/Calicivirus)</label>
@@ -991,8 +997,21 @@ function vaccineDueInfo(rec) {
   return { text: 'นัดกระตุ้นครั้งถัดไป ' + fmtDateStr(rec.nextDue) + extra, color };
 }
 
+function renderVaccineCatChecks(resetToDefault) {
+  const wrap = document.getElementById('vc-cat-checks');
+  if (!wrap) return;
+  if (!cats.length) { wrap.innerHTML = ''; return; }
+  const prevChecked = resetToDefault ? new Set() : new Set(Array.from(wrap.querySelectorAll('.vc-cat-check:checked')).map(cb => cb.value));
+  wrap.innerHTML = cats.map(c => `
+    <label style="display:flex;align-items:center;gap:6px;font-weight:400;">
+      <input type="checkbox" class="vc-cat-check" value="${c.id}" style="width:auto;" ${prevChecked.has(c.id) ? 'checked' : (!prevChecked.size && c.id === selectedVaccineCat ? 'checked' : '')}>
+      ${catLabel(c)}
+    </label>
+  `).join('');
+}
 function renderVaccineTab() {
   renderCatTabsInto('vaccine-cat-tabs', { get: () => selectedVaccineCat, set: v => { selectedVaccineCat = v; } });
+  renderVaccineCatChecks();
   const listWrap = document.getElementById('vaccine-list');
   if (!listWrap) return;
   listWrap.innerHTML = '';
@@ -1037,6 +1056,7 @@ function startVaccineEdit(id) {
   const r = vaccineRecords.find(x => x.id === id);
   if (!r) return;
   editingVaccineId = id;
+  document.querySelectorAll('.vc-cat-check').forEach(cb => { cb.checked = (cb.value === r.catId); });
   resetVaccineTypeChecks();
   if (VC_KNOWN_TYPES.includes(r.vaccineName)) {
     document.querySelectorAll('.vc-type-check').forEach(cb => { cb.checked = (cb.value === r.vaccineName); });
@@ -1054,6 +1074,7 @@ function startVaccineEdit(id) {
 }
 function cancelVaccineEdit() {
   editingVaccineId = null;
+  renderVaccineCatChecks(true);
   resetVaccineTypeChecks();
   document.getElementById('vc-date').value = '';
   document.getElementById('vc-next').value = '';
@@ -1065,15 +1086,18 @@ function cancelVaccineEdit() {
 document.getElementById('vc-cancel-edit').addEventListener('click', cancelVaccineEdit);
 document.getElementById('vc-add').addEventListener('click', async () => {
   if (!selectedVaccineCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
+  const catIds = editingVaccineId
+    ? Array.from(document.querySelectorAll('.vc-cat-check:checked')).slice(0, 1).map(cb => cb.value)
+    : Array.from(document.querySelectorAll('.vc-cat-check:checked')).map(cb => cb.value);
   const vaccineNames = Array.from(document.querySelectorAll('.vc-type-check:checked')).map(cb => cb.value);
   const otherChecked = document.getElementById('vc-type-other-check').checked;
   const otherName = document.getElementById('vc-type-other').value.trim();
   if (otherChecked && otherName) vaccineNames.push(otherName);
   const date = document.getElementById('vc-date').value;
+  if (!catIds.length) { alert('กรุณาเลือกแมวอย่างน้อย 1 ตัว'); return; }
   if (!vaccineNames.length || !date) { alert('กรุณาเลือกวัคซีนอย่างน้อย 1 ชนิด และกรอกวันที่ฉีด'); return; }
   const costVal = document.getElementById('vc-cost').value;
   const baseData = {
-    catId: selectedVaccineCat,
     date,
     nextDue: document.getElementById('vc-next').value || '',
     cost: costVal !== '' ? Number(costVal) : null,
@@ -1081,10 +1105,12 @@ document.getElementById('vc-add').addEventListener('click', async () => {
   };
   if (editingVaccineId) {
     const idx = vaccineRecords.findIndex(r => r.id === editingVaccineId);
-    if (idx > -1) vaccineRecords[idx] = Object.assign({}, vaccineRecords[idx], baseData, { vaccineName: vaccineNames[0] });
+    if (idx > -1) vaccineRecords[idx] = Object.assign({}, vaccineRecords[idx], baseData, { catId: catIds[0], vaccineName: vaccineNames[0] });
   } else {
-    vaccineNames.forEach(vaccineName => {
-      vaccineRecords.push(Object.assign({ id: genId() }, baseData, { vaccineName }));
+    catIds.forEach(catId => {
+      vaccineNames.forEach(vaccineName => {
+        vaccineRecords.push(Object.assign({ id: genId() }, baseData, { catId, vaccineName }));
+      });
     });
   }
   cancelVaccineEdit();
