@@ -809,9 +809,9 @@ const LAB_CATALOG_SEED = [
   { key: 'TEMP', label: 'อุณหภูมิร่างกาย', unit: '°C', low: 38.0, high: 39.2, group: 'vitals', aliases: ['TEMPERATURE', 'BODYTEMP', 'อุณหภูมิ'] },
   { key: 'WEIGHT', label: 'น้ำหนักตัว', unit: 'kg', low: null, high: null, group: 'vitals', aliases: ['BW', 'BODYWEIGHT', 'น้ำหนัก'] },
   { key: 'SG', label: 'Specific Gravity (ปัสสาวะ)', unit: '', low: 1.02, high: 1.04, group: 'urine', aliases: ['SPECIFICGRAVITY'] },
-  { key: 'U_WBC', label: 'WBC (ปัสสาวะ)', unit: '/HPF', low: 0, high: 1, group: 'urine', aliases: ['URINEWBC'] },
-  { key: 'U_RBC', label: 'RBC (ปัสสาวะ)', unit: '/HPF', low: 2, high: 3, group: 'urine', aliases: ['URINERBC'] },
-  { key: 'U_EPI', label: 'Epithelium - Squamous (ปัสสาวะ)', unit: '/HPF', low: 0, high: 1, group: 'urine', aliases: ['EPITHELIUM', 'SQUAMOUS'] },
+  { key: 'U_WBC', label: 'WBC (ปัสสาวะ)', unit: '/HPF', low: 0, high: 1, group: 'urine', aliases: ['URINEWBC'], valueType: 'text' },
+  { key: 'U_RBC', label: 'RBC (ปัสสาวะ)', unit: '/HPF', low: 2, high: 3, group: 'urine', aliases: ['URINERBC'], valueType: 'text' },
+  { key: 'U_EPI', label: 'Epithelium - Squamous (ปัสสาวะ)', unit: '/HPF', low: 0, high: 1, group: 'urine', aliases: ['EPITHELIUM', 'SQUAMOUS'], valueType: 'text' },
   { key: 'UPCR', label: 'UPCR', unit: '', low: null, high: 0.4, group: 'urine', aliases: [] },
   { key: 'COLOR', label: 'Color (สี ปัสสาวะ)', unit: '', low: null, high: null, group: 'urine', aliases: ['สี'], valueType: 'text' },
   { key: 'TRANSPARENCY', label: 'Transparency (ความใส ปัสสาวะ)', unit: '', low: null, high: null, group: 'urine', aliases: ['ความขุ่น'], valueType: 'text' },
@@ -955,6 +955,14 @@ async function load() {
   LAB_CATALOG_SEED.forEach(seedEntry => {
     if (!labCatalog.some(e => normKey(e.key) === normKey(seedEntry.key))) {
       labCatalog.push(Object.assign({}, seedEntry));
+      labCatalogMigrated = true;
+    }
+  });
+  // เปลี่ยนค่าปัสสาวะบางตัว (WBC/RBC/Epithelium) ให้กรอกเป็นช่วงได้ เช่น "3-4" แทนตัวเลขเดี่ยว
+  const LAB_VALUETYPE_UPDATES = { U_WBC: 'text', U_RBC: 'text', U_EPI: 'text' };
+  labCatalog.forEach(e => {
+    if (LAB_VALUETYPE_UPDATES[e.key] && e.valueType !== LAB_VALUETYPE_UPDATES[e.key]) {
+      e.valueType = LAB_VALUETYPE_UPDATES[e.key];
       labCatalogMigrated = true;
     }
   });
@@ -1884,10 +1892,11 @@ function renderLabValuesGrid(prefill) {
       const row = document.createElement('div');
       row.className = 'lab-input-row';
       const isText = e.valueType === 'text';
-      const refText = isText ? '' : ((e.low != null && e.high != null) ? `${e.low} - ${e.high} ${e.unit || ''}` : (e.unit || ''));
+      const refText = (e.low != null && e.high != null) ? `${e.low} - ${e.high} ${e.unit || ''}` : (e.unit || '');
       const val = prefill[e.key] != null ? prefill[e.key] : '';
+      const textPlaceholder = (e.low != null && e.high != null) ? `เช่น ${e.low}-${e.high}` : 'เช่น Not Found';
       const inputHtml = isText
-        ? `<input type="text" class="lv-input" data-type="text" data-key="${e.key}" value="${(val || '').toString().replace(/"/g, '&quot;')}" placeholder="เช่น Not Found">`
+        ? `<input type="text" class="lv-input" data-type="text" data-key="${e.key}" value="${(val || '').toString().replace(/"/g, '&quot;')}" placeholder="${textPlaceholder}">`
         : `<input type="number" step="any" class="lv-input" data-key="${e.key}" value="${val}">`;
       row.innerHTML = `
         <label class="field-label" style="margin:0;">${e.label} <span class="muted">(${e.key})</span></label>
@@ -2687,7 +2696,7 @@ function renderLabSummaryTable() {
   // เอาเฉพาะค่าที่เคยมีการบันทึกจริงอย่างน้อย 1 ครั้ง จัดกลุ่มตามหมวดเหมือนหน้ากรอกผลตรวจ
   const usedKeys = new Set();
   tests.forEach(t => Object.keys(t.values || {}).forEach(k => usedKeys.add(k)));
-  const labGroupOrder = ['chem', 'cbc', 'vitals', 'urine', 'other'];
+  const labGroupOrder = ['vitals', 'chem', 'cbc', 'urine', 'other'];
   const rowsByGroup = {};
   labCatalog.forEach(entry => {
     if (!usedKeys.has(entry.key)) return;
