@@ -968,6 +968,14 @@ async function load() {
       labCatalogMigrated = true;
     }
   });
+  // เปลี่ยนชื่อ RDW เดิม ให้ตรงกับชื่อใหม่ที่แยกชัดว่าเป็น RDW-CV (แยกจาก RDW-SD ที่เพิ่มเข้ามาใหม่)
+  const LAB_LABEL_UPDATES = { RDW: 'RDW-CV' };
+  labCatalog.forEach(e => {
+    if (LAB_LABEL_UPDATES[e.key] && e.label !== LAB_LABEL_UPDATES[e.key]) {
+      e.label = LAB_LABEL_UPDATES[e.key];
+      labCatalogMigrated = true;
+    }
+  });
 
   // เปลี่ยนชื่อวัคซีนเก่าที่เคยบันทึกด้วยชื่อเดิม ให้ตรงกับชื่อใหม่ที่แก้ไข
   const VACCINE_NAME_RENAMES = { 'หนองในเทียม (Chlamydiosis)': 'Chlamydia/เยื่อบุตาอักเสบแมว (C. felis)' };
