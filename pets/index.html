@@ -806,6 +806,7 @@ const LAB_CATALOG_SEED = [
   { key: 'FRUCT', label: 'Fructosamine', unit: 'µmol/L', low: 219, high: 347, group: 'chem', aliases: ['FRUCTOSAMINE'] },
   { key: 'PLI', label: 'Pancreatic Lipase (cPL)', unit: 'U/L', low: 0.0, high: 4.4, group: 'chem', aliases: ['PANCREATIC LIPASE', 'PANCREATICLIPASE', 'CPL', 'SPEC CPL'] },
   { key: 'BP', label: 'ความดันโลหิต (Systolic)', unit: 'mmHg', low: null, high: null, group: 'vitals', aliases: ['BLOODPRESSURE', 'ความดัน', 'SBP'] },
+  { key: 'HR', label: 'อัตราการเต้นหัวใจ (Heart Rate)', unit: 'bpm', low: 140, high: 220, group: 'vitals', aliases: ['HEARTRATE', 'PULSE', 'ชีพจร'] },
   { key: 'TEMP', label: 'อุณหภูมิร่างกาย', unit: '°C', low: 38.0, high: 39.2, group: 'vitals', aliases: ['TEMPERATURE', 'BODYTEMP', 'อุณหภูมิ'] },
   { key: 'WEIGHT', label: 'น้ำหนักตัว', unit: 'kg', low: null, high: null, group: 'vitals', aliases: ['BW', 'BODYWEIGHT', 'น้ำหนัก'] },
   { key: 'SG', label: 'Specific Gravity (ปัสสาวะ)', unit: '', low: 1.02, high: 1.04, group: 'urine', aliases: ['SPECIFICGRAVITY'] },
@@ -2494,7 +2495,8 @@ function renderCombinedHistoryList() {
       const u = item.data;
       const info = examTypeInfo(u);
       const atts = ultrasoundRecordAttachments(u);
-      const attsHtml = atts.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">${atts.map(a => `<button class="btn" data-viewatt="${u.id}" data-attid="${a.id}" data-kind="exam" style="padding:4px 10px;font-size:11.5px;">${a.storage === 'pages' ? `🖼 ${a.name || 'ไฟล์'} (${a.pageCount || 0} หน้า)` : `${(a.type || 'pdf') === 'pdf' ? '📄' : '🖼'} ${a.name || 'ไฟล์แนบ'}`}</button>`).join('')}</div>` : '';
+      const examExpanded = expandedLabIds.has(u.id);
+      const attsHtml = (examExpanded && atts.length) ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">${atts.map(a => `<button class="btn" data-viewatt="${u.id}" data-attid="${a.id}" data-kind="exam" style="padding:4px 10px;font-size:11.5px;">${a.storage === 'pages' ? `🖼 ${a.name || 'ไฟล์'} (${a.pageCount || 0} หน้า)` : `${(a.type || 'pdf') === 'pdf' ? '📄' : '🖼'} ${a.name || 'ไฟล์แนบ'}`}</button>`).join('')}</div>` : '';
       const vitalsParts = [];
       if (u.vitals) {
         if (u.vitals.WEIGHT != null) vitalsParts.push(`⚖️ ${u.vitals.WEIGHT} kg`);
@@ -2504,10 +2506,10 @@ function renderCombinedHistoryList() {
       const vitalsHtml = vitalsParts.length ? `<p class="muted" style="margin:4px 0 0;">${vitalsParts.join(' · ')}</p>` : '';
       div.innerHTML = `
         <div class="row-between">
-          <span>
+          <span data-toggle="${u.id}" style="cursor:pointer;">
             <span class="badge" style="background:#B4623D;color:#fff;margin-right:4px;">${info.icon} ${info.label}</span>
             <strong>${fmtDateStr(u.date)}</strong>${u.hospital ? ' · ' + u.hospital : ''}${u.note ? ' · ' + u.note : ''}${u.cost != null ? ' · ' + fmt(u.cost) : ''}
-            ${atts.length ? `<span class="badge" style="margin-left:4px;">📎 ${atts.length}</span>` : ''}
+            ${atts.length ? `<span class="badge" style="margin-left:4px;">📎 ${atts.length}${atts.length ? (examExpanded ? ' ▲' : ' ▼') : ''}</span>` : ''}
           </span>
           <span>
             <button class="del-btn" data-edit="${u.id}" data-kind="exam" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
