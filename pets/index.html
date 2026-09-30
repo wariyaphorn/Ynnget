@@ -648,10 +648,14 @@
         </div>
         <div>
           <label class="field-label" style="margin-bottom:6px;">สัญญาณชีพ (ไม่บังคับ)</label>
-          <div class="form-grid g3">
+          <div class="form-grid g4">
             <div>
               <label class="field-label" for="us-vital-bp">ความดันโลหิต (mmHg)</label>
               <input type="number" step="any" id="us-vital-bp" placeholder="ไม่บังคับ">
+            </div>
+            <div>
+              <label class="field-label" for="us-vital-hr">อัตราการเต้นหัวใจ (bpm)</label>
+              <input type="number" step="any" id="us-vital-hr" placeholder="ไม่บังคับ">
             </div>
             <div>
               <label class="field-label" for="us-vital-temp">อุณหภูมิร่างกาย (°C)</label>
@@ -2502,6 +2506,7 @@ function renderCombinedHistoryList() {
         if (u.vitals.WEIGHT != null) vitalsParts.push(`⚖️ ${u.vitals.WEIGHT} kg`);
         if (u.vitals.TEMP != null) vitalsParts.push(`🌡️ ${u.vitals.TEMP}°C`);
         if (u.vitals.BP != null) vitalsParts.push(`💉 ${u.vitals.BP} mmHg`);
+        if (u.vitals.HR != null) vitalsParts.push(`❤️ ${u.vitals.HR} bpm`);
       }
       const vitalsHtml = vitalsParts.length ? `<p class="muted" style="margin:4px 0 0;">${vitalsParts.join(' · ')}</p>` : '';
       div.innerHTML = `
@@ -2709,7 +2714,7 @@ document.getElementById('lab-save').addEventListener('click', async () => {
 });
 
 /* ---------------- รวมข้อมูล "สัญญาณชีพ" จากทั้งผลตรวจเลือดและผลตรวจภาพ/หัตถการ ---------------- */
-const VITALS_KEYS = ['BP', 'TEMP', 'WEIGHT'];
+const VITALS_KEYS = ['BP', 'HR', 'TEMP', 'WEIGHT'];
 function combinedVitalsTests(catId) {
   const labEntries = labTests
     .filter(t => t.catId === catId)
@@ -2914,6 +2919,7 @@ function startUltrasoundEdit(id) {
   document.getElementById('us-hospital').value = u.hospital || '';
   document.getElementById('us-cost').value = u.cost != null ? u.cost : '';
   document.getElementById('us-vital-bp').value = (u.vitals && u.vitals.BP != null) ? u.vitals.BP : '';
+  document.getElementById('us-vital-hr').value = (u.vitals && u.vitals.HR != null) ? u.vitals.HR : '';
   document.getElementById('us-vital-temp').value = (u.vitals && u.vitals.TEMP != null) ? u.vitals.TEMP : '';
   document.getElementById('us-vital-weight').value = (u.vitals && u.vitals.WEIGHT != null) ? u.vitals.WEIGHT : '';
   document.getElementById('us-note').value = u.note || '';
@@ -2938,6 +2944,7 @@ function cancelUltrasoundEdit() {
   document.getElementById('us-hospital').value = '';
   document.getElementById('us-cost').value = '';
   document.getElementById('us-vital-bp').value = '';
+  document.getElementById('us-vital-hr').value = '';
   document.getElementById('us-vital-temp').value = '';
   document.getElementById('us-vital-weight').value = '';
   document.getElementById('us-note').value = '';
@@ -2978,9 +2985,11 @@ document.getElementById('us-save').addEventListener('click', async () => {
     vitals: (() => {
       const v = {};
       const bp = document.getElementById('us-vital-bp').value;
+      const hr = document.getElementById('us-vital-hr').value;
       const temp = document.getElementById('us-vital-temp').value;
       const weight = document.getElementById('us-vital-weight').value;
       if (bp !== '') v.BP = Number(bp);
+      if (hr !== '') v.HR = Number(hr);
       if (temp !== '') v.TEMP = Number(temp);
       if (weight !== '') v.WEIGHT = Number(weight);
       return v;
