@@ -460,6 +460,35 @@
 
     <section>
       <div class="card">
+        <h2>แผนการให้อาหาร</h2>
+        <p class="muted" style="margin:0 0 10px;">เมื่อเปลี่ยนแผน (ชนิดอาหารที่ให้) ให้เพิ่มแผนใหม่ ระบบจะปิดแผนเดิมให้อัตโนมัติ และจะติ๊กอาหารตามแผนที่ใช้งานอยู่ให้อัตโนมัติในฟอร์ม "บันทึกวันนี้" ด้านล่าง (ยังแก้ไขรายวันเองได้เสมอ)</p>
+        <div id="food-plan-current"></div>
+        <div id="food-plan-history"></div>
+        <div class="form-grid" style="margin-top:12px;max-width:200px;">
+          <div>
+            <label class="field-label" for="fp-start">เริ่มใช้วันที่</label>
+            <input type="date" id="fp-start">
+          </div>
+        </div>
+        <div style="margin:10px 0;">
+          <label class="field-label">อาหารที่ให้ในช่วงนี้ (เลือกได้หลายรายการ)</label>
+          <div id="fp-foods" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label class="field-label" for="fp-note">หมายเหตุ</label>
+            <input type="text" id="fp-note" placeholder="ไม่บังคับ">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="fp-add" style="flex:1;">+ บันทึกแผนใหม่</button>
+          <button class="btn" id="fp-cancel-edit" style="display:none;">ยกเลิก</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
         <h2 id="care-log-form-title">+ บันทึกวันนี้</h2>
         <div class="form-grid">
           <div style="max-width:200px;">
@@ -776,6 +805,7 @@ const FLUID_REGIMENS_KEY = 'pet-fluid-regimens';
 const CARE_LOGS_KEY = 'pet-care-logs';
 const MEDICATIONS_KEY = 'pet-medications';
 const FOOD_CATALOG_KEY = 'pet-food-catalog';
+const FOOD_PLANS_KEY = 'pet-food-plans';
 
 const defaultCats = () => [];
 const defaultVaccineRecords = () => [];
@@ -786,6 +816,7 @@ const defaultFluidRegimens = () => [];
 const defaultCareLogs = () => [];
 const defaultMedications = () => [];
 const defaultFoodCatalog = () => [];
+const defaultFoodPlans = () => [];
 
 const LAB_CATALOG_SEED = [
   { key: 'GLU', label: 'Glucose (น้ำตาลในเลือด)', unit: 'mg/dL', low: 71, high: 159, group: 'chem', aliases: ['GLUCOSE'] },
@@ -865,6 +896,7 @@ let fluidRegimens = [];
 let careLogs = [];
 let medications = [];
 let foodCatalog = [];
+let foodPlans = [];
 
 let editingCatId = null;
 let editingVaccineId = null;
@@ -874,6 +906,7 @@ let editingUltrasoundId = null;
 let editingFluidRegimenId = null;
 let editingMedId = null;
 let editingCareLogId = null;
+let editingFoodPlanId = null;
 
 let selectedVaccineCat = null;
 let selectedCheckupCat = null;
@@ -944,6 +977,7 @@ async function saveFluidRegimens() { try { await window.storage.set(FLUID_REGIME
 async function saveCareLogs() { try { await window.storage.set(CARE_LOGS_KEY, JSON.stringify(careLogs)); } catch (e) { console.error(e); } }
 async function saveMedications() { try { await window.storage.set(MEDICATIONS_KEY, JSON.stringify(medications)); } catch (e) { console.error(e); } }
 async function saveFoodCatalog() { try { await window.storage.set(FOOD_CATALOG_KEY, JSON.stringify(foodCatalog)); } catch (e) { console.error(e); } }
+async function saveFoodPlans() { try { await window.storage.set(FOOD_PLANS_KEY, JSON.stringify(foodPlans)); } catch (e) { console.error(e); } }
 
 async function load() {
   try { const r = await window.storage.get(MEMBERS_KEY); members = r ? JSON.parse(r.value) : []; } catch (e) { members = []; }
@@ -957,6 +991,7 @@ async function load() {
   try { const r = await window.storage.get(CARE_LOGS_KEY); careLogs = r ? JSON.parse(r.value) : defaultCareLogs(); } catch (e) { careLogs = defaultCareLogs(); }
   try { const r = await window.storage.get(MEDICATIONS_KEY); medications = r ? JSON.parse(r.value) : defaultMedications(); } catch (e) { medications = defaultMedications(); }
   try { const r = await window.storage.get(FOOD_CATALOG_KEY); foodCatalog = r ? JSON.parse(r.value) : defaultFoodCatalog(); } catch (e) { foodCatalog = defaultFoodCatalog(); }
+  try { const r = await window.storage.get(FOOD_PLANS_KEY); foodPlans = r ? JSON.parse(r.value) : defaultFoodPlans(); } catch (e) { foodPlans = defaultFoodPlans(); }
 
   // เติมค่าแล็บใหม่ที่เพิ่มเข้ามาทีหลัง (เช่น ความดันโลหิต) ให้ผู้ใช้เก่าที่เคยบันทึก labCatalog ไว้แล้วโดยไม่มีค่านี้
   let labCatalogMigrated = false;
@@ -983,6 +1018,29 @@ async function load() {
     }
   });
 
+  // คลังอาหารเปลี่ยนจากแยกตามแมว เป็นคลังกลางใช้ร่วมกันทุกตัว — ลบรายการชื่อซ้ำที่เคยเพิ่มไว้คนละแมวออก เหลือไว้รายการเดียวต่อชื่อ
+  // (แม็ปไอดีของรายการที่ถูกลบไปยังไอดีของรายการที่เหลือ เพื่อให้ประวัติการให้อาหารเดิมยังอ้างอิงถูกตัว)
+  let foodCatalogMigrated = false;
+  const foodIdRemap = {};
+  {
+    const seenNameToId = new Map();
+    const dedupedFoodCatalog = [];
+    foodCatalog.forEach(f => {
+      const n = (f.name || '').trim().toLowerCase();
+      if (seenNameToId.has(n)) { foodCatalogMigrated = true; foodIdRemap[f.id] = seenNameToId.get(n); return; }
+      seenNameToId.set(n, f.id);
+      dedupedFoodCatalog.push(f);
+    });
+    if (foodCatalogMigrated) {
+      foodCatalog = dedupedFoodCatalog;
+      careLogs.forEach(l => {
+        if (l.foodIds && l.foodIds.length) {
+          l.foodIds = Array.from(new Set(l.foodIds.map(id => foodIdRemap[id] || id)));
+        }
+      });
+    }
+  }
+
   // เปลี่ยนชื่อวัคซีนเก่าที่เคยบันทึกด้วยชื่อเดิม ให้ตรงกับชื่อใหม่ที่แก้ไข
   const VACCINE_NAME_RENAMES = { 'หนองในเทียม (Chlamydiosis)': 'Chlamydia/เยื่อบุตาอักเสบแมว (C. felis)' };
   let vaccineRecordsMigrated = false;
@@ -1004,8 +1062,10 @@ async function load() {
     const r8 = await window.storage.get(CARE_LOGS_KEY); if (!r8) await saveCareLogs();
     const r9 = await window.storage.get(MEDICATIONS_KEY); if (!r9) await saveMedications();
     const r10 = await window.storage.get(FOOD_CATALOG_KEY); if (!r10) await saveFoodCatalog();
+    const r11 = await window.storage.get(FOOD_PLANS_KEY); if (!r11) await saveFoodPlans();
     if (labCatalogMigrated) await saveLabCatalog();
     if (vaccineRecordsMigrated) await saveVaccineRecords();
+    if (foodCatalogMigrated) { await saveFoodCatalog(); await saveCareLogs(); }
   } catch (e) { console.error(e); }
 
   if (!selectedVaccineCat && cats.length) selectedVaccineCat = cats[0].id;
@@ -1532,6 +1592,8 @@ function renderCareTab() {
   renderFluidRegimenSection();
   renderMedCatalog();
   renderFoodCatalog();
+  renderFoodPlanFoodChecks();
+  renderFoodPlanSection();
   renderCareChecklists();
   renderCareCalendar();
 }
@@ -1700,11 +1762,11 @@ document.getElementById('med-add').addEventListener('click', async () => {
   render();
 });
 
-/* ---- คลังอาหาร ---- */
+/* ---- คลังอาหาร (คลังกลาง ใช้ร่วมกันทุกตัว) ---- */
 function renderFoodCatalog() {
   const wrap = document.getElementById('food-catalog-list');
   if (!wrap) return;
-  const foods = foodCatalog.filter(f => f.catId === selectedCareCat);
+  const foods = foodCatalog;
   wrap.innerHTML = foods.length ? foods.map(f => `
     <span class="chip chip-condition" style="display:inline-flex;align-items:center;gap:6px;">
       ${f.name}
@@ -1712,19 +1774,119 @@ function renderFoodCatalog() {
     </span>
   `).join('') : '<p class="empty">ยังไม่มีอาหารในคลัง</p>';
   wrap.querySelectorAll('[data-delfood]').forEach(btn => btn.addEventListener('click', async () => {
-    if (!confirm('ลบอาหารนี้ออกจากคลัง? (ประวัติเดิมจะยังอยู่)')) return;
+    if (!confirm('ลบอาหารนี้ออกจากคลัง? (ใช้ร่วมกันทุกตัว — ประวัติเดิมจะยังอยู่)')) return;
     foodCatalog = foodCatalog.filter(f => f.id !== btn.dataset.delfood);
     await saveFoodCatalog(); render();
   }));
 }
 document.getElementById('food-add').addEventListener('click', async () => {
-  if (!selectedCareCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
   const name = document.getElementById('food-name').value.trim();
   if (!name) { alert('กรุณากรอกชื่ออาหาร'); return; }
-  if (foodCatalog.some(f => f.catId === selectedCareCat && f.name === name)) { alert('มีอาหารนี้อยู่แล้ว'); return; }
-  foodCatalog.push({ id: genId(), catId: selectedCareCat, name });
+  if (foodCatalog.some(f => f.name === name)) { alert('มีอาหารนี้อยู่แล้ว'); return; }
+  foodCatalog.push({ id: genId(), name });
   document.getElementById('food-name').value = '';
   await saveFoodCatalog();
+  render();
+});
+
+/* ---- แผนการให้อาหาร ---- */
+function activeFoodPlan(catId, onDate) {
+  const d = onDate || toISO(new Date());
+  const plans = foodPlans.filter(p => p.catId === catId && p.startDate <= d && (!p.endDate || p.endDate >= d));
+  if (!plans.length) return null;
+  return plans.sort((a, b) => b.startDate.localeCompare(a.startDate))[0];
+}
+function foodPlanNamesLabel(p) {
+  const names = (p.foodIds || []).map(id => { const f = foodCatalog.find(x => x.id === id); return f ? f.name : null; }).filter(Boolean);
+  return names.length ? names.join(', ') : '(ไม่ได้เลือกอาหาร)';
+}
+function renderFoodPlanFoodChecks() {
+  const wrap = document.getElementById('fp-foods');
+  if (!wrap) return;
+  const prevChecked = new Set(Array.from(document.querySelectorAll('.fp-food-check:checked')).map(cb => cb.value));
+  wrap.innerHTML = foodCatalog.length ? foodCatalog.map(f => `
+    <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;">
+      <input type="checkbox" class="fp-food-check" value="${f.id}" ${prevChecked.has(f.id) ? 'checked' : ''} style="width:auto;">
+      ${f.name}
+    </label>
+  `).join('') : '<p class="empty">ยังไม่มีอาหารในคลัง — เพิ่มได้จากด้านบน</p>';
+}
+function renderFoodPlanSection() {
+  const curWrap = document.getElementById('food-plan-current');
+  const histWrap = document.getElementById('food-plan-history');
+  if (!curWrap || !histWrap) return;
+  const plans = foodPlans.filter(p => p.catId === selectedCareCat).sort((a, b) => b.startDate.localeCompare(a.startDate));
+  if (!plans.length) { curWrap.innerHTML = '<p class="empty">ยังไม่มีแผนการให้อาหาร</p>'; histWrap.innerHTML = ''; return; }
+  const cur = activeFoodPlan(selectedCareCat);
+  const rowHtml = (p, isCurrent) => `
+    <div class="visit-card" style="${isCurrent ? 'border-color:var(--sage);' : 'padding:0.6rem 0.9rem;'}">
+      <div class="row-between">
+        <span style="font-size:${isCurrent ? '13px' : '12.5px'};">
+          ${isCurrent ? '<span class="badge" style="background:var(--sage);color:#fff;margin-right:4px;">ปัจจุบัน</span>' : ''}
+          ${fmtDateStr(p.startDate)} – ${p.endDate ? fmtDateStr(p.endDate) : 'ปัจจุบัน'}: <strong>${foodPlanNamesLabel(p)}</strong>${p.note ? ' · ' + p.note : ''}
+        </span>
+        <span>
+          <button class="del-btn" data-editfp="${p.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
+          <button class="del-btn" data-delfp="${p.id}" aria-label="ลบ">✕</button>
+        </span>
+      </div>
+    </div>`;
+  curWrap.innerHTML = cur ? rowHtml(cur, true) : '<p class="empty">ยังไม่มีแผนที่ใช้งานอยู่ตอนนี้ (แผนล่าสุดสิ้นสุดไปแล้ว)</p>';
+  const past = plans.filter(p => !cur || p.id !== cur.id);
+  histWrap.innerHTML = past.length ? `<p class="muted" style="margin:10px 0 4px;">ประวัติแผนก่อนหน้า</p>${past.map(p => rowHtml(p, false)).join('')}` : '';
+  document.querySelectorAll('[data-editfp]').forEach(btn => btn.addEventListener('click', () => startFoodPlanEdit(btn.dataset.editfp)));
+  document.querySelectorAll('[data-delfp]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('ลบแผนนี้?')) return;
+    foodPlans = foodPlans.filter(p => p.id !== btn.dataset.delfp);
+    await saveFoodPlans(); render();
+  }));
+}
+function startFoodPlanEdit(id) {
+  const p = foodPlans.find(x => x.id === id);
+  if (!p) return;
+  editingFoodPlanId = id;
+  document.getElementById('fp-start').value = p.startDate || '';
+  document.querySelectorAll('.fp-food-check').forEach(cb => { cb.checked = (p.foodIds || []).includes(cb.value); });
+  document.getElementById('fp-note').value = p.note || '';
+  document.getElementById('fp-add').textContent = '💾 บันทึกการแก้ไข';
+  document.getElementById('fp-cancel-edit').style.display = 'inline-block';
+  document.getElementById('fp-add').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function cancelFoodPlanEdit() {
+  editingFoodPlanId = null;
+  document.getElementById('fp-start').value = '';
+  document.querySelectorAll('.fp-food-check').forEach(cb => { cb.checked = false; });
+  document.getElementById('fp-note').value = '';
+  document.getElementById('fp-add').textContent = '+ บันทึกแผนใหม่';
+  document.getElementById('fp-cancel-edit').style.display = 'none';
+}
+document.getElementById('fp-cancel-edit').addEventListener('click', cancelFoodPlanEdit);
+document.getElementById('fp-add').addEventListener('click', async () => {
+  if (!selectedCareCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
+  const startDate = document.getElementById('fp-start').value;
+  if (!startDate) { alert('กรุณากรอกวันที่เริ่ม'); return; }
+  const foodIds = Array.from(document.querySelectorAll('.fp-food-check:checked')).map(cb => cb.value);
+  if (!foodIds.length) { alert('กรุณาเลือกอาหารอย่างน้อย 1 รายการ'); return; }
+  const data = {
+    catId: selectedCareCat,
+    startDate,
+    foodIds,
+    note: document.getElementById('fp-note').value.trim()
+  };
+  if (editingFoodPlanId) {
+    const idx = foodPlans.findIndex(p => p.id === editingFoodPlanId);
+    if (idx > -1) foodPlans[idx] = Object.assign({}, foodPlans[idx], data);
+  } else {
+    // ปิดแผนก่อนหน้าที่ยัง active อยู่ ณ วันที่เริ่มแผนใหม่ ให้สิ้นสุดก่อนแผนใหม่ 1 วัน
+    foodPlans.filter(p => p.catId === selectedCareCat && p.startDate < startDate && (!p.endDate || p.endDate >= startDate)).forEach(p => {
+      const d = new Date(startDate + 'T00:00:00');
+      d.setDate(d.getDate() - 1);
+      p.endDate = toISO(d);
+    });
+    foodPlans.push(Object.assign({ id: genId() }, data, { endDate: null }));
+  }
+  cancelFoodPlanEdit();
+  await saveFoodPlans();
   render();
 });
 
@@ -1744,7 +1906,7 @@ function renderCareChecklists() {
   }
   if (foodWrap) {
     const prevChecked = new Set(Array.from(document.querySelectorAll('.care-food-check:checked')).map(cb => cb.value));
-    const foods = foodCatalog.filter(f => f.catId === selectedCareCat);
+    const foods = foodCatalog;
     foodWrap.innerHTML = foods.length ? foods.map(f => `
       <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;">
         <input type="checkbox" class="care-food-check" value="${f.id}" ${prevChecked.has(f.id) ? 'checked' : ''} style="width:auto;">
@@ -1786,18 +1948,33 @@ function startCareLogEdit(id) {
 }
 function cancelCareLogEdit() {
   editingCareLogId = null;
-  document.getElementById('care-date').value = toISO(new Date());
+  const d = toISO(new Date());
+  document.getElementById('care-date').value = d;
   document.getElementById('care-fluid-given').checked = false;
   document.getElementById('care-fluid-amount-wrap').style.display = 'none';
   document.getElementById('care-fluid-amount').value = '';
   document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = false; });
-  document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = false; });
+  const plan = activeFoodPlan(selectedCareCat, d);
+  document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = plan ? (plan.foodIds || []).includes(cb.value) : false; });
   document.getElementById('care-note').value = '';
   document.getElementById('care-log-form-title').textContent = '+ บันทึกวันนี้';
   document.getElementById('care-log-save').textContent = '+ บันทึก';
   document.getElementById('care-log-cancel-edit').style.display = 'none';
 }
 document.getElementById('care-log-cancel-edit').addEventListener('click', cancelCareLogEdit);
+document.getElementById('care-date').addEventListener('change', () => {
+  if (editingCareLogId) return;
+  const dateVal = document.getElementById('care-date').value;
+  if (!dateVal) return;
+  const existing = findCareLog(selectedCareCat, dateVal);
+  if (existing) { startCareLogEdit(existing.id); return; }
+  document.getElementById('care-fluid-given').checked = false;
+  document.getElementById('care-fluid-amount-wrap').style.display = 'none';
+  document.getElementById('care-fluid-amount').value = '';
+  document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = false; });
+  const plan = activeFoodPlan(selectedCareCat, dateVal);
+  document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = plan ? (plan.foodIds || []).includes(cb.value) : false; });
+});
 document.getElementById('care-log-save').addEventListener('click', async () => {
   if (!selectedCareCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
   const date = document.getElementById('care-date').value;
