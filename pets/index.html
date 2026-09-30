@@ -160,6 +160,14 @@
   .lab-input-row { display: grid; grid-template-columns: 1.3fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 6px; }
   .lab-input-row .ref-hint { font-size: 10.5px; color: var(--text-muted); white-space: nowrap; }
   @media (max-width: 640px) { .lab-input-row { grid-template-columns: 1fr; } .lab-input-row .ref-hint { text-align: left; } }
+  .care-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .care-cal-daylabel { text-align: center; font-size: 11px; color: var(--text-muted); padding-bottom: 4px; }
+  .care-cal-cell { min-height: 58px; border: 1px solid var(--border); border-radius: 8px; padding: 4px; font-size: 10px; cursor: pointer; background: var(--card); line-height: 1.35; }
+  .care-cal-cell:hover { border-color: var(--sage); }
+  .care-cal-cell.empty { border: none; background: none; cursor: default; }
+  .care-cal-cell.has-log { background: #F3F8F4; border-color: #CFE7D8; }
+  .care-cal-cell .daynum { font-weight: 600; font-size: 11px; color: var(--text-secondary); }
+  @media (max-width: 640px) { .care-cal-cell { min-height: 46px; font-size: 9px; padding: 3px; } }
 </style>
 </head>
 <body>
@@ -185,6 +193,7 @@
     <button class="page-tab active" data-page="cats">แมวของฉัน</button>
     <button class="page-tab" data-page="vaccine">วัคซีน</button>
     <button class="page-tab" data-page="checkup">นัดหมอ</button>
+    <button class="page-tab" data-page="care">ดูแลประจำวัน</button>
     <button class="page-tab" data-page="labs">ผลตรวจ</button>
     <button class="page-tab" data-page="labcatalog">ตั้งค่าค่าตรวจ</button>
   </nav>
@@ -270,7 +279,7 @@
             <label class="field-label">วัคซีนที่ฉีดรอบนี้ (เลือกได้มากกว่า 1 ถ้าฉีดพร้อมกัน)</label>
             <div id="vc-type-checks" style="display:flex;flex-direction:column;gap:8px;">
               <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" class="vc-type-check" value="ไข้หัด-หวัดแมว (Panleukopenia/Rhinotracheitis/Calicivirus)" style="width:auto;"> ไข้หัด-หวัดแมว (Panleukopenia/Rhinotracheitis/Calicivirus)</label>
-              <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" class="vc-type-check" value="หนองในเทียม (Chlamydiosis)" style="width:auto;"> หนองในเทียม (Chlamydiosis)</label>
+              <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" class="vc-type-check" value="Chlamydia/เยื่อบุตาอักเสบแมว (C. felis)" style="width:auto;"> Chlamydia/เยื่อบุตาอักเสบแมว (C. felis)</label>
               <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" class="vc-type-check" value="ลิวคีเมีย (FeLV)" style="width:auto;"> ลิวคีเมีย (FeLV)</label>
               <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" class="vc-type-check" value="พิษสุนัขบ้า (Rabies)" style="width:auto;"> พิษสุนัขบ้า (Rabies)</label>
               <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" class="vc-type-check" value="กลาก (Microsporum canis)" style="width:auto;"> กลาก (Microsporum canis)</label>
@@ -348,6 +357,156 @@
           <button class="btn btn-primary" id="chk-add" style="flex:1;">+ บันทึกนัด</button>
           <button class="btn" id="chk-cancel-edit" style="display:none;">ยกเลิก</button>
         </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="page-care" class="page">
+    <section>
+      <div class="card">
+        <p class="muted" style="margin:0 0 8px;">เลือกแมว</p>
+        <div class="child-tabs" id="care-cat-tabs"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
+        <h2>แผนการให้น้ำเกลือ</h2>
+        <p class="muted" style="margin:0 0 10px;">เมื่อเปลี่ยนแผน (ปริมาณ/ความถี่) ให้เพิ่มแผนใหม่ ระบบจะปิดแผนเดิมให้อัตโนมัติ เก็บประวัติการเปลี่ยนแผนไว้ทั้งหมด</p>
+        <div id="fluid-regimen-current"></div>
+        <div id="fluid-regimen-history"></div>
+        <div class="form-grid g3" style="margin-top:12px;">
+          <div>
+            <label class="field-label" for="fr-start">เริ่มใช้วันที่</label>
+            <input type="date" id="fr-start">
+          </div>
+          <div>
+            <label class="field-label" for="fr-amount">ปริมาณ (มล.)</label>
+            <input type="number" step="any" id="fr-amount" placeholder="เช่น 200">
+          </div>
+          <div>
+            <label class="field-label" for="fr-freq">ความถี่</label>
+            <select id="fr-freq">
+              <option value="daily">ทุกวัน</option>
+              <option value="eod">วันเว้นวัน</option>
+              <option value="custom">กำหนดเอง (ทุก N วัน)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid" id="fr-custom-wrap" style="display:none;">
+          <div style="max-width:200px;">
+            <label class="field-label" for="fr-custom-days">ให้ทุกๆ กี่วัน</label>
+            <input type="number" min="2" id="fr-custom-days" placeholder="เช่น 3">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label class="field-label" for="fr-note">หมายเหตุ</label>
+            <input type="text" id="fr-note" placeholder="ไม่บังคับ">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="fr-add" style="flex:1;">+ บันทึกแผนใหม่</button>
+          <button class="btn" id="fr-cancel-edit" style="display:none;">ยกเลิก</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
+        <h2>คลังยา</h2>
+        <p class="muted" style="margin:0 0 10px;">เพิ่มยาที่ใช้ไว้ที่นี่ครั้งเดียว แล้วไปติ๊กเลือกในแบบฟอร์ม "บันทึกวันนี้" ด้านล่างว่าวันไหนให้ยาตัวไหนบ้าง</p>
+        <div id="med-catalog-list"></div>
+        <div class="form-grid g3" style="margin-top:8px;">
+          <div>
+            <label class="field-label" for="med-name">ชื่อยา</label>
+            <input type="text" id="med-name" placeholder="เช่น Cerenia">
+          </div>
+          <div>
+            <label class="field-label" for="med-type">ประเภท</label>
+            <select id="med-type">
+              <option value="continuous">ให้ต่อเนื่อง</option>
+              <option value="prn">ให้ตามอาการ</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="med-dosage">ขนาด/วิธีให้</label>
+            <input type="text" id="med-dosage" placeholder="ไม่บังคับ เช่น 1/2 เม็ด เช้า-เย็น">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="med-add" style="flex:1;">+ เพิ่มยา</button>
+          <button class="btn" id="med-cancel-edit" style="display:none;">ยกเลิก</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
+        <h2>คลังอาหาร</h2>
+        <p class="muted" style="margin:0 0 10px;">เพิ่มรายชื่ออาหาร/ยี่ห้อที่เคยให้ไว้ที่นี่ แล้วไปติ๊กเลือกได้หลายรายการในแบบฟอร์มด้านล่าง</p>
+        <div id="food-catalog-list"></div>
+        <div class="form-grid g2" style="margin-top:8px;">
+          <div>
+            <label class="field-label" for="food-name">ชื่ออาหาร/ยี่ห้อ</label>
+            <input type="text" id="food-name" placeholder="เช่น Royal Canin Renal">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="food-add" style="flex:1;">+ เพิ่มอาหาร</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
+        <h2 id="care-log-form-title">+ บันทึกวันนี้</h2>
+        <div class="form-grid">
+          <div style="max-width:200px;">
+            <label class="field-label" for="care-date">วันที่</label>
+            <input type="date" id="care-date">
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:500;font-size:13px;"><input type="checkbox" id="care-fluid-given" style="width:auto;"> ให้น้ำเกลือวันนี้</label>
+          <div id="care-fluid-amount-wrap" style="display:none;margin-top:6px;max-width:200px;">
+            <label class="field-label" for="care-fluid-amount">ปริมาณ (มล.)</label>
+            <input type="number" step="any" id="care-fluid-amount">
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label class="field-label">ยาที่ให้วันนี้</label>
+          <div id="care-med-checks" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label class="field-label">อาหารที่ให้วันนี้ (เลือกได้หลายรายการ)</label>
+          <div id="care-food-checks" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label class="field-label" for="care-note">หมายเหตุ</label>
+            <textarea id="care-note" rows="3" placeholder="ไม่บังคับ — พิมพ์ Enter ขึ้นบรรทัดใหม่ได้"></textarea>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="care-log-save" style="flex:1;">+ บันทึก</button>
+          <button class="btn" id="care-log-cancel-edit" style="display:none;">ยกเลิก</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
+        <div class="row-between" style="margin-bottom:10px;">
+          <h2 style="margin:0;">ปฏิทินการดูแล</h2>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button type="button" class="btn" id="care-cal-prev">‹</button>
+            <strong id="care-cal-label" style="font-size:13px;min-width:90px;text-align:center;"></strong>
+            <button type="button" class="btn" id="care-cal-next">›</button>
+          </div>
+        </div>
+        <p class="muted" style="margin:0 0 10px;">💧 น้ำเกลือ (มล.) · 💊 จำนวนยาที่ให้ · 🍽 จำนวนอาหารที่ให้ — กดวันที่เพื่อดู/แก้ไขบันทึกของวันนั้น</p>
+        <div id="care-calendar"></div>
       </div>
     </section>
   </div>
@@ -483,6 +642,29 @@
         </div>
         <div class="form-grid">
           <div>
+            <label class="field-label" for="us-cost">ค่าใช้จ่าย (บาท)</label>
+            <input type="number" id="us-cost" placeholder="ไม่บังคับ" min="0">
+          </div>
+        </div>
+        <div>
+          <label class="field-label" style="margin-bottom:6px;">สัญญาณชีพ (ไม่บังคับ)</label>
+          <div class="form-grid g3">
+            <div>
+              <label class="field-label" for="us-vital-bp">ความดันโลหิต (mmHg)</label>
+              <input type="number" step="any" id="us-vital-bp" placeholder="ไม่บังคับ">
+            </div>
+            <div>
+              <label class="field-label" for="us-vital-temp">อุณหภูมิร่างกาย (°C)</label>
+              <input type="number" step="any" id="us-vital-temp" placeholder="ไม่บังคับ">
+            </div>
+            <div>
+              <label class="field-label" for="us-vital-weight">น้ำหนักตัว (kg)</label>
+              <input type="number" step="any" id="us-vital-weight" placeholder="ไม่บังคับ">
+            </div>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
             <label class="field-label" for="us-file">แนบรูป/ไฟล์ PDF ผลตรวจ (เลือกได้หลายไฟล์ ไม่บังคับ — PDF ใหญ่จะถูกแปลงเป็นรูปให้อัตโนมัติ)</label>
             <input type="file" id="us-file" accept="image/*,application/pdf,.pdf" multiple>
             <p class="muted" id="us-file-status" style="margin:4px 0 0;"></p>
@@ -586,12 +768,20 @@ const CHECKUP_RECORDS_KEY = 'pet-checkup-records';
 const LAB_CATALOG_KEY = 'pet-lab-catalog';
 const LAB_TESTS_KEY = 'pet-lab-tests';
 const ULTRASOUND_KEY = 'pet-ultrasound-records';
+const FLUID_REGIMENS_KEY = 'pet-fluid-regimens';
+const CARE_LOGS_KEY = 'pet-care-logs';
+const MEDICATIONS_KEY = 'pet-medications';
+const FOOD_CATALOG_KEY = 'pet-food-catalog';
 
 const defaultCats = () => [];
 const defaultVaccineRecords = () => [];
 const defaultCheckupRecords = () => [];
 const defaultLabTests = () => [];
 const defaultUltrasoundRecords = () => [];
+const defaultFluidRegimens = () => [];
+const defaultCareLogs = () => [];
+const defaultMedications = () => [];
+const defaultFoodCatalog = () => [];
 
 const LAB_CATALOG_SEED = [
   { key: 'GLU', label: 'Glucose (น้ำตาลในเลือด)', unit: 'mg/dL', low: 71, high: 159, group: 'chem', aliases: ['GLUCOSE'] },
@@ -614,6 +804,7 @@ const LAB_CATALOG_SEED = [
   { key: 'LIPA', label: 'Lipase', unit: 'U/L', low: 100, high: 1400, group: 'chem', aliases: ['LIPASE'] },
   { key: 'TT4', label: 'TT4 (ไทรอยด์)', unit: 'µg/dL', low: 0.8, high: 4.7, group: 'chem', aliases: ['T4'] },
   { key: 'FRUCT', label: 'Fructosamine', unit: 'µmol/L', low: 219, high: 347, group: 'chem', aliases: ['FRUCTOSAMINE'] },
+  { key: 'PLI', label: 'Pancreatic Lipase (cPL)', unit: 'U/L', low: 0.0, high: 4.4, group: 'chem', aliases: ['PANCREATIC LIPASE', 'PANCREATICLIPASE', 'CPL', 'SPEC CPL'] },
   { key: 'BP', label: 'ความดันโลหิต (Systolic)', unit: 'mmHg', low: null, high: null, group: 'vitals', aliases: ['BLOODPRESSURE', 'ความดัน', 'SBP'] },
   { key: 'TEMP', label: 'อุณหภูมิร่างกาย', unit: '°C', low: 38.0, high: 39.2, group: 'vitals', aliases: ['TEMPERATURE', 'BODYTEMP', 'อุณหภูมิ'] },
   { key: 'WEIGHT', label: 'น้ำหนักตัว', unit: 'kg', low: null, high: null, group: 'vitals', aliases: ['BW', 'BODYWEIGHT', 'น้ำหนัก'] },
@@ -663,16 +854,25 @@ let checkupRecords = [];
 let labCatalog = [];
 let labTests = [];
 let ultrasoundRecords = [];
+let fluidRegimens = [];
+let careLogs = [];
+let medications = [];
+let foodCatalog = [];
 
 let editingCatId = null;
 let editingVaccineId = null;
 let editingCheckupId = null;
 let editingLabId = null;
 let editingUltrasoundId = null;
+let editingFluidRegimenId = null;
+let editingMedId = null;
+let editingCareLogId = null;
 
 let selectedVaccineCat = null;
 let selectedCheckupCat = null;
 let selectedLabCat = null;
+let selectedCareCat = null;
+let careCalendarMonth = null;
 let labTrendSelectedKey = null;
 let expandedLabIds = new Set();
 let expandedDetailIds = new Set();
@@ -733,6 +933,10 @@ async function saveCheckupRecords() { try { await window.storage.set(CHECKUP_REC
 async function saveLabCatalog() { try { await window.storage.set(LAB_CATALOG_KEY, JSON.stringify(labCatalog)); } catch (e) { console.error(e); } }
 async function saveLabTests() { try { await window.storage.set(LAB_TESTS_KEY, JSON.stringify(labTests)); } catch (e) { console.error(e); } }
 async function saveUltrasoundRecords() { try { await window.storage.set(ULTRASOUND_KEY, JSON.stringify(ultrasoundRecords)); } catch (e) { console.error(e); } }
+async function saveFluidRegimens() { try { await window.storage.set(FLUID_REGIMENS_KEY, JSON.stringify(fluidRegimens)); } catch (e) { console.error(e); } }
+async function saveCareLogs() { try { await window.storage.set(CARE_LOGS_KEY, JSON.stringify(careLogs)); } catch (e) { console.error(e); } }
+async function saveMedications() { try { await window.storage.set(MEDICATIONS_KEY, JSON.stringify(medications)); } catch (e) { console.error(e); } }
+async function saveFoodCatalog() { try { await window.storage.set(FOOD_CATALOG_KEY, JSON.stringify(foodCatalog)); } catch (e) { console.error(e); } }
 
 async function load() {
   try { const r = await window.storage.get(MEMBERS_KEY); members = r ? JSON.parse(r.value) : []; } catch (e) { members = []; }
@@ -742,6 +946,10 @@ async function load() {
   try { const r = await window.storage.get(LAB_CATALOG_KEY); labCatalog = r && JSON.parse(r.value).length ? JSON.parse(r.value) : LAB_CATALOG_SEED.slice(); } catch (e) { labCatalog = LAB_CATALOG_SEED.slice(); }
   try { const r = await window.storage.get(LAB_TESTS_KEY); labTests = r ? JSON.parse(r.value) : defaultLabTests(); } catch (e) { labTests = defaultLabTests(); }
   try { const r = await window.storage.get(ULTRASOUND_KEY); ultrasoundRecords = r ? JSON.parse(r.value) : defaultUltrasoundRecords(); } catch (e) { ultrasoundRecords = defaultUltrasoundRecords(); }
+  try { const r = await window.storage.get(FLUID_REGIMENS_KEY); fluidRegimens = r ? JSON.parse(r.value) : defaultFluidRegimens(); } catch (e) { fluidRegimens = defaultFluidRegimens(); }
+  try { const r = await window.storage.get(CARE_LOGS_KEY); careLogs = r ? JSON.parse(r.value) : defaultCareLogs(); } catch (e) { careLogs = defaultCareLogs(); }
+  try { const r = await window.storage.get(MEDICATIONS_KEY); medications = r ? JSON.parse(r.value) : defaultMedications(); } catch (e) { medications = defaultMedications(); }
+  try { const r = await window.storage.get(FOOD_CATALOG_KEY); foodCatalog = r ? JSON.parse(r.value) : defaultFoodCatalog(); } catch (e) { foodCatalog = defaultFoodCatalog(); }
 
   // เติมค่าแล็บใหม่ที่เพิ่มเข้ามาทีหลัง (เช่น ความดันโลหิต) ให้ผู้ใช้เก่าที่เคยบันทึก labCatalog ไว้แล้วโดยไม่มีค่านี้
   let labCatalogMigrated = false;
@@ -752,6 +960,16 @@ async function load() {
     }
   });
 
+  // เปลี่ยนชื่อวัคซีนเก่าที่เคยบันทึกด้วยชื่อเดิม ให้ตรงกับชื่อใหม่ที่แก้ไข
+  const VACCINE_NAME_RENAMES = { 'หนองในเทียม (Chlamydiosis)': 'Chlamydia/เยื่อบุตาอักเสบแมว (C. felis)' };
+  let vaccineRecordsMigrated = false;
+  vaccineRecords.forEach(r => {
+    if (VACCINE_NAME_RENAMES[r.vaccineName]) {
+      r.vaccineName = VACCINE_NAME_RENAMES[r.vaccineName];
+      vaccineRecordsMigrated = true;
+    }
+  });
+
   try {
     const r1 = await window.storage.get(CATS_KEY); if (!r1) await saveCats();
     const r2 = await window.storage.get(VACCINE_RECORDS_KEY); if (!r2) await saveVaccineRecords();
@@ -759,12 +977,21 @@ async function load() {
     const r4 = await window.storage.get(LAB_CATALOG_KEY); if (!r4) await saveLabCatalog();
     const r5 = await window.storage.get(LAB_TESTS_KEY); if (!r5) await saveLabTests();
     const r6 = await window.storage.get(ULTRASOUND_KEY); if (!r6) await saveUltrasoundRecords();
+    const r7 = await window.storage.get(FLUID_REGIMENS_KEY); if (!r7) await saveFluidRegimens();
+    const r8 = await window.storage.get(CARE_LOGS_KEY); if (!r8) await saveCareLogs();
+    const r9 = await window.storage.get(MEDICATIONS_KEY); if (!r9) await saveMedications();
+    const r10 = await window.storage.get(FOOD_CATALOG_KEY); if (!r10) await saveFoodCatalog();
     if (labCatalogMigrated) await saveLabCatalog();
+    if (vaccineRecordsMigrated) await saveVaccineRecords();
   } catch (e) { console.error(e); }
 
   if (!selectedVaccineCat && cats.length) selectedVaccineCat = cats[0].id;
   if (!selectedCheckupCat && cats.length) selectedCheckupCat = cats[0].id;
   if (!selectedLabCat && cats.length) selectedLabCat = cats[0].id;
+  if (!selectedCareCat && cats.length) selectedCareCat = cats[0].id;
+
+  const careDateEl = document.getElementById('care-date');
+  if (careDateEl && !careDateEl.value) careDateEl.value = toISO(new Date());
 
   render();
 }
@@ -822,6 +1049,7 @@ function render() {
   renderCatsTab();
   renderVaccineTab();
   renderCheckupTab();
+  renderCareTab();
   renderLabTab();
   renderLabCatalogTab();
 }
@@ -1111,7 +1339,7 @@ function renderVaccineTab() {
   listWrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => startVaccineEdit(btn.dataset.edit)));
 }
 
-const VC_KNOWN_TYPES = ['ไข้หัด-หวัดแมว (Panleukopenia/Rhinotracheitis/Calicivirus)', 'หนองในเทียม (Chlamydiosis)', 'ลิวคีเมีย (FeLV)', 'พิษสุนัขบ้า (Rabies)', 'กลาก (Microsporum canis)'];
+const VC_KNOWN_TYPES = ['ไข้หัด-หวัดแมว (Panleukopenia/Rhinotracheitis/Calicivirus)', 'Chlamydia/เยื่อบุตาอักเสบแมว (C. felis)', 'ลิวคีเมีย (FeLV)', 'พิษสุนัขบ้า (Rabies)', 'กลาก (Microsporum canis)'];
 function resetVaccineTypeChecks() {
   document.querySelectorAll('.vc-type-check').forEach(cb => { cb.checked = false; });
   document.getElementById('vc-type-other-check').checked = false;
@@ -1273,6 +1501,364 @@ document.getElementById('chk-add').addEventListener('click', async () => {
   }
   cancelCheckupEdit();
   await saveCheckupRecords(); render();
+});
+
+/* ---------------- Daily Care tab (น้ำเกลือ/ยา/อาหาร) ---------------- */
+function renderCareTab() {
+  renderCatTabsInto('care-cat-tabs', { get: () => selectedCareCat, set: v => { selectedCareCat = v; careCalendarMonth = null; } });
+  renderFluidRegimenSection();
+  renderMedCatalog();
+  renderFoodCatalog();
+  renderCareChecklists();
+  renderCareCalendar();
+}
+
+/* ---- แผนการให้น้ำเกลือ ---- */
+function activeFluidRegimen(catId, onDate) {
+  const d = onDate || toISO(new Date());
+  const regs = fluidRegimens.filter(r => r.catId === catId && r.startDate <= d && (!r.endDate || r.endDate >= d));
+  if (!regs.length) return null;
+  return regs.sort((a, b) => b.startDate.localeCompare(a.startDate))[0];
+}
+function fluidFreqLabel(r) {
+  if (r.frequency === 'daily') return 'ทุกวัน';
+  if (r.frequency === 'eod') return 'วันเว้นวัน';
+  return `ทุก ${r.customDays} วัน`;
+}
+function renderFluidRegimenSection() {
+  const curWrap = document.getElementById('fluid-regimen-current');
+  const histWrap = document.getElementById('fluid-regimen-history');
+  if (!curWrap || !histWrap) return;
+  const regs = fluidRegimens.filter(r => r.catId === selectedCareCat).sort((a, b) => b.startDate.localeCompare(a.startDate));
+  if (!regs.length) { curWrap.innerHTML = '<p class="empty">ยังไม่มีแผนการให้น้ำเกลือ</p>'; histWrap.innerHTML = ''; return; }
+  const cur = activeFluidRegimen(selectedCareCat);
+  const rowHtml = (r, isCurrent) => `
+    <div class="visit-card" style="${isCurrent ? 'border-color:var(--sage);' : 'padding:0.6rem 0.9rem;'}">
+      <div class="row-between">
+        <span style="font-size:${isCurrent ? '13px' : '12.5px'};">
+          ${isCurrent ? '<span class="badge" style="background:var(--sage);color:#fff;margin-right:4px;">ปัจจุบัน</span>' : ''}
+          ${fmtDateStr(r.startDate)} – ${r.endDate ? fmtDateStr(r.endDate) : 'ปัจจุบัน'}: <strong>${r.amount} มล.</strong> · ${fluidFreqLabel(r)}${r.note ? ' · ' + r.note : ''}
+        </span>
+        <span>
+          <button class="del-btn" data-editfr="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
+          <button class="del-btn" data-delfr="${r.id}" aria-label="ลบ">✕</button>
+        </span>
+      </div>
+    </div>`;
+  curWrap.innerHTML = cur ? rowHtml(cur, true) : '<p class="empty">ยังไม่มีแผนที่ใช้งานอยู่ตอนนี้ (แผนล่าสุดสิ้นสุดไปแล้ว)</p>';
+  const past = regs.filter(r => !cur || r.id !== cur.id);
+  histWrap.innerHTML = past.length ? `<p class="muted" style="margin:10px 0 4px;">ประวัติแผนก่อนหน้า</p>${past.map(r => rowHtml(r, false)).join('')}` : '';
+  document.querySelectorAll('[data-editfr]').forEach(btn => btn.addEventListener('click', () => startFluidRegimenEdit(btn.dataset.editfr)));
+  document.querySelectorAll('[data-delfr]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('ลบแผนนี้?')) return;
+    fluidRegimens = fluidRegimens.filter(r => r.id !== btn.dataset.delfr);
+    await saveFluidRegimens(); render();
+  }));
+}
+document.getElementById('fr-freq').addEventListener('change', (e) => {
+  document.getElementById('fr-custom-wrap').style.display = e.target.value === 'custom' ? '' : 'none';
+});
+function startFluidRegimenEdit(id) {
+  const r = fluidRegimens.find(x => x.id === id);
+  if (!r) return;
+  editingFluidRegimenId = id;
+  document.getElementById('fr-start').value = r.startDate || '';
+  document.getElementById('fr-amount').value = r.amount != null ? r.amount : '';
+  document.getElementById('fr-freq').value = r.frequency || 'daily';
+  document.getElementById('fr-custom-wrap').style.display = r.frequency === 'custom' ? '' : 'none';
+  document.getElementById('fr-custom-days').value = r.customDays || '';
+  document.getElementById('fr-note').value = r.note || '';
+  document.getElementById('fr-add').textContent = '💾 บันทึกการแก้ไข';
+  document.getElementById('fr-cancel-edit').style.display = 'inline-block';
+  document.getElementById('fr-add').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function cancelFluidRegimenEdit() {
+  editingFluidRegimenId = null;
+  document.getElementById('fr-start').value = '';
+  document.getElementById('fr-amount').value = '';
+  document.getElementById('fr-freq').value = 'daily';
+  document.getElementById('fr-custom-wrap').style.display = 'none';
+  document.getElementById('fr-custom-days').value = '';
+  document.getElementById('fr-note').value = '';
+  document.getElementById('fr-add').textContent = '+ บันทึกแผนใหม่';
+  document.getElementById('fr-cancel-edit').style.display = 'none';
+}
+document.getElementById('fr-cancel-edit').addEventListener('click', cancelFluidRegimenEdit);
+document.getElementById('fr-add').addEventListener('click', async () => {
+  if (!selectedCareCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
+  const startDate = document.getElementById('fr-start').value;
+  const amount = document.getElementById('fr-amount').value;
+  const frequency = document.getElementById('fr-freq').value;
+  const customDays = document.getElementById('fr-custom-days').value;
+  if (!startDate || amount === '') { alert('กรุณากรอกวันที่เริ่มและปริมาณ'); return; }
+  if (frequency === 'custom' && !customDays) { alert('กรุณากรอกจำนวนวัน'); return; }
+  const data = {
+    catId: selectedCareCat,
+    startDate,
+    amount: Number(amount),
+    frequency,
+    customDays: frequency === 'custom' ? Number(customDays) : null,
+    note: document.getElementById('fr-note').value.trim()
+  };
+  if (editingFluidRegimenId) {
+    const idx = fluidRegimens.findIndex(r => r.id === editingFluidRegimenId);
+    if (idx > -1) fluidRegimens[idx] = Object.assign({}, fluidRegimens[idx], data);
+  } else {
+    // ปิดแผนก่อนหน้าที่ยัง active อยู่ ณ วันที่เริ่มแผนใหม่ ให้สิ้นสุดก่อนแผนใหม่ 1 วัน
+    fluidRegimens.filter(r => r.catId === selectedCareCat && r.startDate < startDate && (!r.endDate || r.endDate >= startDate)).forEach(r => {
+      const d = new Date(startDate + 'T00:00:00');
+      d.setDate(d.getDate() - 1);
+      r.endDate = toISO(d);
+    });
+    fluidRegimens.push(Object.assign({ id: genId() }, data, { endDate: null }));
+  }
+  cancelFluidRegimenEdit();
+  await saveFluidRegimens();
+  render();
+});
+
+/* ---- คลังยา ---- */
+function renderMedCatalog() {
+  const wrap = document.getElementById('med-catalog-list');
+  if (!wrap) return;
+  const meds = medications.filter(m => m.catId === selectedCareCat);
+  wrap.innerHTML = meds.length ? meds.map(m => `
+    <div class="visit-card" style="padding:0.6rem 0.9rem;">
+      <div class="row-between">
+        <span style="font-size:12.5px;"><strong>${m.name}</strong> <span class="chip" style="background:${m.type === 'continuous' ? '#E4F6EE' : '#FDEEDC'};color:${m.type === 'continuous' ? '#1F7A4E' : '#8A4E1D'};">${m.type === 'continuous' ? 'ให้ต่อเนื่อง' : 'ตามอาการ'}</span>${m.dosage ? ' · ' + m.dosage : ''}</span>
+        <span><button class="del-btn" data-editmed="${m.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button><button class="del-btn" data-delmed="${m.id}" aria-label="ลบ">✕</button></span>
+      </div>
+    </div>
+  `).join('') : '<p class="empty">ยังไม่มียาในคลัง</p>';
+  wrap.querySelectorAll('[data-editmed]').forEach(btn => btn.addEventListener('click', () => startMedEdit(btn.dataset.editmed)));
+  wrap.querySelectorAll('[data-delmed]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('ลบยานี้ออกจากคลัง? (ประวัติการให้ยาเดิมจะยังอยู่)')) return;
+    medications = medications.filter(m => m.id !== btn.dataset.delmed);
+    await saveMedications(); render();
+  }));
+}
+function startMedEdit(id) {
+  const m = medications.find(x => x.id === id);
+  if (!m) return;
+  editingMedId = id;
+  document.getElementById('med-name').value = m.name || '';
+  document.getElementById('med-type').value = m.type || 'continuous';
+  document.getElementById('med-dosage').value = m.dosage || '';
+  document.getElementById('med-add').textContent = '💾 บันทึกการแก้ไข';
+  document.getElementById('med-cancel-edit').style.display = 'inline-block';
+}
+function cancelMedEdit() {
+  editingMedId = null;
+  document.getElementById('med-name').value = '';
+  document.getElementById('med-type').value = 'continuous';
+  document.getElementById('med-dosage').value = '';
+  document.getElementById('med-add').textContent = '+ เพิ่มยา';
+  document.getElementById('med-cancel-edit').style.display = 'none';
+}
+document.getElementById('med-cancel-edit').addEventListener('click', cancelMedEdit);
+document.getElementById('med-add').addEventListener('click', async () => {
+  if (!selectedCareCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
+  const name = document.getElementById('med-name').value.trim();
+  if (!name) { alert('กรุณากรอกชื่อยา'); return; }
+  const data = {
+    catId: selectedCareCat,
+    name,
+    type: document.getElementById('med-type').value,
+    dosage: document.getElementById('med-dosage').value.trim()
+  };
+  if (editingMedId) {
+    const idx = medications.findIndex(m => m.id === editingMedId);
+    if (idx > -1) medications[idx] = Object.assign({}, medications[idx], data);
+  } else {
+    medications.push(Object.assign({ id: genId() }, data));
+  }
+  cancelMedEdit();
+  await saveMedications();
+  render();
+});
+
+/* ---- คลังอาหาร ---- */
+function renderFoodCatalog() {
+  const wrap = document.getElementById('food-catalog-list');
+  if (!wrap) return;
+  const foods = foodCatalog.filter(f => f.catId === selectedCareCat);
+  wrap.innerHTML = foods.length ? foods.map(f => `
+    <span class="chip chip-condition" style="display:inline-flex;align-items:center;gap:6px;">
+      ${f.name}
+      <button type="button" data-delfood="${f.id}" style="border:none;background:none;color:var(--rust);cursor:pointer;font-weight:700;">✕</button>
+    </span>
+  `).join('') : '<p class="empty">ยังไม่มีอาหารในคลัง</p>';
+  wrap.querySelectorAll('[data-delfood]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('ลบอาหารนี้ออกจากคลัง? (ประวัติเดิมจะยังอยู่)')) return;
+    foodCatalog = foodCatalog.filter(f => f.id !== btn.dataset.delfood);
+    await saveFoodCatalog(); render();
+  }));
+}
+document.getElementById('food-add').addEventListener('click', async () => {
+  if (!selectedCareCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
+  const name = document.getElementById('food-name').value.trim();
+  if (!name) { alert('กรุณากรอกชื่ออาหาร'); return; }
+  if (foodCatalog.some(f => f.catId === selectedCareCat && f.name === name)) { alert('มีอาหารนี้อยู่แล้ว'); return; }
+  foodCatalog.push({ id: genId(), catId: selectedCareCat, name });
+  document.getElementById('food-name').value = '';
+  await saveFoodCatalog();
+  render();
+});
+
+/* ---- บันทึกประจำวัน + ปฏิทิน ---- */
+function renderCareChecklists() {
+  const medWrap = document.getElementById('care-med-checks');
+  const foodWrap = document.getElementById('care-food-checks');
+  if (medWrap) {
+    const prevChecked = new Set(Array.from(document.querySelectorAll('.care-med-check:checked')).map(cb => cb.value));
+    const meds = medications.filter(m => m.catId === selectedCareCat);
+    medWrap.innerHTML = meds.length ? meds.map(m => `
+      <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;">
+        <input type="checkbox" class="care-med-check" value="${m.id}" ${prevChecked.has(m.id) ? 'checked' : ''} style="width:auto;">
+        ${m.name} <span class="muted">(${m.type === 'continuous' ? 'ต่อเนื่อง' : 'ตามอาการ'})</span>
+      </label>
+    `).join('') : '<p class="empty">ยังไม่มียาในคลัง — เพิ่มได้จากด้านบน</p>';
+  }
+  if (foodWrap) {
+    const prevChecked = new Set(Array.from(document.querySelectorAll('.care-food-check:checked')).map(cb => cb.value));
+    const foods = foodCatalog.filter(f => f.catId === selectedCareCat);
+    foodWrap.innerHTML = foods.length ? foods.map(f => `
+      <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;">
+        <input type="checkbox" class="care-food-check" value="${f.id}" ${prevChecked.has(f.id) ? 'checked' : ''} style="width:auto;">
+        ${f.name}
+      </label>
+    `).join('') : '<p class="empty">ยังไม่มีอาหารในคลัง — เพิ่มได้จากด้านบน</p>';
+  }
+}
+document.getElementById('care-fluid-given').addEventListener('change', (e) => {
+  const wrap = document.getElementById('care-fluid-amount-wrap');
+  wrap.style.display = e.target.checked ? '' : 'none';
+  if (e.target.checked) {
+    const amtInput = document.getElementById('care-fluid-amount');
+    if (!amtInput.value) {
+      const dateVal = document.getElementById('care-date').value || toISO(new Date());
+      const reg = activeFluidRegimen(selectedCareCat, dateVal);
+      if (reg) amtInput.value = reg.amount;
+    }
+  }
+});
+function findCareLog(catId, date) {
+  return careLogs.find(l => l.catId === catId && l.date === date);
+}
+function startCareLogEdit(id) {
+  const l = careLogs.find(x => x.id === id);
+  if (!l) return;
+  editingCareLogId = id;
+  document.getElementById('care-date').value = l.date || '';
+  document.getElementById('care-fluid-given').checked = !!(l.fluid && l.fluid.given);
+  document.getElementById('care-fluid-amount-wrap').style.display = (l.fluid && l.fluid.given) ? '' : 'none';
+  document.getElementById('care-fluid-amount').value = (l.fluid && l.fluid.amount != null) ? l.fluid.amount : '';
+  document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = (l.medIds || []).includes(cb.value); });
+  document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = (l.foodIds || []).includes(cb.value); });
+  document.getElementById('care-note').value = l.note || '';
+  document.getElementById('care-log-form-title').textContent = '✏️ แก้ไขบันทึกวันที่ ' + fmtDateStr(l.date);
+  document.getElementById('care-log-save').textContent = '💾 บันทึกการแก้ไข';
+  document.getElementById('care-log-cancel-edit').style.display = 'inline-block';
+  document.getElementById('care-log-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function cancelCareLogEdit() {
+  editingCareLogId = null;
+  document.getElementById('care-date').value = toISO(new Date());
+  document.getElementById('care-fluid-given').checked = false;
+  document.getElementById('care-fluid-amount-wrap').style.display = 'none';
+  document.getElementById('care-fluid-amount').value = '';
+  document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = false; });
+  document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = false; });
+  document.getElementById('care-note').value = '';
+  document.getElementById('care-log-form-title').textContent = '+ บันทึกวันนี้';
+  document.getElementById('care-log-save').textContent = '+ บันทึก';
+  document.getElementById('care-log-cancel-edit').style.display = 'none';
+}
+document.getElementById('care-log-cancel-edit').addEventListener('click', cancelCareLogEdit);
+document.getElementById('care-log-save').addEventListener('click', async () => {
+  if (!selectedCareCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
+  const date = document.getElementById('care-date').value;
+  if (!date) { alert('กรุณาเลือกวันที่'); return; }
+  const fluidGiven = document.getElementById('care-fluid-given').checked;
+  const fluidAmountVal = document.getElementById('care-fluid-amount').value;
+  const medIds = Array.from(document.querySelectorAll('.care-med-check:checked')).map(cb => cb.value);
+  const foodIds = Array.from(document.querySelectorAll('.care-food-check:checked')).map(cb => cb.value);
+  const note = document.getElementById('care-note').value.trim();
+  const data = {
+    catId: selectedCareCat,
+    date,
+    fluid: { given: fluidGiven, amount: (fluidGiven && fluidAmountVal !== '') ? Number(fluidAmountVal) : null },
+    medIds,
+    foodIds,
+    note
+  };
+  if (editingCareLogId) {
+    const idx = careLogs.findIndex(l => l.id === editingCareLogId);
+    if (idx > -1) careLogs[idx] = Object.assign({}, careLogs[idx], data);
+  } else {
+    // ถ้ามีบันทึกของวันนี้อยู่แล้วให้แก้ไขทับ แทนที่จะสร้างซ้ำ
+    const existing = findCareLog(selectedCareCat, date);
+    if (existing) { Object.assign(existing, data); }
+    else { careLogs.push(Object.assign({ id: genId() }, data)); }
+  }
+  cancelCareLogEdit();
+  await saveCareLogs();
+  render();
+});
+
+function renderCareCalendar() {
+  const wrap = document.getElementById('care-calendar');
+  const label = document.getElementById('care-cal-label');
+  if (!wrap || !label) return;
+  if (!careCalendarMonth) careCalendarMonth = toISO(new Date()).slice(0, 7);
+  const [y, m] = careCalendarMonth.split('-').map(Number);
+  label.textContent = new Date(y, m - 1, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+  const startWeekday = new Date(y, m - 1, 1).getDay();
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const logsByDate = {};
+  careLogs.filter(l => l.catId === selectedCareCat && l.date.slice(0, 7) === careCalendarMonth).forEach(l => { logsByDate[l.date] = l; });
+  const dayLabels = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+  let html = '<div class="care-cal-grid">';
+  dayLabels.forEach(d => { html += `<div class="care-cal-daylabel">${d}</div>`; });
+  for (let i = 0; i < startWeekday; i++) html += '<div class="care-cal-cell empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const log = logsByDate[dateStr];
+    const marks = [];
+    if (log) {
+      if (log.fluid && log.fluid.given) marks.push(`💧${log.fluid.amount != null ? log.fluid.amount : ''}`);
+      if (log.medIds && log.medIds.length) marks.push(`💊${log.medIds.length}`);
+      if (log.foodIds && log.foodIds.length) marks.push(`🍽${log.foodIds.length}`);
+    }
+    html += `<div class="care-cal-cell${log ? ' has-log' : ''}" data-caldate="${dateStr}">
+      <div class="daynum">${d}</div>
+      ${marks.map(mk => `<div>${mk}</div>`).join('')}
+    </div>`;
+  }
+  html += '</div>';
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('[data-caldate]').forEach(cell => cell.addEventListener('click', () => {
+    const dateStr = cell.dataset.caldate;
+    const log = logsByDate[dateStr];
+    if (log) { startCareLogEdit(log.id); }
+    else {
+      cancelCareLogEdit();
+      document.getElementById('care-date').value = dateStr;
+      document.getElementById('care-log-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }));
+}
+document.getElementById('care-cal-prev').addEventListener('click', () => {
+  const [y, m] = careCalendarMonth.split('-').map(Number);
+  const d = new Date(y, m - 2, 1);
+  careCalendarMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  renderCareCalendar();
+});
+document.getElementById('care-cal-next').addEventListener('click', () => {
+  const [y, m] = careCalendarMonth.split('-').map(Number);
+  const d = new Date(y, m, 1);
+  careCalendarMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  renderCareCalendar();
 });
 
 /* ---------------- Lab tab ---------------- */
@@ -1853,11 +2439,18 @@ function renderCombinedHistoryList() {
       const info = examTypeInfo(u);
       const atts = ultrasoundRecordAttachments(u);
       const attsHtml = atts.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">${atts.map(a => `<button class="btn" data-viewatt="${u.id}" data-attid="${a.id}" data-kind="exam" style="padding:4px 10px;font-size:11.5px;">${a.storage === 'pages' ? `🖼 ${a.name || 'ไฟล์'} (${a.pageCount || 0} หน้า)` : `${(a.type || 'pdf') === 'pdf' ? '📄' : '🖼'} ${a.name || 'ไฟล์แนบ'}`}</button>`).join('')}</div>` : '';
+      const vitalsParts = [];
+      if (u.vitals) {
+        if (u.vitals.WEIGHT != null) vitalsParts.push(`⚖️ ${u.vitals.WEIGHT} kg`);
+        if (u.vitals.TEMP != null) vitalsParts.push(`🌡️ ${u.vitals.TEMP}°C`);
+        if (u.vitals.BP != null) vitalsParts.push(`💉 ${u.vitals.BP} mmHg`);
+      }
+      const vitalsHtml = vitalsParts.length ? `<p class="muted" style="margin:4px 0 0;">${vitalsParts.join(' · ')}</p>` : '';
       div.innerHTML = `
         <div class="row-between">
           <span>
             <span class="badge" style="background:#B4623D;color:#fff;margin-right:4px;">${info.icon} ${info.label}</span>
-            <strong>${fmtDateStr(u.date)}</strong>${u.hospital ? ' · ' + u.hospital : ''}${u.note ? ' · ' + u.note : ''}
+            <strong>${fmtDateStr(u.date)}</strong>${u.hospital ? ' · ' + u.hospital : ''}${u.note ? ' · ' + u.note : ''}${u.cost != null ? ' · ' + fmt(u.cost) : ''}
             ${atts.length ? `<span class="badge" style="margin-left:4px;">📎 ${atts.length}</span>` : ''}
           </span>
           <span>
@@ -1865,6 +2458,7 @@ function renderCombinedHistoryList() {
             <button class="del-btn" data-del="${u.id}" data-kind="exam" aria-label="ลบ">✕</button>
           </span>
         </div>
+        ${vitalsHtml}
         ${u.detail ? `<div style="margin-top:4px;"><button type="button" class="btn" data-toggledetail="${u.id}" style="padding:2px 8px;font-size:11px;">${expandedDetailIds.has(u.id) ? 'ซ่อนรายละเอียด ▲' : 'ดูรายละเอียด ▼'}</button>${expandedDetailIds.has(u.id) ? `<p class="muted" style="margin:4px 0 0;white-space:pre-wrap;">${u.detail}</p>` : ''}</div>` : ''}
         ${attsHtml}
       `;
@@ -2056,6 +2650,23 @@ document.getElementById('lab-save').addEventListener('click', async () => {
   render();
 });
 
+/* ---------------- รวมข้อมูล "สัญญาณชีพ" จากทั้งผลตรวจเลือดและผลตรวจภาพ/หัตถการ ---------------- */
+const VITALS_KEYS = ['BP', 'TEMP', 'WEIGHT'];
+function combinedVitalsTests(catId) {
+  const labEntries = labTests
+    .filter(t => t.catId === catId)
+    .map(t => ({ date: t.date, values: t.values || {} }));
+  const examEntries = ultrasoundRecords
+    .filter(u => u.catId === catId && u.vitals)
+    .map(u => {
+      const values = {};
+      VITALS_KEYS.forEach(k => { if (u.vitals[k] != null && u.vitals[k] !== '') values[k] = u.vitals[k]; });
+      return { date: u.date, values };
+    })
+    .filter(e => Object.keys(e.values).length);
+  return labEntries.concat(examEntries);
+}
+
 /* ---------------- Lab trend chart ---------------- */
 function renderLabTab() {
   renderCatTabsInto('lab-cat-tabs', { get: () => selectedLabCat, set: v => { selectedLabCat = v; expandedLabIds = new Set(); } });
@@ -2071,7 +2682,7 @@ function renderLabTab() {
 function renderLabSummaryTable() {
   const wrap = document.getElementById('lab-summary-table-wrap');
   if (!wrap) return;
-  const tests = labTests.filter(t => t.catId === selectedLabCat).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const tests = combinedVitalsTests(selectedLabCat).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   if (!tests.length) { wrap.innerHTML = '<p class="empty">ยังไม่มีผลตรวจของแมวตัวนี้</p>'; return; }
 
   // เอาเฉพาะค่าที่เคยมีการบันทึกจริงอย่างน้อย 1 ครั้ง จัดกลุ่มตามหมวดเหมือนหน้ากรอกผลตรวจ
@@ -2243,6 +2854,10 @@ function startUltrasoundEdit(id) {
   document.getElementById('us-type-other-wrap').style.display = (u.examType === 'other') ? '' : 'none';
   document.getElementById('us-date').value = u.date || '';
   document.getElementById('us-hospital').value = u.hospital || '';
+  document.getElementById('us-cost').value = u.cost != null ? u.cost : '';
+  document.getElementById('us-vital-bp').value = (u.vitals && u.vitals.BP != null) ? u.vitals.BP : '';
+  document.getElementById('us-vital-temp').value = (u.vitals && u.vitals.TEMP != null) ? u.vitals.TEMP : '';
+  document.getElementById('us-vital-weight').value = (u.vitals && u.vitals.WEIGHT != null) ? u.vitals.WEIGHT : '';
   document.getElementById('us-note').value = u.note || '';
   document.getElementById('us-detail').value = u.detail || '';
   pendingUltrasoundAttachments = [];
@@ -2263,6 +2878,10 @@ function cancelUltrasoundEdit() {
   document.getElementById('us-type-other-wrap').style.display = 'none';
   document.getElementById('us-date').value = '';
   document.getElementById('us-hospital').value = '';
+  document.getElementById('us-cost').value = '';
+  document.getElementById('us-vital-bp').value = '';
+  document.getElementById('us-vital-temp').value = '';
+  document.getElementById('us-vital-weight').value = '';
   document.getElementById('us-note').value = '';
   document.getElementById('us-detail').value = '';
   pendingUltrasoundAttachments = [];
@@ -2297,6 +2916,17 @@ document.getElementById('us-save').addEventListener('click', async () => {
     examTypeOther: examType === 'other' ? document.getElementById('us-type-other').value.trim() : '',
     date,
     hospital: document.getElementById('us-hospital').value.trim(),
+    cost: (() => { const v = document.getElementById('us-cost').value; return v !== '' ? Number(v) : null; })(),
+    vitals: (() => {
+      const v = {};
+      const bp = document.getElementById('us-vital-bp').value;
+      const temp = document.getElementById('us-vital-temp').value;
+      const weight = document.getElementById('us-vital-weight').value;
+      if (bp !== '') v.BP = Number(bp);
+      if (temp !== '') v.TEMP = Number(temp);
+      if (weight !== '') v.WEIGHT = Number(weight);
+      return v;
+    })(),
     note: document.getElementById('us-note').value.trim(),
     detail: document.getElementById('us-detail').value.trim(),
     attachments: keptAttachments.slice(),
@@ -2345,7 +2975,7 @@ document.getElementById('us-save').addEventListener('click', async () => {
 function renderLabTrendSelect() {
   const sel = document.getElementById('lab-trend-select');
   if (!sel) return;
-  const testsForCat = labTests.filter(t => t.catId === selectedLabCat);
+  const testsForCat = combinedVitalsTests(selectedLabCat);
   const keyCounts = {};
   testsForCat.forEach(t => Object.keys(t.values || {}).forEach(k => { keyCounts[k] = (keyCounts[k] || 0) + 1; }));
   const availableKeys = Object.keys(keyCounts).filter(k => {
@@ -2382,8 +3012,8 @@ function renderLabTrendChart() {
   wrap.innerHTML = '';
   if (!labTrendSelectedKey) { wrap.innerHTML = '<p class="empty">เลือกค่าที่ต้องการดูแนวโน้มด้านบน</p>'; return; }
   const entry = labCatalog.find(e => e.key === labTrendSelectedKey) || { label: labTrendSelectedKey, unit: '' };
-  const points = labTests
-    .filter(t => t.catId === selectedLabCat && t.values && t.values[labTrendSelectedKey] != null)
+  const points = combinedVitalsTests(selectedLabCat)
+    .filter(t => t.values && t.values[labTrendSelectedKey] != null)
     .map(t => ({ date: t.date, val: t.values[labTrendSelectedKey] }))
     .sort((a, b) => a.date.localeCompare(b.date));
   if (points.length < 2) { wrap.innerHTML = '<p class="empty">ข้อมูลไม่พอสำหรับกราฟแนวโน้ม</p>'; return; }
