@@ -498,13 +498,21 @@
         </div>
         <div style="margin-bottom:12px;">
           <label style="display:flex;align-items:center;gap:6px;font-weight:500;font-size:13px;"><input type="checkbox" id="care-fluid-given" style="width:auto;"> ให้น้ำเกลือวันนี้</label>
-          <div id="care-fluid-amount-wrap" style="display:none;margin-top:6px;max-width:200px;">
-            <label class="field-label" for="care-fluid-amount">ปริมาณ (มล.)</label>
-            <input type="number" step="any" id="care-fluid-amount">
+          <div id="care-fluid-amount-wrap" style="display:none;margin-top:6px;">
+            <div class="form-grid g2" style="max-width:320px;">
+              <div>
+                <label class="field-label" for="care-fluid-amount">ปริมาณ (มล.)</label>
+                <input type="number" step="any" id="care-fluid-amount">
+              </div>
+              <div>
+                <label class="field-label" for="care-fluid-time">เวลาที่ให้</label>
+                <input type="time" id="care-fluid-time">
+              </div>
+            </div>
           </div>
         </div>
         <div style="margin-bottom:12px;">
-          <label class="field-label">ยาที่ให้วันนี้</label>
+          <label class="field-label">ยาที่ให้วันนี้ (ติ๊กแล้วกรอกเวลาที่ให้ได้)</label>
           <div id="care-med-checks" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>
         <div style="margin-bottom:12px;">
@@ -1896,11 +1904,14 @@ function renderCareChecklists() {
   const foodWrap = document.getElementById('care-food-checks');
   if (medWrap) {
     const prevChecked = new Set(Array.from(document.querySelectorAll('.care-med-check:checked')).map(cb => cb.value));
+    const prevTimes = {};
+    document.querySelectorAll('.care-med-time').forEach(inp => { if (inp.value) prevTimes[inp.dataset.medid] = inp.value; });
     const meds = medications.filter(m => m.catId === selectedCareCat);
     medWrap.innerHTML = meds.length ? meds.map(m => `
-      <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;flex-wrap:wrap;">
         <input type="checkbox" class="care-med-check" value="${m.id}" ${prevChecked.has(m.id) ? 'checked' : ''} style="width:auto;">
         ${m.name} <span class="muted">(${m.type === 'continuous' ? 'ต่อเนื่อง' : 'ตามอาการ'})</span>
+        <input type="time" class="care-med-time" data-medid="${m.id}" value="${prevTimes[m.id] || ''}" style="width:auto;max-width:110px;margin-left:auto;">
       </label>
     `).join('') : '<p class="empty">ยังไม่มียาในคลัง — เพิ่มได้จากด้านบน</p>';
   }
@@ -1938,7 +1949,9 @@ function startCareLogEdit(id) {
   document.getElementById('care-fluid-given').checked = !!(l.fluid && l.fluid.given);
   document.getElementById('care-fluid-amount-wrap').style.display = (l.fluid && l.fluid.given) ? '' : 'none';
   document.getElementById('care-fluid-amount').value = (l.fluid && l.fluid.amount != null) ? l.fluid.amount : '';
+  document.getElementById('care-fluid-time').value = (l.fluid && l.fluid.time) ? l.fluid.time : '';
   document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = (l.medIds || []).includes(cb.value); });
+  document.querySelectorAll('.care-med-time').forEach(inp => { inp.value = (l.medTimes && l.medTimes[inp.dataset.medid]) || ''; });
   document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = (l.foodIds || []).includes(cb.value); });
   document.getElementById('care-note').value = l.note || '';
   document.getElementById('care-log-form-title').textContent = '✏️ แก้ไขบันทึกวันที่ ' + fmtDateStr(l.date);
@@ -1953,7 +1966,9 @@ function cancelCareLogEdit() {
   document.getElementById('care-fluid-given').checked = false;
   document.getElementById('care-fluid-amount-wrap').style.display = 'none';
   document.getElementById('care-fluid-amount').value = '';
+  document.getElementById('care-fluid-time').value = '';
   document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = false; });
+  document.querySelectorAll('.care-med-time').forEach(inp => { inp.value = ''; });
   const plan = activeFoodPlan(selectedCareCat, d);
   document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = plan ? (plan.foodIds || []).includes(cb.value) : false; });
   document.getElementById('care-note').value = '';
@@ -1971,7 +1986,9 @@ document.getElementById('care-date').addEventListener('change', () => {
   document.getElementById('care-fluid-given').checked = false;
   document.getElementById('care-fluid-amount-wrap').style.display = 'none';
   document.getElementById('care-fluid-amount').value = '';
+  document.getElementById('care-fluid-time').value = '';
   document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = false; });
+  document.querySelectorAll('.care-med-time').forEach(inp => { inp.value = ''; });
   const plan = activeFoodPlan(selectedCareCat, dateVal);
   document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = plan ? (plan.foodIds || []).includes(cb.value) : false; });
 });
@@ -1981,14 +1998,21 @@ document.getElementById('care-log-save').addEventListener('click', async () => {
   if (!date) { alert('กรุณาเลือกวันที่'); return; }
   const fluidGiven = document.getElementById('care-fluid-given').checked;
   const fluidAmountVal = document.getElementById('care-fluid-amount').value;
+  const fluidTimeVal = document.getElementById('care-fluid-time').value;
   const medIds = Array.from(document.querySelectorAll('.care-med-check:checked')).map(cb => cb.value);
+  const medTimes = {};
+  medIds.forEach(id => {
+    const inp = document.querySelector(`.care-med-time[data-medid="${id}"]`);
+    if (inp && inp.value) medTimes[id] = inp.value;
+  });
   const foodIds = Array.from(document.querySelectorAll('.care-food-check:checked')).map(cb => cb.value);
   const note = document.getElementById('care-note').value.trim();
   const data = {
     catId: selectedCareCat,
     date,
-    fluid: { given: fluidGiven, amount: (fluidGiven && fluidAmountVal !== '') ? Number(fluidAmountVal) : null },
+    fluid: { given: fluidGiven, amount: (fluidGiven && fluidAmountVal !== '') ? Number(fluidAmountVal) : null, time: (fluidGiven && fluidTimeVal) ? fluidTimeVal : null },
     medIds,
+    medTimes,
     foodIds,
     note
   };
@@ -2026,8 +2050,11 @@ function renderCareCalendar() {
     const log = logsByDate[dateStr];
     const marks = [];
     if (log) {
-      if (log.fluid && log.fluid.given) marks.push(`💧${log.fluid.amount != null ? log.fluid.amount : ''}`);
-      if (log.medIds && log.medIds.length) marks.push(`💊${log.medIds.length}`);
+      if (log.fluid && log.fluid.given) marks.push(`💧${log.fluid.amount != null ? log.fluid.amount : ''}${log.fluid.time ? ' ' + log.fluid.time : ''}`);
+      if (log.medIds && log.medIds.length) {
+        const medTimesList = log.medIds.map(id => (log.medTimes && log.medTimes[id]) ? log.medTimes[id] : null).filter(Boolean);
+        marks.push(`💊${log.medIds.length}${medTimesList.length ? ' ' + medTimesList.join(',') : ''}`);
+      }
       if (log.foodIds && log.foodIds.length) marks.push(`🍽${log.foodIds.length}`);
     }
     html += `<div class="care-cal-cell${log ? ' has-log' : ''}" data-caldate="${dateStr}">
