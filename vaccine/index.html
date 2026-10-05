@@ -301,7 +301,7 @@
     <section>
       <div class="card">
         <h2>นัดหมอ / ตรวจสุขภาพ</h2>
-        <p class="muted" style="margin:0 0 10px;">บันทึกได้ทั้งตรวจสุขภาพประจำปี/ตรวจเลือด/เอกซเรย์ และนัด Follow up อาการเจ็บป่วยหรือโรคประจำตัว — ถ้าใส่วันนัดครั้งถัดไป จะไปโผล่ในแบนเนอร์แจ้งเตือนด้านบนด้วย</p>
+        <p class="muted" style="margin:0 0 10px;">บันทึกได้ทั้งตรวจสุขภาพประจำปี/ตรวจเลือด/เอกซเรย์ และนัด Follow up อาการเจ็บป่วยหรือโรคประจำตัว — ถ้าวันที่พบหมอ/ตรวจเป็นวันนี้หรืออนาคต หรือใส่วันนัดครั้งถัดไป จะไปโผล่ในแบนเนอร์แจ้งเตือนด้านบนด้วย</p>
         <div class="child-tabs" id="checkup-child-tabs"></div>
         <div id="checkup-list"></div>
         <div class="form-grid g2">
@@ -1804,13 +1804,18 @@ function renderDueBanner() {
     ...collectDueItems(adultVaccineCatalog, adults, todayISO, thresholdDate).map(it => Object.assign({ kind: 'vaccine' }, it))
   ];
   checkupRecords.forEach(r => {
-    if (r.nextDate && r.nextDate > todayISO && r.nextDate <= thresholdDate) {
-      const child = findMember(r.member);
-      items.push({ kind: 'checkup', child: child || { slug: r.member }, date: r.nextDate, note: r.note || '' });
+    const child = findMember(r.member);
+    // นัดที่ใส่ไว้ที่ "วันที่พบหมอ/ตรวจ" เป็นวันนี้หรืออนาคต (พร้อมเวลา/รพ./แผนก)
+    if (r.date && r.date >= todayISO && r.date <= thresholdDate) {
+      items.push({ kind: 'checkup', child: child || { slug: r.member }, date: r.date, note: r.note || '', time: r.time || '', hospital: r.hospital || '', department: r.department || '' });
+    }
+    // วันนัดครั้งถัดไป (ไม่ซ้ำกับวันที่ข้างบน)
+    if (r.nextDate && r.nextDate !== r.date && r.nextDate >= todayISO && r.nextDate <= thresholdDate) {
+      items.push({ kind: 'checkup', child: child || { slug: r.member }, date: r.nextDate, note: r.note || '', time: '', hospital: r.hospital || '', department: r.department || '', isNext: true });
     }
   });
   dentistRecords.forEach(r => {
-    if (r.date > todayISO && r.date <= thresholdDate) {
+    if (r.date >= todayISO && r.date <= thresholdDate) {
       const child = findMember(r.member);
       items.push({ kind: 'dentist', child: child || { slug: r.member }, date: r.date, note: r.note || '', confirmed: !!r.confirmed });
     }
@@ -1825,7 +1830,8 @@ function renderDueBanner() {
   };
   function itemLineHtml(it) {
     if (it.kind === 'checkup') {
-      return `<strong>${childLabel(it.child)}</strong> — นัดหมอ${it.note ? ' — ' + it.note : ''}`;
+      const extra = [it.time ? it.time + (/^\d{1,2}:\d{2}$/.test(it.time) ? ' น.' : '') : '', it.hospital, it.department].filter(Boolean).join(' · ');
+      return `<strong>${childLabel(it.child)}</strong> — ${it.isNext ? 'นัดหมอครั้งถัดไป' : 'นัดหมอ'}${it.note ? ' — ' + it.note : ''}${extra ? ' — ' + extra : ''}`;
     }
     if (it.kind === 'dentist') {
       const statusTxt = it.confirmed ? 'มีนัดแล้ว' : 'กะวันไว้เอง (ยังไม่ได้นัด)';
