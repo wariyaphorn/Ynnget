@@ -694,6 +694,40 @@ function childLabel(child) {
 function findMember(slug) {
   return children.find(c => c.slug === slug) || adults.find(a => a.slug === slug);
 }
+function hnFor(slug, hospital) {
+  const m = findMember(slug);
+  const h = (hospital || '').trim().toLowerCase();
+  if (!m || !h || !Array.isArray(m.hn)) return '';
+  const e = m.hn.find(x => x && (x.hospital || '').trim().toLowerCase() === h && (x.number || '').trim());
+  return e ? e.number.trim() : '';
+}
+function escAttr(v) { return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function buildHnEditor(member, saveFn, rerender) {
+  const box = document.createElement('div');
+  box.style.cssText = 'margin:-2px 0 12px;padding:8px 10px;border:1px dashed var(--border);border-radius:8px;';
+  if (!Array.isArray(member.hn)) member.hn = [];
+  const rowsHtml = member.hn.map((e, i) => `
+    <div style="display:flex;gap:6px;margin-top:6px;align-items:center;">
+      <input type="text" class="hn-hosp" data-i="${i}" list="chk-hospital-list" placeholder="โรงพยาบาล/คลินิก" value="${escAttr(e.hospital)}" style="flex:2;min-width:0;">
+      <input type="text" class="hn-num" data-i="${i}" placeholder="HN" value="${escAttr(e.number)}" style="flex:1;min-width:0;">
+      <button class="del-btn hn-del" data-i="${i}" aria-label="ลบ">✕</button>
+    </div>`).join('');
+  box.innerHTML = `<div class="muted" style="font-size:13px;">🏥 HN โรงพยาบาล (ชื่อโรงพยาบาลต้องตรงกับที่กรอกในนัดหมอ)</div>${rowsHtml}
+    <button class="hn-add" style="margin-top:8px;">+ เพิ่ม HN</button>`;
+  box.querySelectorAll('.hn-hosp').forEach(inp => inp.addEventListener('change', async () => {
+    member.hn[+inp.dataset.i].hospital = inp.value.trim(); await saveFn(); render();
+  }));
+  box.querySelectorAll('.hn-num').forEach(inp => inp.addEventListener('change', async () => {
+    member.hn[+inp.dataset.i].number = inp.value.trim(); await saveFn(); render();
+  }));
+  box.querySelectorAll('.hn-del').forEach(b => b.addEventListener('click', async () => {
+    member.hn.splice(+b.dataset.i, 1); await saveFn(); rerender(); render();
+  }));
+  box.querySelector('.hn-add').addEventListener('click', async () => {
+    member.hn.push({ hospital: '', number: '' }); rerender();
+  });
+  return box;
+}
 function findPlan(planId) {
   return vaccineCatalog.find(p => p.id === planId) || adultVaccineCatalog.find(p => p.id === planId);
 }
@@ -1245,7 +1279,8 @@ function renderCheckupTab() {
     list.forEach(r => {
       const div = document.createElement('div');
       div.className = 'visit-card';
-      const placeParts = [r.hospital, r.department, r.doctor ? 'หมอ ' + r.doctor : ''].filter(Boolean).join(' · ');
+      const hnNo = hnFor(r.member, r.hospital);
+      const placeParts = [r.hospital ? r.hospital + (hnNo ? ' (HN ' + hnNo + ')' : '') : '', r.department, r.doctor ? 'หมอ ' + r.doctor : ''].filter(Boolean).join(' · ');
       const timeLabel = r.time ? ' เวลา ' + r.time : '';
       div.innerHTML = `<div class="row-between">
           <span><strong>${fmtDateStr(r.date)}${timeLabel}</strong>${r.note ? ' · ' + r.note : ''}</span>
@@ -1617,6 +1652,7 @@ function renderChildrenSetup() {
       children[idx].gender = e.target.value || null;
       await saveChildren(); render();
     });
+    wrap.appendChild(buildHnEditor(c, saveChildren, renderChildrenSetup));
   });
 }
 
@@ -1830,7 +1866,7 @@ function renderDueBanner() {
   };
   function itemLineHtml(it) {
     if (it.kind === 'checkup') {
-      const extra = [it.time ? it.time + (/^\d{1,2}:\d{2}$/.test(it.time) ? ' น.' : '') : '', it.hospital, it.department].filter(Boolean).join(' · ');
+      const extra = [it.time ? it.time + (/^\d{1,2}:\d{2}$/.test(it.time) ? ' น.' : '') : '', it.hospital ? it.hospital + (hnFor(it.child.slug, it.hospital) ? ' (HN ' + hnFor(it.child.slug, it.hospital) + ')' : '') : '', it.department].filter(Boolean).join(' · ');
       return `<strong>${childLabel(it.child)}</strong> — ${it.isNext ? 'นัดหมอครั้งถัดไป' : 'นัดหมอ'}${it.note ? ' — ' + it.note : ''}${extra ? ' — ' + extra : ''}`;
     }
     if (it.kind === 'dentist') {
@@ -2172,6 +2208,7 @@ function renderAdultsSetup() {
       adults[idx].birthDate = e.target.value;
       await saveAdults(); render();
     });
+    wrap.appendChild(buildHnEditor(a, saveAdults, renderAdultsSetup));
   });
 }
 
