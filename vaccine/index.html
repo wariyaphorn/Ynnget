@@ -496,6 +496,11 @@
         <input type="text" id="dm-note" placeholder="ไม่บังคับ">
       </div>
       <div>
+        <label class="field-label" for="dm-package">แพ็กเกจ (ถ้ามี — วัคซีนที่ชื่อแพ็กเกจเดียวกัน วันเดียวกัน นับราคารวมเป็นก้อนเดียว)</label>
+        <input type="text" id="dm-package" list="dm-package-list" placeholder="ไม่บังคับ เช่น แพ็กเกจ 6 เดือน">
+        <datalist id="dm-package-list"></datalist>
+      </div>
+      <div>
         <label class="field-label" for="dm-cost">ค่าใช้จ่าย (บาท)</label>
         <input type="number" id="dm-cost" placeholder="ไม่บังคับ" min="0">
       </div>
@@ -1079,6 +1084,8 @@ function fillDoseModal(existing, titleText, subText, allowSkip) {
   document.getElementById('dm-date').value = existing && existing.dateGiven ? existing.dateGiven : toISO(new Date());
   document.getElementById('dm-note').value = existing ? (existing.note || '') : '';
   document.getElementById('dm-cost').value = existing && existing.cost != null ? existing.cost : '';
+  document.getElementById('dm-package').value = existing ? (existing.package || '') : '';
+  document.getElementById('dm-package-list').innerHTML = [...new Set(vaccineRecords.map(r => r.package).filter(Boolean))].map(n => `<option value="${escAttr(n)}"></option>`).join('');
   document.getElementById('dm-delete').style.display = existing ? 'inline-block' : 'none';
   const skipWrap = document.getElementById('dm-skip-wrap');
   const skipBox = document.getElementById('dm-skip');
@@ -1137,6 +1144,7 @@ document.getElementById('dm-save').addEventListener('click', async () => {
   const dateVal = document.getElementById('dm-date').value;
   if (!skip && !dateVal) { alert('กรุณาเลือกวันที่'); return; }
   const note = document.getElementById('dm-note').value.trim();
+  const pkg = document.getElementById('dm-package').value.trim();
   const costStr = document.getElementById('dm-cost').value;
   const cost = costStr !== '' && !isNaN(parseFloat(costStr)) ? parseFloat(costStr) : null;
   const confirmed = document.getElementById('dm-confirmed').checked;
@@ -1144,19 +1152,29 @@ document.getElementById('dm-save').addEventListener('click', async () => {
   if (modalContext.mode === 'dose') {
     vaccineRecords = vaccineRecords.filter(r => !(r.planId === modalContext.planId && r.doseNumber === modalContext.doseNumber && r.member === modalContext.childSlug));
     if (skip) {
-      vaccineRecords.push({ id: genId(), planId: modalContext.planId, doseNumber: modalContext.doseNumber, member: modalContext.childSlug, dateGiven: null, skipped: true, note, cost: null });
+      vaccineRecords.push({ id: genId(), planId: modalContext.planId, doseNumber: modalContext.doseNumber, member: modalContext.childSlug, dateGiven: null, skipped: true, note, cost: null, package: pkg });
     } else {
-      vaccineRecords.push({ id: genId(), planId: modalContext.planId, doseNumber: modalContext.doseNumber, member: modalContext.childSlug, dateGiven: dateVal, note, cost, confirmed });
+      vaccineRecords.push({ id: genId(), planId: modalContext.planId, doseNumber: modalContext.doseNumber, member: modalContext.childSlug, dateGiven: dateVal, note, cost, confirmed, package: pkg });
     }
   } else if (modalContext.mode === 'repeatAdd') {
-    vaccineRecords.push({ id: genId(), planId: modalContext.planId, doseNumber: null, member: modalContext.childSlug, dateGiven: dateVal, note, cost, confirmed });
+    vaccineRecords.push({ id: genId(), planId: modalContext.planId, doseNumber: null, member: modalContext.childSlug, dateGiven: dateVal, note, cost, confirmed, package: pkg });
   } else if (modalContext.mode === 'repeatEdit') {
     const rec = vaccineRecords.find(r => r.id === modalContext.recordId);
-    if (rec) { rec.dateGiven = dateVal; rec.note = note; rec.cost = cost; rec.confirmed = confirmed; }
+    if (rec) { rec.dateGiven = dateVal; rec.note = note; rec.cost = cost; rec.confirmed = confirmed; rec.package = pkg; }
   }
   await saveVaccineRecords();
   closeDoseModal();
   render();
+});
+
+document.getElementById('dm-package').addEventListener('change', () => {
+  const pkg = document.getElementById('dm-package').value.trim().toLowerCase();
+  const costEl = document.getElementById('dm-cost');
+  const dateVal = document.getElementById('dm-date').value;
+  if (!pkg || costEl.value !== '' || !modalContext) return;
+  const slug = modalContext.childSlug || ((vaccineRecords.find(r => r.id === modalContext.recordId) || {}).member);
+  const hit = vaccineRecords.find(r => r.member === slug && r.dateGiven === dateVal && (r.package || '').trim().toLowerCase() === pkg && r.cost != null);
+  if (hit) costEl.value = hit.cost;
 });
 
 document.getElementById('dm-delete').addEventListener('click', async () => {
@@ -1666,12 +1684,13 @@ function renderExpenses() {
   const groups = {};
   vaccineRecords.forEach(r => {
     if (r.cost == null && !r.note) return; // ไม่มีทั้งราคาและหมายเหตุ ไม่เกี่ยวกับค่าใช้จ่าย ข้ามไป
-    const key = r.member + '|' + r.dateGiven + '|' + (r.note || ('__' + r.id));
-    if (!groups[key]) groups[key] = { member: r.member, date: r.dateGiven, note: r.note || '', items: [], amount: 0 };
+    const pkgName = (r.package || '').trim();
+    const key = pkgName ? (r.member + '|' + r.dateGiven + '|pkg:' + pkgName.toLowerCase()) : (r.member + '|' + r.dateGiven + '|' + (r.note || ('__' + r.id)));
+    if (!groups[key]) groups[key] = { member: r.member, date: r.dateGiven, note: pkgName ? 'แพ็กเกจ: ' + pkgName : (r.note || ''), items: [], amount: 0, isPkg: !!pkgName };
     const cat = findPlan(r.planId);
     const dose = cat && (cat.doses || []).find(d => d.doseNumber === r.doseNumber);
     groups[key].items.push({ name: cat ? (cat.nameTh || cat.nameEn) : r.planId, doseLabel: dose ? dose.label : '' });
-    if (r.cost != null) groups[key].amount += r.cost;
+    if (r.cost != null) groups[key].amount = groups[key].isPkg ? Math.max(groups[key].amount, r.cost) : groups[key].amount + r.cost;
   });
   const vaccineGroupList = Object.values(groups).filter(g => g.amount > 0).map(g => ({ type: 'vaccine', member: g.member, date: g.date, note: g.note, amount: g.amount, items: g.items }));
 
