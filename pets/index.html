@@ -353,6 +353,12 @@
             <input type="date" id="chk-next">
           </div>
         </div>
+        <div class="form-grid">
+          <div style="max-width:200px;">
+            <label class="field-label" for="chk-next-time">เวลานัด (ไม่บังคับ)</label>
+            <input type="time" id="chk-next-time">
+          </div>
+        </div>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-primary" id="chk-add" style="flex:1;">+ บันทึกนัด</button>
           <button class="btn" id="chk-cancel-edit" style="display:none;">ยกเลิก</button>
@@ -1524,7 +1530,7 @@ function renderCheckupTab() {
         </div>
         ${placeParts ? `<p class="muted" style="margin:4px 0 0;">${placeParts}</p>` : ''}
         <p class="muted" style="margin:4px 0 0;">
-          ${r.cost != null ? fmt(r.cost) + ' · ' : ''}${r.nextDate ? 'นัดครั้งถัดไป: ' + fmtDateStr(r.nextDate) : ''}
+          ${r.cost != null ? fmt(r.cost) + ' · ' : ''}${r.nextDate ? 'นัดครั้งถัดไป: ' + fmtDateStr(r.nextDate) + (r.nextTime ? ' เวลา ' + r.nextTime + ' น.' : '') : ''}
         </p>`;
       listWrap.appendChild(div);
     });
@@ -1554,6 +1560,7 @@ function startCheckupEdit(id) {
   document.getElementById('chk-doctor').value = r.doctor || '';
   document.getElementById('chk-cost').value = r.cost != null ? r.cost : '';
   document.getElementById('chk-next').value = r.nextDate || '';
+  document.getElementById('chk-next-time').value = r.nextTime || '';
   document.getElementById('chk-add').textContent = '💾 บันทึกการแก้ไข';
   document.getElementById('chk-cancel-edit').style.display = 'inline-block';
   document.getElementById('chk-date').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1566,6 +1573,7 @@ function cancelCheckupEdit() {
   document.getElementById('chk-doctor').value = '';
   document.getElementById('chk-cost').value = '';
   document.getElementById('chk-next').value = '';
+  document.getElementById('chk-next-time').value = '';
   document.getElementById('chk-add').textContent = '+ บันทึกนัด';
   document.getElementById('chk-cancel-edit').style.display = 'none';
 }
@@ -1582,7 +1590,8 @@ document.getElementById('chk-add').addEventListener('click', async () => {
     hospital: document.getElementById('chk-hospital').value.trim(),
     doctor: document.getElementById('chk-doctor').value.trim(),
     cost: costVal !== '' ? Number(costVal) : null,
-    nextDate: document.getElementById('chk-next').value || ''
+    nextDate: document.getElementById('chk-next').value || '',
+    nextTime: document.getElementById('chk-next-time').value || ''
   };
   if (editingCheckupId) {
     const idx = checkupRecords.findIndex(r => r.id === editingCheckupId);
@@ -2965,10 +2974,11 @@ function renderLabSummaryTable() {
     rowsByGroup[g].push(entry);
   });
 
+  const stickyLabelStyle = 'position:sticky;left:0;z-index:1;background:var(--card);box-shadow:1px 0 0 var(--border);';
   const headerCells = tests.map(t => `<th style="padding:6px 10px;text-align:center;white-space:nowrap;">${fmtDateStr(t.date)}</th>`).join('');
   let bodyHtml = '';
   labGroupOrder.filter(g => rowsByGroup[g] && rowsByGroup[g].length).forEach(g => {
-    bodyHtml += `<tr><td colspan="${tests.length + 1}" class="lab-group-title" style="padding-top:10px;">${LAB_GROUP_LABELS[g] || g}</td></tr>`;
+    bodyHtml += `<tr><td colspan="${tests.length + 1}" class="lab-group-title" style="padding-top:10px;position:sticky;left:0;">${LAB_GROUP_LABELS[g] || g}</td></tr>`;
     rowsByGroup[g].forEach(entry => {
       const cells = tests.map(t => {
         const val = (t.values || {})[entry.key];
@@ -2977,12 +2987,13 @@ function renderLabSummaryTable() {
         const cls = status === 'normal' ? '' : status;
         return `<td class="val-num ${cls}" style="padding:5px 10px;text-align:center;">${val}</td>`;
       }).join('');
-      bodyHtml += `<tr><td style="padding:5px 10px;white-space:nowrap;">${entry.label}${entry.unit ? ` (${entry.unit})` : ''}</td>${cells}</tr>`;
+      const rangeText = entry.valueType === 'text' ? '' : (entry.low != null && entry.high != null) ? ` [${entry.low}–${entry.high}]` : (entry.low != null) ? ` [≥${entry.low}]` : (entry.high != null) ? ` [≤${entry.high}]` : '';
+      bodyHtml += `<tr><td style="padding:5px 10px;white-space:nowrap;${stickyLabelStyle}">${entry.label}${entry.unit ? ` (${entry.unit})` : ''}<span class="muted" style="font-weight:400;">${rangeText}</span></td>${cells}</tr>`;
     });
   });
 
   wrap.innerHTML = `<div style="overflow-x:auto;"><table style="border-collapse:collapse;font-size:12.5px;width:100%;">
-    <thead><tr><th style="padding:6px 10px;text-align:left;">ค่า</th>${headerCells}</tr></thead>
+    <thead><tr><th style="padding:6px 10px;text-align:left;${stickyLabelStyle}z-index:2;">ค่า</th>${headerCells}</tr></thead>
     <tbody>${bodyHtml}</tbody>
   </table></div>`;
 }
