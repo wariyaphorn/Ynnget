@@ -328,7 +328,7 @@
             <input type="date" id="chk-date">
           </div>
           <div>
-            <label class="field-label" for="chk-time">เวลา (ไม่บังคับ)</label>
+            <label class="field-label" for="chk-time">เวลานัด/เวลาที่พบหมอ (ไม่บังคับ)</label>
             <input type="time" id="chk-time">
           </div>
         </div>
@@ -361,7 +361,7 @@
             <input type="date" id="chk-next">
           </div>
           <div>
-            <label class="field-label" for="chk-next-time">เวลานัด (ไม่บังคับ)</label>
+            <label class="field-label" for="chk-next-time">เวลานัดครั้งถัดไป (ไม่บังคับ)</label>
             <input type="time" id="chk-next-time">
           </div>
         </div>
@@ -1536,7 +1536,7 @@ function renderCheckupTab() {
         </div>
         ${placeParts ? `<p class="muted" style="margin:4px 0 0;">${placeParts}</p>` : ''}
         <p class="muted" style="margin:4px 0 0;">
-          ${r.cost != null ? fmt(r.cost) + ' · ' : ''}${r.nextDate ? 'นัดครั้งถัดไป: ' + fmtDateStr(r.nextDate) + (r.nextTime ? ' เวลา ' + r.nextTime + ' น.' : '') : ''}
+          ${r.cost != null ? fmt(r.cost) + ' · ' : ''}${(r.nextDate || r.nextTime) ? 'นัดครั้งถัดไป: ' + (r.nextDate ? fmtDateStr(r.nextDate) : '') + (r.nextTime ? ' เวลา ' + r.nextTime + ' น.' : '') : ''}
         </p>`;
       listWrap.appendChild(div);
     });
