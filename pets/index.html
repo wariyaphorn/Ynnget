@@ -328,6 +328,12 @@
             <input type="date" id="chk-date">
           </div>
           <div>
+            <label class="field-label" for="chk-time">เวลา (ไม่บังคับ)</label>
+            <input type="time" id="chk-time">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
             <label class="field-label" for="chk-note">รายละเอียด/อาการ</label>
             <input type="text" id="chk-note" placeholder="เช่น ตรวจสุขภาพประจำปี, Follow up ไตเรื้อรัง">
           </div>
@@ -343,18 +349,18 @@
             <input type="text" id="chk-doctor" placeholder="ไม่บังคับ">
           </div>
         </div>
-        <div class="form-grid g2">
-          <div>
+        <div class="form-grid">
+          <div style="max-width:200px;">
             <label class="field-label" for="chk-cost">ค่าใช้จ่าย (บาท)</label>
             <input type="number" id="chk-cost" placeholder="ไม่บังคับ" min="0">
           </div>
+        </div>
+        <div class="form-grid g2">
           <div>
             <label class="field-label" for="chk-next">วันนัดครั้งถัดไป</label>
             <input type="date" id="chk-next">
           </div>
-        </div>
-        <div class="form-grid">
-          <div style="max-width:200px;">
+          <div>
             <label class="field-label" for="chk-next-time">เวลานัด (ไม่บังคับ)</label>
             <input type="time" id="chk-next-time">
           </div>
@@ -1522,7 +1528,7 @@ function renderCheckupTab() {
       div.className = 'visit-card';
       const placeParts = [r.hospital, r.doctor ? 'หมอ ' + r.doctor : ''].filter(Boolean).join(' · ');
       div.innerHTML = `<div class="row-between">
-          <span><strong>${fmtDateStr(r.date)}</strong>${r.note ? ' · ' + r.note : ''}</span>
+          <span><strong>${fmtDateStr(r.date)}</strong>${r.time ? ' <strong>' + r.time + ' น.</strong>' : ''}${r.note ? ' · ' + r.note : ''}</span>
           <span>
             <button class="del-btn" data-edit="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
             <button class="del-btn" data-del="${r.id}" aria-label="ลบ">✕</button>
@@ -1555,6 +1561,7 @@ function startCheckupEdit(id) {
   if (!r) return;
   editingCheckupId = id;
   document.getElementById('chk-date').value = r.date || '';
+  document.getElementById('chk-time').value = r.time || '';
   document.getElementById('chk-note').value = r.note || '';
   document.getElementById('chk-hospital').value = r.hospital || '';
   document.getElementById('chk-doctor').value = r.doctor || '';
@@ -1568,6 +1575,7 @@ function startCheckupEdit(id) {
 function cancelCheckupEdit() {
   editingCheckupId = null;
   document.getElementById('chk-date').value = '';
+  document.getElementById('chk-time').value = '';
   document.getElementById('chk-note').value = '';
   document.getElementById('chk-hospital').value = '';
   document.getElementById('chk-doctor').value = '';
@@ -1586,6 +1594,7 @@ document.getElementById('chk-add').addEventListener('click', async () => {
   const data = {
     catId: selectedCheckupCat,
     date,
+    time: document.getElementById('chk-time').value || '',
     note: document.getElementById('chk-note').value.trim(),
     hospital: document.getElementById('chk-hospital').value.trim(),
     doctor: document.getElementById('chk-doctor').value.trim(),
