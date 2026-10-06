@@ -1674,6 +1674,8 @@ function renderChildrenSetup() {
   });
 }
 
+const expFilterTypes = new Set();
+const expFilterMembers = new Set();
 function renderExpenses() {
   const summaryEl = document.getElementById('expenses-summary');
   const listEl = document.getElementById('expenses-list');
@@ -1706,9 +1708,10 @@ function renderExpenses() {
   const dentistList = dentistRecords.filter(r => r.cost != null && r.cost > 0 && r.date <= todayISOExp)
     .map(r => ({ type: 'dentist', member: r.member, date: r.date, note: r.note || '', amount: r.cost, items: [] }));
 
-  const allList = [...vaccineGroupList, ...otherList, ...checkupList, ...dentistList].sort((a, b) => b.date.localeCompare(a.date));
+  const fullList = [...vaccineGroupList, ...otherList, ...checkupList, ...dentistList].sort((a, b) => b.date.localeCompare(a.date));
+  const allList = fullList.filter(g => (!expFilterTypes.size || expFilterTypes.has(g.type)) && (!expFilterMembers.size || expFilterMembers.has(g.member)));
 
-  if (!allList.length) {
+  if (!fullList.length) {
     summaryEl.innerHTML = '';
     listEl.innerHTML = '<p class="empty">ยังไม่มีค่าใช้จ่ายที่บันทึกไว้</p>';
     return;
@@ -1721,7 +1724,25 @@ function renderExpenses() {
     const child = findMember(slug);
     return `<span class="chip chip-given" style="cursor:default;">${childLabel(child || { slug })}: ${fmt(byChild[slug])}</span>`;
   }).join(' ');
-  summaryEl.innerHTML = `<p style="margin:0 0 6px;font-size:14px;"><strong>รวมทั้งหมด: ${fmt(grandTotal)}</strong></p><div>${byChildHtml}</div>`;
+  // ตัวกรอง: หมวด + คน (เลือกได้หลายอัน ไม่เลือกเลย = แสดงทั้งหมด)
+  const typeDefs = [['vaccine','วัคซีน'],['checkup','นัดหมอ'],['dentist','ทันตกรรม'],['other','ค่ารักษา/หาหมอ']];
+  const typeTotals = {};
+  fullList.forEach(g => { typeTotals[g.type] = (typeTotals[g.type] || 0) + g.amount; });
+  const typeBtns = typeDefs.filter(([t]) => typeTotals[t] != null).map(([t, lbl]) =>
+    `<button class="chip ${expFilterTypes.has(t) ? 'chip-given' : 'chip-empty'}" data-ftype="${t}">${expFilterTypes.has(t) ? '✓ ' : ''}${lbl} ${fmt(typeTotals[t])}</button>`).join('');
+  const memberSlugs = [...new Set(fullList.map(g => g.member))];
+  const memberBtns = memberSlugs.length > 1 ? memberSlugs.map(slug =>
+    `<button class="chip ${expFilterMembers.has(slug) ? 'chip-given' : 'chip-empty'}" data-fmember="${escAttr(slug)}">${expFilterMembers.has(slug) ? '✓ ' : ''}${childLabel(findMember(slug) || { slug })}</button>`).join('') : '';
+  const filtered = expFilterTypes.size || expFilterMembers.size;
+  summaryEl.innerHTML = `<div style="margin-bottom:8px;"><div class="muted" style="font-size:12px;">หมวด (กดเลือกได้หลายอัน)</div>${typeBtns}</div>
+    ${memberBtns ? `<div style="margin-bottom:8px;"><div class="muted" style="font-size:12px;">คน</div>${memberBtns}</div>` : ''}
+    ${filtered ? '<button class="chip chip-empty" data-fclear="1" style="margin-bottom:8px;">ล้างตัวกรอง</button>' : ''}
+    <p style="margin:0 0 6px;font-size:14px;"><strong>${filtered ? 'รวมตามที่เลือก' : 'รวมทั้งหมด'}: ${fmt(grandTotal)}</strong></p><div>${byChildHtml}</div>`;
+  summaryEl.querySelectorAll('[data-ftype]').forEach(b => b.addEventListener('click', () => { const t = b.dataset.ftype; expFilterTypes.has(t) ? expFilterTypes.delete(t) : expFilterTypes.add(t); renderExpenses(); }));
+  summaryEl.querySelectorAll('[data-fmember]').forEach(b => b.addEventListener('click', () => { const t = b.dataset.fmember; expFilterMembers.has(t) ? expFilterMembers.delete(t) : expFilterMembers.add(t); renderExpenses(); }));
+  const clr = summaryEl.querySelector('[data-fclear]');
+  if (clr) clr.addEventListener('click', () => { expFilterTypes.clear(); expFilterMembers.clear(); renderExpenses(); });
+  if (!allList.length) { listEl.innerHTML = '<p class="empty">ไม่มีรายการตามตัวกรองที่เลือก</p>'; return; }
 
   listEl.innerHTML = allList.map((g, i) => {
     const child = findMember(g.member);
