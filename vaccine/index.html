@@ -1019,8 +1019,8 @@ function renderGenericVaccineTable(tableId, catalog, memberList, catalogType) {
             if (predicted) {
               const predAge = calcAge(c.birthDate, predicted);
               const predSub = predAge ? '<span class="chip-sub">(' + predAge + ')</span>' : '';
-              if (predicted <= todayISO) { chipClass = 'chip-overdue'; statusText = 'ควรฉีดแล้ว ~ : ' + fmtDateStr(predicted) + predSub; }
-              else { chipClass = 'chip-due'; statusText = 'คาดว่า ~ : ' + fmtDateStr(predicted) + predSub; }
+              if (predicted <= todayISO) { chipClass = 'chip-overdue'; statusText = 'ควรฉีดแล้ว: ' + fmtDateStr(predicted) + predSub; }
+              else { chipClass = 'chip-due'; statusText = 'คาดว่า: ' + fmtDateStr(predicted) + predSub; }
             }
             html += `<td><span class="chip ${chipClass}" data-plan="${cat.id}" data-dose="${dose.doseNumber}" data-child="${c.slug}">${statusText}</span></td>`;
           }
