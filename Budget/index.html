@@ -1158,6 +1158,16 @@ function renderMembersManager() {
   });
 }
 
+// หาตำแหน่งหมวดข้างเคียงที่เป็นชนิดเดียวกัน (รายรับ/รายจ่าย) เพื่อสลับลำดับ — คืน -1 ถ้าไม่มี
+function catNeighborIndex(key, dir) {
+  const i = categories.findIndex(x => x.key === key);
+  if (i < 0) return -1;
+  const kind = categories[i].kind;
+  for (let j = i + dir; j >= 0 && j < categories.length; j += dir) {
+    if (categories[j].kind === kind) return j;
+  }
+  return -1;
+}
 function renderCategoryManager() {
   const wrap = document.getElementById('category-manager');
   wrap.innerHTML = '';
@@ -1167,6 +1177,8 @@ function renderCategoryManager() {
     row.innerHTML = `<span class="dot" style="background:${c.color};"></span>
       <input type="text" value="${c.label}" data-key="${c.key}" class="cat-name-input" style="flex:1;">
       <span class="muted" style="white-space:nowrap;">${c.kind === 'income' ? 'รายรับ' : 'รายจ่าย'}</span>
+      <button class="del-btn" data-move-cat="${c.key}" data-dir="-1" aria-label="เลื่อนขึ้น" ${catNeighborIndex(c.key, -1) < 0 ? 'disabled style="opacity:.3;"' : ''}>▲</button>
+      <button class="del-btn" data-move-cat="${c.key}" data-dir="1" aria-label="เลื่อนลง" ${catNeighborIndex(c.key, 1) < 0 ? 'disabled style="opacity:.3;"' : ''}>▼</button>
       <button class="del-btn" data-del-cat="${c.key}" aria-label="ลบหมวดหมู่">✕</button>`;
     wrap.appendChild(row);
   });
@@ -1174,6 +1186,16 @@ function renderCategoryManager() {
     inp.addEventListener('change', async () => {
       const c = categories.find(x => x.key === inp.dataset.key);
       if (c && inp.value.trim()) { c.label = inp.value.trim(); await saveCategories(); refreshCategorySelects(); render(); }
+    });
+  });
+  wrap.querySelectorAll('[data-move-cat]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const i = categories.findIndex(x => x.key === btn.dataset.moveCat);
+      const j = catNeighborIndex(btn.dataset.moveCat, parseInt(btn.dataset.dir, 10));
+      if (i < 0 || j < 0) return;
+      [categories[i], categories[j]] = [categories[j], categories[i]];
+      refreshCatMap();
+      await saveCategories(); refreshCategorySelects(); renderCategoryManager(); render();
     });
   });
   wrap.querySelectorAll('[data-del-cat]').forEach(btn => {
