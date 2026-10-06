@@ -1120,11 +1120,13 @@ function mainAccountLabel(id) { const a = mainAccounts.find(x => x.id === id); r
 function renderMembersManager() {
   const wrap = document.getElementById('members-manager');
   wrap.innerHTML = '';
-  members.forEach(m => {
+  members.forEach((m, mi) => {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
     row.innerHTML = `<span class="dot" style="background:${m.color};"></span>
       <input type="text" value="${m.label}" data-key="${m.key}" class="member-name-input" style="flex:1;">
+      <button class="del-btn" data-move-member="${m.key}" data-dir="-1" aria-label="เลื่อนขึ้น" ${mi === 0 ? 'disabled style="opacity:.3;"' : ''}>▲</button>
+      <button class="del-btn" data-move-member="${m.key}" data-dir="1" aria-label="เลื่อนลง" ${mi === members.length - 1 ? 'disabled style="opacity:.3;"' : ''}>▼</button>
       <button class="del-btn" data-del-member="${m.key}" aria-label="ลบสมาชิก">✕</button>`;
     wrap.appendChild(row);
   });
@@ -1132,6 +1134,16 @@ function renderMembersManager() {
     inp.addEventListener('change', async () => {
       const m = members.find(x => x.key === inp.dataset.key);
       if (m && inp.value.trim()) { m.label = inp.value.trim(); await saveMembers(); refreshMemberSelects(); render(); }
+    });
+  });
+  wrap.querySelectorAll('[data-move-member]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const i = members.findIndex(x => x.key === btn.dataset.moveMember);
+      const j = i + parseInt(btn.dataset.dir, 10);
+      if (i < 0 || j < 0 || j >= members.length) return;
+      [members[i], members[j]] = [members[j], members[i]];
+      refreshMemberMap();
+      await saveMembers(); refreshMemberSelects(); renderMembersManager(); render();
     });
   });
   wrap.querySelectorAll('[data-del-member]').forEach(btn => {
