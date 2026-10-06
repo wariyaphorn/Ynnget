@@ -796,11 +796,12 @@
       <h2>คาดการณ์เป้าหมายเงินออม</h2>
       <div class="form-grid g2" style="margin-bottom:10px;align-items:end;">
         <div>
-          <label class="muted" style="font-size:12px;display:block;margin-bottom:4px;">คำนวณจากอัตราการเก็บเฉลี่ยย้อนหลัง</label>
+          <label class="muted" style="font-size:12px;display:block;margin-bottom:4px;">คำนวณจาก</label>
           <select id="sp-months">
-            <option value="3">3 เดือน</option>
-            <option value="6" selected>6 เดือน</option>
-            <option value="12">12 เดือน</option>
+            <option value="3">เฉลี่ยเก็บจริงย้อนหลัง 3 เดือน</option>
+            <option value="6" selected>เฉลี่ยเก็บจริงย้อนหลัง 6 เดือน</option>
+            <option value="12">เฉลี่ยเก็บจริงย้อนหลัง 12 เดือน</option>
+            <option value="plan">ยอดที่ตั้งไว้ต่อเดือน (แผน)</option>
           </select>
         </div>
       </div>
@@ -3468,6 +3469,8 @@ function renderCategoryTrend() {
 
 let currentViewYear = new Date().getFullYear();
 let yearlyMonthsChart = null, yearlyCatChart = null;
+let savingsProjectionPlan = false; // true = ใช้ยอดต่อเดือนที่ตั้งไว้ในเป้าหมาย แทนค่าเฉลี่ยที่เก็บจริง
+function spBasisLabel() { return savingsProjectionPlan ? 'ตามยอดที่ตั้งไว้ต่อเดือน' : 'ตามอัตราการเก็บจริงย้อนหลัง ' + savingsProjectionMonths + ' เดือน'; }
 let savingsProjectionMonths = 6; // adjustable lookback period (months) used to calc average actual savings rate
 let savingsProjectionMemberFilter = 'all'; // 'all' or a member key — filters the yearly-page projection detail
 function renderYearlySummary() {
@@ -3591,6 +3594,7 @@ function renderYearlySummary() {
 // ---- คาดการณ์เป้าหมายเงินออม (Savings Goal Projection) ----
 // อัตราการเก็บจริงเฉลี่ยต่อเดือน คำนวณจากยอดที่บันทึกจริงย้อนหลัง N เดือน (ไม่ใช่ยอดที่ตั้งแผนไว้)
 function savingsRateForGoal(g, months) {
+  if (savingsProjectionPlan) return g.inactive ? 0 : (g.monthly || 0);
   const kind = g.kind === 'debt' ? 'debt' : 'saving';
   const start = new Date();
   start.setDate(1);
@@ -3626,9 +3630,9 @@ function goalProjectionHtml(g) {
   const proj = projectGoal(g, savingsProjectionMonths);
   if (proj.done) return '';
   if (proj.rate <= 0) {
-    return `<p class="muted" style="margin:0 0 4px;">ตามอัตราการเก็บจริงย้อนหลัง ${savingsProjectionMonths} เดือน — ยังไม่มีการเก็บเงินในช่วงนี้ จึงยังคาดการณ์ไม่ได้</p>`;
+    return `<p class="muted" style="margin:0 0 4px;">${spBasisLabel()} — ${savingsProjectionPlan ? 'ยังไม่ได้ตั้งยอดต่อเดือนของเป้าหมายนี้' : 'ยังไม่มีการเก็บเงินในช่วงนี้'} จึงยังคาดการณ์ไม่ได้</p>`;
   }
-  return `<p class="muted" style="margin:0 0 4px;">ตามอัตราการเก็บจริงย้อนหลัง ${savingsProjectionMonths} เดือน (เฉลี่ย ${fmt(proj.rate)}/เดือน) คาดว่าจะครบเป้าหมายประมาณ ${proj.label} (อีก ${proj.monthsNeeded} เดือน)</p>`;
+  return `<p class="muted" style="margin:0 0 4px;">${spBasisLabel()} (${fmt(proj.rate)}/เดือน) คาดว่าจะครบเป้าหมายประมาณ ${proj.label} (อีก ${proj.monthsNeeded} เดือน)</p>`;
 }
 function renderSavingsProjectionOverview() {
   const wrap = document.getElementById('savings-projection-overview');
@@ -3650,9 +3654,9 @@ function renderSavingsProjectionOverview() {
   } else if (totalRate > 0) {
     const monthsNeeded = Math.ceil(totalRemaining / totalRate);
     completionYm = shiftMonth(toISO(new Date()).slice(0, 7), monthsNeeded);
-    statusLine = 'ตามอัตราการเก็บจริงย้อนหลัง ' + savingsProjectionMonths + ' เดือน (เฉลี่ย ' + fmt(totalRate) + '/เดือน) คาดว่าจะครบทุกเป้าหมายประมาณ ' + monthLabel(completionYm) + ' (อีก ' + monthsNeeded + ' เดือน)';
+    statusLine = spBasisLabel() + ' (รวม ' + fmt(totalRate) + '/เดือน) คาดว่าจะครบทุกเป้าหมายประมาณ ' + monthLabel(completionYm) + ' (อีก ' + monthsNeeded + ' เดือน)';
   } else {
-    statusLine = 'ยังไม่มีการเก็บเงินในช่วง ' + savingsProjectionMonths + ' เดือนที่ผ่านมา จึงยังคาดการณ์ไม่ได้ ดูรายละเอียดเพิ่มเติมที่แท็บ "สรุปรายปี"';
+    statusLine = (savingsProjectionPlan ? 'ยังไม่ได้ตั้งยอดต่อเดือนในเป้าหมายเงินออม' : 'ยังไม่มีการเก็บเงินในช่วง ' + savingsProjectionMonths + ' เดือนที่ผ่านมา') + ' จึงยังคาดการณ์ไม่ได้ ดูรายละเอียดเพิ่มเติมที่แท็บ "สรุปรายปี"';
   }
   wrap.innerHTML = `
     <div class="row-between" style="margin-bottom:4px;">
@@ -3669,7 +3673,7 @@ function renderSavingsProjectionYearlyDetail() {
   const listWrap = document.getElementById('sp-goal-list');
   const monthsSelect = document.getElementById('sp-months');
   if (!tabsWrap || !summaryWrap || !listWrap) return;
-  if (monthsSelect) monthsSelect.value = String(savingsProjectionMonths);
+  if (monthsSelect) monthsSelect.value = savingsProjectionPlan ? 'plan' : String(savingsProjectionMonths);
 
   const relevantGoals = goals.filter(g => g.kind !== 'debt' && g.target && g.target > 0);
   const memberKeysWithGoals = [...new Set(relevantGoals.map(g => g.member || 'shared'))];
@@ -3712,14 +3716,14 @@ function renderSavingsProjectionYearlyDetail() {
     completionYm = shiftMonth(toISO(new Date()).slice(0, 7), monthsNeeded);
     overallLine = 'คาดว่าจะครบทุกเป้าหมายประมาณ ' + monthLabel(completionYm) + ' (อีก ' + monthsNeeded + ' เดือน)';
   } else {
-    overallLine = 'ยังไม่มีการเก็บเงินในช่วง ' + savingsProjectionMonths + ' เดือนที่ผ่านมา จึงยังคาดการณ์ไม่ได้';
+    overallLine = (savingsProjectionPlan ? 'ยังไม่ได้ตั้งยอดต่อเดือนในเป้าหมายเงินออม' : 'ยังไม่มีการเก็บเงินในช่วง ' + savingsProjectionMonths + ' เดือนที่ผ่านมา') + ' จึงยังคาดการณ์ไม่ได้';
   }
   summaryWrap.innerHTML = `
     <div class="row-between" style="margin-bottom:4px;">
       <span style="font-weight:600;">${fmt(totalSaved)} / ${fmt(totalTarget)} <span class="muted">(${pct.toFixed(0)}%)</span></span>
     </div>
     <div class="bar-bg" style="margin-bottom:8px;"><div class="bar-fill" style="width:${pct.toFixed(0)}%;"></div></div>
-    <p class="muted" style="margin:0;">${overallLine} · เฉลี่ยเก็บได้จริง ${fmt(totalRate)}/เดือน (ย้อนหลัง ${savingsProjectionMonths} เดือน)</p>
+    <p class="muted" style="margin:0;">${overallLine} · ${savingsProjectionPlan ? 'ยอดตั้งไว้รวม' : 'เฉลี่ยเก็บได้จริง'} ${fmt(totalRate)}/เดือน${savingsProjectionPlan ? '' : ' (ย้อนหลัง ' + savingsProjectionMonths + ' เดือน)'}</p>
     ${futureExpenseImpactWarning(completionYm)}`;
 
   listWrap.innerHTML = '';
@@ -3730,7 +3734,7 @@ function renderSavingsProjectionYearlyDetail() {
     row.className = 'goal-card';
     row.innerHTML = `<div class="row-between"><span>${g.name}${g.member ? ' <span class="muted">· ' + memberLabel(g.member) + '</span>' : ''}</span><span class="secondary-text">${fmt(proj.saved)} / ${fmt(g.target)}</span></div>
       <div class="bar-bg"><div class="bar-fill" style="width:${gpct.toFixed(0)}%;"></div></div>
-      <p class="muted" style="margin:4px 0 0;">${proj.done ? 'ครบเป้าหมายแล้ว 🎉' : (proj.rate > 0 ? 'คาดว่าจะครบประมาณ ' + proj.label + ' (อีก ' + proj.monthsNeeded + ' เดือน)' : 'ยังไม่มีการเก็บเงินในช่วงนี้ จึงยังคาดการณ์ไม่ได้')}</p>`;
+      <p class="muted" style="margin:4px 0 0;">${proj.done ? 'ครบเป้าหมายแล้ว 🎉' : (proj.rate > 0 ? 'คาดว่าจะครบประมาณ ' + proj.label + ' (อีก ' + proj.monthsNeeded + ' เดือน)' : (savingsProjectionPlan ? 'ยังไม่ได้ตั้งยอดต่อเดือน' : 'ยังไม่มีการเก็บเงินในช่วงนี้') + ' จึงยังคาดการณ์ไม่ได้')}</p>`;
     listWrap.appendChild(row);
   });
 }
@@ -4798,7 +4802,8 @@ document.getElementById('year-next').addEventListener('click', () => {
   renderYearlySummary();
 });
 document.getElementById('sp-months').addEventListener('change', (e) => {
-  savingsProjectionMonths = parseInt(e.target.value, 10) || 6;
+  if (e.target.value === 'plan') { savingsProjectionPlan = true; }
+  else { savingsProjectionPlan = false; savingsProjectionMonths = parseInt(e.target.value, 10) || 6; }
   renderSavingsProjection();
 });
 
