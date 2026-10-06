@@ -1085,7 +1085,7 @@ function renderRetirementMonthlyTable() {
   const headerCells = catKeys.map(k => `<th style="text-align:right;padding:6px 10px;font-size:11.5px;color:var(--text-secondary);white-space:nowrap;">${byCategory[k].label}</th>`).join('');
   const bodyRows = rows.map(r => `
     <tr>
-      <td style="padding:6px 10px;font-size:12.5px;white-space:nowrap;font-weight:600;">${r.label}</td>
+      <td style="padding:6px 10px;font-size:12.5px;white-space:nowrap;font-weight:600;position:sticky;left:0;z-index:1;background:var(--card);box-shadow:1px 0 0 var(--border);">${r.label}</td>
       ${catKeys.map(k => `<td style="text-align:right;padding:6px 10px;font-size:12.5px;color:var(--text-secondary);white-space:nowrap;">${fmt(r.byCat[k])}</td>`).join('')}
       <td style="text-align:right;padding:6px 10px;font-size:12.5px;font-weight:700;white-space:nowrap;">${fmt(r.total)}</td>
     </tr>`).join('');
@@ -1094,7 +1094,7 @@ function renderRetirementMonthlyTable() {
     <table style="border-collapse:collapse;width:100%;min-width:${360 + catKeys.length * 100}px;">
       <thead>
         <tr style="border-bottom:2px solid var(--border);">
-          <th style="text-align:left;padding:6px 10px;font-size:11.5px;color:var(--text-secondary);white-space:nowrap;">เดือน</th>
+          <th style="text-align:left;padding:6px 10px;font-size:11.5px;color:var(--text-secondary);white-space:nowrap;position:sticky;left:0;z-index:1;background:var(--card);box-shadow:1px 0 0 var(--border);z-index:2;">เดือน</th>
           ${headerCells}
           <th style="text-align:right;padding:6px 10px;font-size:11.5px;color:var(--text-secondary);white-space:nowrap;">รวม</th>
         </tr>
@@ -1102,7 +1102,7 @@ function renderRetirementMonthlyTable() {
       <tbody>${bodyRows}</tbody>
       <tfoot>
         <tr style="border-top:2px solid var(--border);">
-          <td style="padding:8px 10px;font-size:13px;font-weight:700;">รวมทั้งปี</td>
+          <td style="padding:8px 10px;font-size:13px;font-weight:700;white-space:nowrap;position:sticky;left:0;z-index:1;background:var(--card);box-shadow:1px 0 0 var(--border);">รวมทั้งปี</td>
           ${catKeys.map(k => `<td style="text-align:right;padding:8px 10px;font-size:13px;font-weight:700;">${fmt(rows.reduce((s, r) => s + r.byCat[k], 0))}</td>`).join('')}
           <td style="text-align:right;padding:8px 10px;font-size:13px;font-weight:700;color:var(--ink);">${fmt(grandTotal)}</td>
         </tr>
