@@ -2987,7 +2987,7 @@ function renderLabSummaryTable() {
   const headerCells = tests.map(t => `<th style="padding:6px 10px;text-align:center;white-space:nowrap;">${fmtDateStr(t.date)}</th>`).join('');
   let bodyHtml = '';
   labGroupOrder.filter(g => rowsByGroup[g] && rowsByGroup[g].length).forEach(g => {
-    bodyHtml += `<tr><td colspan="${tests.length + 1}" class="lab-group-title" style="padding-top:10px;position:sticky;left:0;">${LAB_GROUP_LABELS[g] || g}</td></tr>`;
+    bodyHtml += `<tr><td colspan="${tests.length + 1}" class="lab-group-title" style="padding-top:10px;"><span style="position:sticky;left:10px;display:inline-block;">${LAB_GROUP_LABELS[g] || g}</span></td></tr>`;
     rowsByGroup[g].forEach(entry => {
       const cells = tests.map(t => {
         const val = (t.values || {})[entry.key];
