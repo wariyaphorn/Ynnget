@@ -1436,7 +1436,7 @@ function renderCardsSummary() {
         monthTotals[ym] = (monthTotals[ym] || 0) + e.amount;
       });
     });
-    const catList = Object.keys(catTotals).map(k => ({ key: k, label: catMeta[k].label, color: catMeta[k].color }));
+    const catList = catOrderKeys(catTotals).map(k => ({ key: k, label: catMeta[k].label, color: catMeta[k].color }));
     const memberList = members.filter(m => memberTotals[m.key]).map(m => ({ key: m.key, label: m.label, color: m.color }));
     const monthKeys = Object.keys(monthTotals).sort().reverse();
     const monthList = monthKeys.map((ym, i) => ({ key: ym, label: monthLabel(ym), color: monthColors[i % monthColors.length] }));
@@ -1553,7 +1553,7 @@ function renderCards() {
         const mk = e.member || 'shared';
         memberTotals[mk] = (memberTotals[mk] || 0) + e.amount;
       });
-      const catList = Object.keys(catTotals).map(k => ({ key: k, label: catMeta[k].label, color: catMeta[k].color }));
+      const catList = catOrderKeys(catTotals).map(k => ({ key: k, label: catMeta[k].label, color: catMeta[k].color }));
       const memberList = members.filter(m => memberTotals[m.key]).map(m => ({ key: m.key, label: m.label, color: m.color }));
       renderChartLegend('card-cat-legend-' + c.id, catList, catTotals, item => item.key);
       renderChartLegend('card-member-legend-' + c.id, memberList, memberTotals, item => item.key);
@@ -3125,6 +3125,11 @@ function refreshAccountList() {
   mainDl.innerHTML = mainNames.map(n => `<option value="${n}"></option>`).join('');
 }
 
+// เรียงคีย์หมวดหมู่ตามลำดับที่ตั้งไว้ในหน้าตั้งค่า (หมวดที่ไม่รู้จักไปไว้ท้าย)
+function catOrderKeys(obj) {
+  const idx = k => { const i = categories.findIndex(c => c.key === k); return i < 0 ? 9999 : i; };
+  return Object.keys(obj).sort((a, b) => idx(a) - idx(b));
+}
 function renderChartLegend(elId, list, totals, keyFn) {
   const wrap = document.getElementById(elId);
   wrap.innerHTML = '';
@@ -3177,7 +3182,7 @@ function renderMemberCategoryBreakdown(prefix, memberList, memberCatTotals, catM
   });
 
   const totals = memberCatTotals[sel] || {};
-  const catKeys = Object.keys(totals).sort((a, b) => totals[b] - totals[a]);
+  const catKeys = catOrderKeys(totals);
   const grand = catKeys.reduce((s, k) => s + totals[k], 0);
   if (totalEl) totalEl.textContent = 'รวม: ' + fmt(grand);
 
@@ -3273,7 +3278,7 @@ function renderCycleBreakdown() {
       }
     });
   });
-  const catList = Object.keys(catTotals).map(k => ({ key: k, label: catMeta[k].label, color: catMeta[k].color }));
+  const catList = catOrderKeys(catTotals).map(k => ({ key: k, label: catMeta[k].label, color: catMeta[k].color }));
   const memberList = members.filter(m => memberTotals[m.key]).map(m => ({ key: m.key, label: m.label, color: m.color }));
   renderChartLegend('cycle-cat-legend', catList, catTotals, item => item.key);
   renderChartLegend('cycle-member-legend', memberList, memberTotals, item => item.key);
@@ -3339,7 +3344,7 @@ function renderCharts() {
     if (!memberCatTotals[mk]) memberCatTotals[mk] = {};
     memberCatTotals[mk][key] = (memberCatTotals[mk][key] || 0) + e.amount;
   });
-  const catList = Object.keys(catTotals).map(k => ({ key: k, label: catMeta[k].label, color: catMeta[k].color }));
+  const catList = catOrderKeys(catTotals).map(k => ({ key: k, label: catMeta[k].label, color: catMeta[k].color }));
   const memberList = members.filter(m => memberTotals[m.key]).map(m => ({ key: m.key, label: m.label, color: m.color }));
   const catListForLegend = catList;
   const monthGrandTotal = Object.values(catTotals).reduce((s, v) => s + v, 0);
@@ -3572,7 +3577,7 @@ function renderYearlySummary() {
     if (!memberCatTotals[mk]) memberCatTotals[mk] = {};
     memberCatTotals[mk][key] = (memberCatTotals[mk][key] || 0) + e.amount;
   });
-  const catList = Object.keys(catTotals).map(k => ({ key: k, label: catMeta[k].label, color: catMeta[k].color }));
+  const catList = catOrderKeys(catTotals).map(k => ({ key: k, label: catMeta[k].label, color: catMeta[k].color }));
   const yearCatTotal = Object.values(catTotals).reduce((s, v) => s + v, 0);
   document.getElementById('yearly-cat-total').textContent = 'รวมรายจ่ายทั้งปี: ' + fmt(yearCatTotal);
 
