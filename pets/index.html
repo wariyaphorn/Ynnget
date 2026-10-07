@@ -528,7 +528,8 @@
           <div id="care-med-checks" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>
         <div style="margin-bottom:12px;">
-          <label class="field-label">อาหารที่ให้วันนี้ (เลือกได้หลายรายการ)</label>
+          <label class="field-label">อาหารที่ให้วันนี้ (จดเฉพาะที่ให้จริง เช่น อาหารเปียก)</label>
+          <p id="care-food-plan-hint" class="muted" style="margin:0 0 6px;font-size:12.5px;display:none;"></p>
           <div id="care-food-checks" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>
         <div class="form-grid">
@@ -1816,6 +1817,13 @@ document.getElementById('food-add').addEventListener('click', async () => {
 });
 
 /* ---- แผนการให้อาหาร ---- */
+function updateFoodPlanHint(dateVal) {
+  const el = document.getElementById('care-food-plan-hint');
+  if (!el) return;
+  const plan = selectedCareCat ? activeFoodPlan(selectedCareCat, dateVal || toISO(new Date())) : null;
+  if (plan && (plan.foodIds || []).length) { el.textContent = '📌 แผนอาหารช่วงนี้: ' + foodPlanNamesLabel(plan) + ' — ติ๊กเฉพาะที่ให้จริงวันนี้'; el.style.display = ''; }
+  else { el.style.display = 'none'; el.textContent = ''; }
+}
 function activeFoodPlan(catId, onDate) {
   const d = onDate || toISO(new Date());
   const plans = foodPlans.filter(p => p.catId === catId && p.startDate <= d && (!p.endDate || p.endDate >= d));
@@ -1943,6 +1951,7 @@ function renderCareChecklists() {
       </label>
     `).join('') : '<p class="empty">ยังไม่มีอาหารในคลัง — เพิ่มได้จากด้านบน</p>';
   }
+  updateFoodPlanHint(document.getElementById('care-date') ? document.getElementById('care-date').value : null);
 }
 document.getElementById('care-fluid-given').addEventListener('change', (e) => {
   const wrap = document.getElementById('care-fluid-amount-wrap');
@@ -1987,8 +1996,8 @@ function cancelCareLogEdit() {
   document.getElementById('care-fluid-time').value = '';
   document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = false; });
   document.querySelectorAll('.care-med-time').forEach(inp => { inp.value = ''; });
-  const plan = activeFoodPlan(selectedCareCat, d);
-  document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = plan ? (plan.foodIds || []).includes(cb.value) : false; });
+  document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = false; });
+  updateFoodPlanHint(d);
   document.getElementById('care-note').value = '';
   document.getElementById('care-log-form-title').textContent = '+ บันทึกวันนี้';
   document.getElementById('care-log-save').textContent = '+ บันทึก';
@@ -2007,8 +2016,8 @@ document.getElementById('care-date').addEventListener('change', () => {
   document.getElementById('care-fluid-time').value = '';
   document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = false; });
   document.querySelectorAll('.care-med-time').forEach(inp => { inp.value = ''; });
-  const plan = activeFoodPlan(selectedCareCat, dateVal);
-  document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = plan ? (plan.foodIds || []).includes(cb.value) : false; });
+  document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = false; });
+  updateFoodPlanHint(dateVal);
 });
 document.getElementById('care-log-save').addEventListener('click', async () => {
   if (!selectedCareCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
