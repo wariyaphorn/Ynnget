@@ -2444,14 +2444,30 @@ function renderFixedExpenses() {
   if (fixedExpenses.length === 0) { wrap.innerHTML = '<p class="empty">ยังไม่มีรายจ่ายประจำ เพิ่มรายการแรกด้านล่าง</p>'; return; }
   const todayISO = toISO(new Date());
 
+  // โหมดการเรียง: 'paid' = ตามวันที่จ่ายล่าสุด (ค่าเดิม), 'manual' = ตามลำดับที่จัดเองด้วยปุ่ม ▲▼
+  let fixedSortMode = 'paid';
+  try { fixedSortMode = localStorage.getItem('fixedSortMode') === 'manual' ? 'manual' : 'paid'; } catch (e) {}
+  const sortBar = document.createElement('div');
+  sortBar.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:10px;';
+  sortBar.innerHTML = `<span class="muted" style="font-size:12.5px;">เรียงตาม</span>
+    <select id="fixed-sort-mode" style="flex:1;max-width:260px;">
+      <option value="paid" ${fixedSortMode === 'paid' ? 'selected' : ''}>วันที่จ่ายล่าสุด (ยังไม่จ่ายอยู่บนสุด)</option>
+      <option value="manual" ${fixedSortMode === 'manual' ? 'selected' : ''}>ลำดับที่จัดเอง (▲▼)</option>
+    </select>`;
+  wrap.appendChild(sortBar);
+  sortBar.querySelector('select').addEventListener('change', (e) => {
+    try { localStorage.setItem('fixedSortMode', e.target.value); } catch (err) {}
+    renderFixedExpenses();
+  });
+  const manualOrder = fixedSortMode === 'manual';
   // เรียงตามวันที่จ่ายล่าสุด: ยังไม่เคยจ่าย/จ่ายมานานแล้ว อยู่บนสุด, เพิ่งจ่ายไปล่าสุด ไหลลงล่างสุด
-  const sortedFixedExpenses = fixedExpenses.slice().sort((a, b) => {
+  const sortedFixedExpenses = manualOrder ? fixedExpenses.slice() : fixedExpenses.slice().sort((a, b) => {
     const la = (a.history && a.history.length) ? a.history[a.history.length - 1].date : '';
     const lb = (b.history && b.history.length) ? b.history[b.history.length - 1].date : '';
     return la.localeCompare(lb);
   });
 
-  sortedFixedExpenses.forEach(x => {
+  sortedFixedExpenses.forEach((x, xi) => {
     const div = document.createElement('div');
     div.className = 'goal-card';
 
@@ -2510,6 +2526,7 @@ function renderFixedExpenses() {
       ${x.dueDate ? `<p class="secondary-text" style="color:${overdue ? 'var(--rust)' : 'var(--text-secondary)'};margin:4px 0;">ครบกำหนดถัดไป ${fmtDateStr(x.dueDate)}${overdue ? ' (เลยกำหนด)' : ''}</p>` : ''}
       ${lastPaid ? `<p class="muted" style="margin:0 0 8px;">จ่ายล่าสุด ${fmtDateStr(lastPaid.date)} · ${fmt(lastPaid.amount)}</p>` : ''}
       <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+        ${manualOrder ? `<button class="btn" data-x-move="${x.id}" data-dir="-1" ${xi === 0 ? 'disabled style="opacity:.3;"' : ''} aria-label="เลื่อนขึ้น">▲</button><button class="btn" data-x-move="${x.id}" data-dir="1" ${xi === sortedFixedExpenses.length - 1 ? 'disabled style="opacity:.3;"' : ''} aria-label="เลื่อนลง">▼</button>` : ''}
         <button class="btn" data-x-edit="${x.id}">แก้ไข</button>
         <button class="btn" data-x-del="${x.id}" style="color:var(--rust);border-color:var(--rust);">ลบ</button>
         <button class="btn btn-primary" data-x-pay="${x.id}">+ บันทึกว่าจ่ายแล้ว</button>
@@ -2517,6 +2534,13 @@ function renderFixedExpenses() {
     wrap.appendChild(div);
   });
 
+  wrap.querySelectorAll('button[data-x-move]').forEach(btn => btn.addEventListener('click', async () => {
+    const i = fixedExpenses.findIndex(y => y.id === btn.dataset.xMove);
+    const j = i + parseInt(btn.dataset.dir, 10);
+    if (i < 0 || j < 0 || j >= fixedExpenses.length) return;
+    [fixedExpenses[i], fixedExpenses[j]] = [fixedExpenses[j], fixedExpenses[i]];
+    await saveFixedExpenses(); renderFixedExpenses();
+  }));
   wrap.querySelectorAll('button[data-x-edit]').forEach(btn => btn.addEventListener('click', () => {
     editingFixedId = btn.dataset.xEdit; renderFixedExpenses();
   }));
