@@ -528,7 +528,7 @@
           <div id="care-med-checks" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>
         <div style="margin-bottom:12px;">
-          <label class="field-label">อาหารที่ให้วันนี้ (จดเฉพาะที่ให้จริง เช่น อาหารเปียก)</label>
+          <label class="field-label">อาหารที่ให้เพิ่มวันนี้ (นอกเหนือจากแผนอาหาร)</label>
           <p id="care-food-plan-hint" class="muted" style="margin:0 0 6px;font-size:12.5px;display:none;"></p>
           <div id="care-food-checks" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>
@@ -1821,7 +1821,7 @@ function updateFoodPlanHint(dateVal) {
   const el = document.getElementById('care-food-plan-hint');
   if (!el) return;
   const plan = selectedCareCat ? activeFoodPlan(selectedCareCat, dateVal || toISO(new Date())) : null;
-  if (plan && (plan.foodIds || []).length) { el.textContent = '📌 แผนอาหารช่วงนี้: ' + foodPlanNamesLabel(plan) + ' — ติ๊กเฉพาะที่ให้จริงวันนี้'; el.style.display = ''; }
+  if (plan && (plan.foodIds || []).length) { el.textContent = '📌 แผนอาหารช่วงนี้ (ให้เป็นประจำอยู่แล้ว): ' + foodPlanNamesLabel(plan); el.style.display = ''; }
   else { el.style.display = 'none'; el.textContent = ''; }
 }
 function activeFoodPlan(catId, onDate) {
