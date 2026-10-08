@@ -118,6 +118,11 @@
   .page-tabs { display: flex; gap: 8px; margin-bottom: 1.5rem; flex-wrap: wrap; }
   .page-tab { border: 1px solid var(--border); background: var(--card); border-radius: 20px; padding: 9px 18px; font-family: 'Sarabun'; font-size: 13.5px; cursor: pointer; color: var(--text-secondary); font-weight: 500; }
   .page-tab.active { background: var(--sage); color: #fff; border-color: var(--sage); }
+  .subtab-nav { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 4px; -webkit-overflow-scrolling: touch; }
+  .subtab-nav button { border: 1px solid var(--border); background: var(--card); border-radius: 18px; padding: 7px 14px; font-family: 'Sarabun'; font-size: 13px; cursor: pointer; color: var(--text-secondary); white-space: nowrap; flex: none; }
+  .subtab-nav button.active { background: var(--ink); color: #fff; border-color: var(--ink); font-weight: 600; }
+  .subpane { display: none; }
+  .subpane.active { display: block; }
   .page { display: none; }
   .page.active { display: block; }
   .visit-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 0.9rem 1.1rem; margin-bottom: 8px; }
@@ -195,7 +200,7 @@
     <button class="page-tab" data-page="checkup">นัดหมอ</button>
     <button class="page-tab" data-page="care">ดูแลประจำวัน</button>
     <button class="page-tab" data-page="labs">ผลตรวจ</button>
-    <button class="page-tab" data-page="labcatalog">ตั้งค่าค่าตรวจ</button>
+    <button class="page-tab" data-page="labcatalog">ตั้งค่า / คลังกลาง</button>
   </nav>
 
   <div id="page-cats" class="page active">
@@ -380,125 +385,30 @@
         <div class="child-tabs" id="care-cat-tabs"></div>
       </div>
     </section>
-
     <section>
       <div class="card">
-        <h2>แผนการให้น้ำเกลือ</h2>
-        <p class="muted" style="margin:0 0 10px;">เมื่อเปลี่ยนแผน (ปริมาณ/ความถี่) ให้เพิ่มแผนใหม่ ระบบจะปิดแผนเดิมให้อัตโนมัติ เก็บประวัติการเปลี่ยนแผนไว้ทั้งหมด</p>
-        <div id="fluid-regimen-current"></div>
-        <div id="fluid-regimen-history"></div>
-        <div class="form-grid g3" style="margin-top:12px;">
-          <div>
-            <label class="field-label" for="fr-start">เริ่มใช้วันที่</label>
-            <input type="date" id="fr-start">
-          </div>
-          <div>
-            <label class="field-label" for="fr-amount">ปริมาณ (มล.)</label>
-            <input type="number" step="any" id="fr-amount" placeholder="เช่น 200">
-          </div>
-          <div>
-            <label class="field-label" for="fr-freq">ความถี่</label>
-            <select id="fr-freq">
-              <option value="daily">ทุกวัน</option>
-              <option value="eod">วันเว้นวัน</option>
-              <option value="custom">กำหนดเอง (ทุก N วัน)</option>
-            </select>
+        <div class="row-between" style="margin-bottom:10px;">
+          <h2 style="margin:0;">ปฏิทินการดูแล</h2>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button type="button" class="btn" id="care-cal-prev">‹</button>
+            <strong id="care-cal-label" style="font-size:13px;min-width:90px;text-align:center;"></strong>
+            <button type="button" class="btn" id="care-cal-next">›</button>
           </div>
         </div>
-        <div class="form-grid" id="fr-custom-wrap" style="display:none;">
-          <div style="max-width:200px;">
-            <label class="field-label" for="fr-custom-days">ให้ทุกๆ กี่วัน</label>
-            <input type="number" min="2" id="fr-custom-days" placeholder="เช่น 3">
-          </div>
-        </div>
-        <div class="form-grid">
-          <div>
-            <label class="field-label" for="fr-note">หมายเหตุ</label>
-            <input type="text" id="fr-note" placeholder="ไม่บังคับ">
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-primary" id="fr-add" style="flex:1;">+ บันทึกแผนใหม่</button>
-          <button class="btn" id="fr-cancel-edit" style="display:none;">ยกเลิก</button>
-        </div>
+        <p class="muted" style="margin:0 0 10px;">💧 น้ำเกลือ (มล.) · 💊 จำนวนยาที่ให้ · 🍽 จำนวนอาหารที่ให้ — กดวันที่เพื่อดู/แก้ไขบันทึกของวันนั้น</p>
+        <div id="care-calendar"></div>
       </div>
     </section>
-
     <section>
-      <div class="card">
-        <h2>คลังยา</h2>
-        <p class="muted" style="margin:0 0 10px;">เพิ่มยาที่ใช้ไว้ที่นี่ครั้งเดียว แล้วไปติ๊กเลือกในแบบฟอร์ม "บันทึกวันนี้" ด้านล่างว่าวันไหนให้ยาตัวไหนบ้าง</p>
-        <div id="med-catalog-list"></div>
-        <div class="form-grid g3" style="margin-top:8px;">
-          <div>
-            <label class="field-label" for="med-name">ชื่อยา</label>
-            <input type="text" id="med-name" placeholder="เช่น Cerenia">
-          </div>
-          <div>
-            <label class="field-label" for="med-type">ประเภท</label>
-            <select id="med-type">
-              <option value="continuous">ให้ต่อเนื่อง</option>
-              <option value="prn">ให้ตามอาการ</option>
-            </select>
-          </div>
-          <div>
-            <label class="field-label" for="med-dosage">ขนาด/วิธีให้</label>
-            <input type="text" id="med-dosage" placeholder="ไม่บังคับ เช่น 1/2 เม็ด เช้า-เย็น">
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-primary" id="med-add" style="flex:1;">+ เพิ่มยา</button>
-          <button class="btn" id="med-cancel-edit" style="display:none;">ยกเลิก</button>
-        </div>
+      <div class="subtab-nav" data-group="care">
+        <button type="button" data-sub="day">บันทึกวันนี้</button>
+        <button type="button" data-sub="sym">อาการ</button>
+        <button type="button" data-sub="fluid">น้ำเกลือ</button>
+        <button type="button" data-sub="med">ยา</button>
+        <button type="button" data-sub="food">อาหาร</button>
       </div>
     </section>
-
-    <section>
-      <div class="card">
-        <h2>คลังอาหาร</h2>
-        <p class="muted" style="margin:0 0 10px;">เพิ่มรายชื่ออาหาร/ยี่ห้อที่เคยให้ไว้ที่นี่ แล้วไปติ๊กเลือกได้หลายรายการในแบบฟอร์มด้านล่าง</p>
-        <div id="food-catalog-list"></div>
-        <div class="form-grid g2" style="margin-top:8px;">
-          <div>
-            <label class="field-label" for="food-name">ชื่ออาหาร/ยี่ห้อ</label>
-            <input type="text" id="food-name" placeholder="เช่น Royal Canin Renal">
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-primary" id="food-add" style="flex:1;">+ เพิ่มอาหาร</button>
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <div class="card">
-        <h2>แผนการให้อาหาร</h2>
-        <p class="muted" style="margin:0 0 10px;">เมื่อเปลี่ยนแผน (ชนิดอาหารที่ให้) ให้เพิ่มแผนใหม่ ระบบจะปิดแผนเดิมให้อัตโนมัติ และจะติ๊กอาหารตามแผนที่ใช้งานอยู่ให้อัตโนมัติในฟอร์ม "บันทึกวันนี้" ด้านล่าง (ยังแก้ไขรายวันเองได้เสมอ)</p>
-        <div id="food-plan-current"></div>
-        <div id="food-plan-history"></div>
-        <div class="form-grid" style="margin-top:12px;max-width:200px;">
-          <div>
-            <label class="field-label" for="fp-start">เริ่มใช้วันที่</label>
-            <input type="date" id="fp-start">
-          </div>
-        </div>
-        <div style="margin:10px 0;">
-          <label class="field-label">อาหารที่ให้ในช่วงนี้ (เลือกได้หลายรายการ)</label>
-          <div id="fp-foods" style="display:flex;flex-direction:column;gap:6px;"></div>
-        </div>
-        <div class="form-grid">
-          <div>
-            <label class="field-label" for="fp-note">หมายเหตุ</label>
-            <input type="text" id="fp-note" placeholder="ไม่บังคับ">
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-primary" id="fp-add" style="flex:1;">+ บันทึกแผนใหม่</button>
-          <button class="btn" id="fp-cancel-edit" style="display:none;">ยกเลิก</button>
-        </div>
-      </div>
-    </section>
-
+    <div class="subpane" data-group="care" data-sub="day">
     <section>
       <div class="card">
         <h2 id="care-log-form-title">+ บันทึกวันนี้</h2>
@@ -544,7 +454,8 @@
         </div>
       </div>
     </section>
-
+    </div>
+    <div class="subpane" data-group="care" data-sub="sym">
     <section>
       <div class="card">
         <h2 id="sym-form-title">🩺 บันทึกอาการ</h2>
@@ -593,7 +504,6 @@
         </div>
       </div>
     </section>
-
     <section>
       <div class="card">
         <div class="row-between" style="margin-bottom:10px;">
@@ -603,21 +513,112 @@
         <div id="sym-list"></div>
       </div>
     </section>
-
+    </div>
+    <div class="subpane" data-group="care" data-sub="fluid">
     <section>
       <div class="card">
-        <div class="row-between" style="margin-bottom:10px;">
-          <h2 style="margin:0;">ปฏิทินการดูแล</h2>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <button type="button" class="btn" id="care-cal-prev">‹</button>
-            <strong id="care-cal-label" style="font-size:13px;min-width:90px;text-align:center;"></strong>
-            <button type="button" class="btn" id="care-cal-next">›</button>
+        <h2>แผนการให้น้ำเกลือ</h2>
+        <p class="muted" style="margin:0 0 10px;">เมื่อเปลี่ยนแผน (ปริมาณ/ความถี่) ให้เพิ่มแผนใหม่ ระบบจะปิดแผนเดิมให้อัตโนมัติ เก็บประวัติการเปลี่ยนแผนไว้ทั้งหมด</p>
+        <div id="fluid-regimen-current"></div>
+        <div id="fluid-regimen-history"></div>
+        <div class="form-grid g3" style="margin-top:12px;">
+          <div>
+            <label class="field-label" for="fr-start">เริ่มใช้วันที่</label>
+            <input type="date" id="fr-start">
+          </div>
+          <div>
+            <label class="field-label" for="fr-amount">ปริมาณ (มล.)</label>
+            <input type="number" step="any" id="fr-amount" placeholder="เช่น 200">
+          </div>
+          <div>
+            <label class="field-label" for="fr-freq">ความถี่</label>
+            <select id="fr-freq">
+              <option value="daily">ทุกวัน</option>
+              <option value="eod">วันเว้นวัน</option>
+              <option value="custom">กำหนดเอง (ทุก N วัน)</option>
+            </select>
           </div>
         </div>
-        <p class="muted" style="margin:0 0 10px;">💧 น้ำเกลือ (มล.) · 💊 จำนวนยาที่ให้ · 🍽 จำนวนอาหารที่ให้ — กดวันที่เพื่อดู/แก้ไขบันทึกของวันนั้น</p>
-        <div id="care-calendar"></div>
+        <div class="form-grid" id="fr-custom-wrap" style="display:none;">
+          <div style="max-width:200px;">
+            <label class="field-label" for="fr-custom-days">ให้ทุกๆ กี่วัน</label>
+            <input type="number" min="2" id="fr-custom-days" placeholder="เช่น 3">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label class="field-label" for="fr-note">หมายเหตุ</label>
+            <input type="text" id="fr-note" placeholder="ไม่บังคับ">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="fr-add" style="flex:1;">+ บันทึกแผนใหม่</button>
+          <button class="btn" id="fr-cancel-edit" style="display:none;">ยกเลิก</button>
+        </div>
       </div>
     </section>
+    </div>
+    <div class="subpane" data-group="care" data-sub="med">
+    <section>
+      <div class="card">
+        <h2>คลังยา</h2>
+        <p class="muted" style="margin:0 0 10px;">เพิ่มยาที่ใช้ไว้ที่นี่ครั้งเดียว แล้วไปติ๊กเลือกในแบบฟอร์ม "บันทึกวันนี้" ด้านล่างว่าวันไหนให้ยาตัวไหนบ้าง</p>
+        <div id="med-catalog-list"></div>
+        <div class="form-grid g3" style="margin-top:8px;">
+          <div>
+            <label class="field-label" for="med-name">ชื่อยา</label>
+            <input type="text" id="med-name" placeholder="เช่น Cerenia">
+          </div>
+          <div>
+            <label class="field-label" for="med-type">ประเภท</label>
+            <select id="med-type">
+              <option value="continuous">ให้ต่อเนื่อง</option>
+              <option value="prn">ให้ตามอาการ</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="med-dosage">ขนาด/วิธีให้</label>
+            <input type="text" id="med-dosage" placeholder="ไม่บังคับ เช่น 1/2 เม็ด เช้า-เย็น">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="med-add" style="flex:1;">+ เพิ่มยา</button>
+          <button class="btn" id="med-cancel-edit" style="display:none;">ยกเลิก</button>
+        </div>
+      </div>
+    </section>
+    </div>
+    <div class="subpane" data-group="care" data-sub="food">
+    <section>
+      <div class="card">
+        <h2>แผนการให้อาหาร</h2>
+        <p class="muted" style="margin:0 0 10px;">เมื่อเปลี่ยนแผน (ชนิดอาหารที่ให้) ให้เพิ่มแผนใหม่ ระบบจะปิดแผนเดิมให้อัตโนมัติ และจะติ๊กอาหารตามแผนที่ใช้งานอยู่ให้อัตโนมัติในฟอร์ม "บันทึกวันนี้" ด้านล่าง (ยังแก้ไขรายวันเองได้เสมอ)</p>
+        <div id="food-plan-current"></div>
+        <div id="food-plan-history"></div>
+        <div class="form-grid" style="margin-top:12px;max-width:200px;">
+          <div>
+            <label class="field-label" for="fp-start">เริ่มใช้วันที่</label>
+            <input type="date" id="fp-start">
+          </div>
+        </div>
+        <div style="margin:10px 0;">
+          <label class="field-label">อาหารที่ให้ในช่วงนี้ (เลือกได้หลายรายการ)</label>
+          <div id="fp-foods" style="display:flex;flex-direction:column;gap:6px;"></div>
+          <button type="button" class="btn" id="fp-quick-add-food" style="margin-top:8px;padding:4px 12px;font-size:12.5px;">+ เพิ่มอาหารใหม่ในคลัง</button>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label class="field-label" for="fp-note">หมายเหตุ</label>
+            <input type="text" id="fp-note" placeholder="ไม่บังคับ">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="fp-add" style="flex:1;">+ บันทึกแผนใหม่</button>
+          <button class="btn" id="fp-cancel-edit" style="display:none;">ยกเลิก</button>
+        </div>
+      </div>
+    </section>
+    </div>
   </div>
 
   <div id="page-labs" class="page">
@@ -807,6 +808,14 @@
 
   <div id="page-labcatalog" class="page">
     <section>
+      <div class="subtab-nav" data-group="settings">
+        <button type="button" data-sub="lab">คลังค่าตรวจ</button>
+        <button type="button" data-sub="food">คลังอาหาร</button>
+        <button type="button" data-sub="symtypes">ชนิดอาการ</button>
+      </div>
+    </section>
+    <div class="subpane" data-group="settings" data-sub="lab">
+    <section>
       <div class="card">
         <h2>ตั้งค่า Master ค่าตรวจ</h2>
         <p class="muted" style="margin:0 0 10px;">จัดการรายการค่าตรวจทั้งหมดที่ใช้ในฟอร์ม "ผลตรวจเลือด" (เพิ่ม/แก้ไข/ลบ) แก้ที่นี่แล้วฟอร์มเพิ่ม/แก้ไขผลตรวจจะอัปเดตทันที — รหัสของแต่ละค่า (ในวงเล็บ) แก้ไขไม่ได้หลังสร้าง</p>
@@ -857,6 +866,34 @@
         <p class="muted" id="lc-new-status" style="margin-top:8px;"></p>
       </div>
     </section>
+    </div>
+    <div class="subpane" data-group="settings" data-sub="food">
+    <section>
+      <div class="card">
+        <h2>คลังอาหาร (ใช้ร่วมกันทุกตัว)</h2>
+        <p class="muted" style="margin:0 0 10px;">เพิ่มรายชื่ออาหาร/ยี่ห้อที่เคยให้ไว้ที่นี่ แล้วไปติ๊กเลือกได้หลายรายการในแบบฟอร์มด้านล่าง</p>
+        <div id="food-catalog-list"></div>
+        <div class="form-grid g2" style="margin-top:8px;">
+          <div>
+            <label class="field-label" for="food-name">ชื่ออาหาร/ยี่ห้อ</label>
+            <input type="text" id="food-name" placeholder="เช่น Royal Canin Renal">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="food-add" style="flex:1;">+ เพิ่มอาหาร</button>
+        </div>
+      </div>
+    </section>
+    </div>
+    <div class="subpane" data-group="settings" data-sub="symtypes">
+    <section>
+      <div class="card">
+        <h2>ชนิดอาการที่เพิ่มเอง</h2>
+        <p class="muted" style="margin:0 0 10px;">ชนิดอาการที่พิมพ์เพิ่มตอนบันทึกอาการ (ใช้ร่วมกันทุกตัว) ลบออกจากรายการเลือกได้ ประวัติอาการเดิมที่เคยบันทึกไว้ไม่หาย</p>
+        <div id="symtypes-list"></div>
+      </div>
+    </section>
+    </div>
   </div>
 </div>
 
@@ -1223,6 +1260,7 @@ function render() {
   renderCareTab();
   renderLabTab();
   renderLabCatalogTab();
+  renderSymptomTypesManager();
 }
 
 /* ---------------- Cats tab ---------------- */
@@ -1911,7 +1949,7 @@ function renderFoodPlanFoodChecks() {
       <input type="checkbox" class="fp-food-check" value="${f.id}" ${prevChecked.has(f.id) ? 'checked' : ''} style="width:auto;">
       ${f.name}
     </label>
-  `).join('') : '<p class="empty">ยังไม่มีอาหารในคลัง — เพิ่มได้จากด้านบน</p>';
+  `).join('') : '<p class="empty">ยังไม่มีอาหารในคลัง — เพิ่มได้ที่หน้า ตั้งค่า / คลังกลาง</p>';
 }
 function renderFoodPlanSection() {
   const curWrap = document.getElementById('food-plan-current');
@@ -2017,7 +2055,7 @@ function renderCareChecklists() {
         <input type="checkbox" class="care-food-check" value="${f.id}" ${prevChecked.has(f.id) ? 'checked' : ''} style="width:auto;">
         ${f.name}
       </label>
-    `).join('') : '<p class="empty">ยังไม่มีอาหารในคลัง — เพิ่มได้จากด้านบน</p>';
+    `).join('') : '<p class="empty">ยังไม่มีอาหารในคลัง — เพิ่มได้ที่หน้า ตั้งค่า / คลังกลาง</p>';
   }
   updateFoodPlanHint(document.getElementById('care-date') ? document.getElementById('care-date').value : null);
 }
@@ -2210,6 +2248,7 @@ function resetSymptomForm() {
 function startSymptomEdit(id) {
   const x = symptomLogs.find(l => l.id === id);
   if (!x) return;
+  showSubTab('care', 'sym');
   editingSymptomId = id;
   symptomSeverity = x.severity || null;
   symptomPendingPhotos = []; symptomRemovedPhotoIds = [];
@@ -2326,6 +2365,48 @@ document.getElementById('sym-save').addEventListener('click', async () => {
   render();
 });
 
+document.getElementById('fp-quick-add-food').addEventListener('click', async () => {
+  const name = (prompt('ชื่ออาหาร/ยี่ห้อที่ต้องการเพิ่มในคลังกลาง (ใช้ร่วมกันทุกตัว)') || '').trim();
+  if (!name) return;
+  if (foodCatalog.some(f => f.name === name)) { alert('มีอาหารนี้อยู่แล้ว'); return; }
+  const checked = Array.from(document.querySelectorAll('.fp-food-check:checked')).map(cb => cb.value);
+  const nf = { id: genId(), name };
+  foodCatalog.push(nf);
+  await saveFoodCatalog();
+  render();
+  document.querySelectorAll('.fp-food-check').forEach(cb => { cb.checked = checked.includes(cb.value) || cb.value === nf.id; });
+});
+
+/* ---------------- Sub-tabs (แท็บย่อยในหน้า) ---------------- */
+const SUBTAB_DEFAULTS = { care: 'day', settings: 'lab' };
+function showSubTab(group, key) {
+  document.querySelectorAll('.subpane[data-group="' + group + '"]').forEach(el => el.classList.toggle('active', el.dataset.sub === key));
+  document.querySelectorAll('.subtab-nav[data-group="' + group + '"] button').forEach(b => b.classList.toggle('active', b.dataset.sub === key));
+  try { localStorage.setItem('pet-subtab-' + group, key); } catch (e) {}
+}
+Object.keys(SUBTAB_DEFAULTS).forEach(group => {
+  let key = SUBTAB_DEFAULTS[group];
+  try { const saved = localStorage.getItem('pet-subtab-' + group); if (saved && document.querySelector('.subpane[data-group="' + group + '"][data-sub="' + saved + '"]')) key = saved; } catch (e) {}
+  showSubTab(group, key);
+  document.querySelectorAll('.subtab-nav[data-group="' + group + '"] button').forEach(b => b.addEventListener('click', () => showSubTab(group, b.dataset.sub)));
+});
+
+function renderSymptomTypesManager() {
+  const wrap = document.getElementById('symtypes-list');
+  if (!wrap) return;
+  wrap.innerHTML = symptomCustomTypes.length ? symptomCustomTypes.map((t, i) => `
+    <span class="chip chip-condition" style="display:inline-flex;align-items:center;gap:6px;">
+      ${symEsc(t)}
+      <button type="button" data-del-symtype="${i}" style="border:none;background:none;color:var(--rust);cursor:pointer;font-weight:700;">✕</button>
+    </span>`).join(' ') : '<p class="empty">ยังไม่มีชนิดอาการที่เพิ่มเอง</p>';
+  wrap.querySelectorAll('[data-del-symtype]').forEach(btn => btn.addEventListener('click', async () => {
+    const t = symptomCustomTypes[parseInt(btn.dataset.delSymtype, 10)];
+    if (!confirm('ลบชนิดอาการ "' + t + '" ออกจากรายการเลือก? (ประวัติอาการเดิมไม่หาย)')) return;
+    symptomCustomTypes.splice(parseInt(btn.dataset.delSymtype, 10), 1);
+    await saveSymptomTypes(); render();
+  }));
+}
+
 function renderCareCalendar() {
   const wrap = document.getElementById('care-calendar');
   const label = document.getElementById('care-cal-label');
@@ -2368,6 +2449,7 @@ function renderCareCalendar() {
   wrap.querySelectorAll('[data-caldate]').forEach(cell => cell.addEventListener('click', () => {
     const dateStr = cell.dataset.caldate;
     const log = logsByDate[dateStr];
+    showSubTab('care', 'day');
     if (log) { startCareLogEdit(log.id); }
     else {
       cancelCareLogEdit();
