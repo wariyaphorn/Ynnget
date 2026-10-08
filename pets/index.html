@@ -906,9 +906,13 @@
     <div class="subpane" data-group="settings" data-sub="symtypes">
     <section>
       <div class="card">
-        <h2>ชนิดอาการที่เพิ่มเอง</h2>
-        <p class="muted" style="margin:0 0 10px;">ชนิดอาการที่พิมพ์เพิ่มตอนบันทึกอาการ (ใช้ร่วมกันทุกตัว) ลบออกจากรายการเลือกได้ ประวัติอาการเดิมที่เคยบันทึกไว้ไม่หาย</p>
+        <h2>ชนิดอาการ</h2>
+        <p class="muted" style="margin:0 0 10px;">ชนิดอาการที่ใช้เลือกตอนบันทึกอาการ (ใช้ร่วมกันทุกตัว) ชนิดที่มากับแอพลบไม่ได้ ส่วนที่เพิ่มเองลบได้ ประวัติอาการเดิมไม่หาย</p>
         <div id="symtypes-list"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <input type="text" id="symtype-new" placeholder="พิมพ์ชนิดอาการใหม่ เช่น ไอ จาม" style="flex:1;">
+          <button class="btn btn-primary" id="symtype-add" type="button">+ เพิ่ม</button>
+        </div>
       </div>
     </section>
     </div>
@@ -2412,11 +2416,12 @@ Object.keys(SUBTAB_DEFAULTS).forEach(group => {
 function renderSymptomTypesManager() {
   const wrap = document.getElementById('symtypes-list');
   if (!wrap) return;
-  wrap.innerHTML = symptomCustomTypes.length ? symptomCustomTypes.map((t, i) => `
+  const presetHtml = '<div class="muted" style="margin:0 0 6px;font-weight:700;">ชนิดที่มากับแอพ</div><div style="margin-bottom:12px;">' + SYMPTOM_PRESETS.map(t => `<span class="chip">${symEsc(t)}</span>`).join(' ') + '</div><div class="muted" style="margin:0 0 6px;font-weight:700;">ที่เพิ่มเอง</div>';
+  wrap.innerHTML = presetHtml + (symptomCustomTypes.length ? symptomCustomTypes.map((t, i) => `
     <span class="chip chip-condition" style="display:inline-flex;align-items:center;gap:6px;">
       ${symEsc(t)}
       <button type="button" data-del-symtype="${i}" style="border:none;background:none;color:var(--rust);cursor:pointer;font-weight:700;">✕</button>
-    </span>`).join(' ') : '<p class="empty">ยังไม่มีชนิดอาการที่เพิ่มเอง</p>';
+    </span>`).join(' ') : '<p class="empty">ยังไม่มีชนิดอาการที่เพิ่มเอง</p>');
   wrap.querySelectorAll('[data-del-symtype]').forEach(btn => btn.addEventListener('click', async () => {
     const t = symptomCustomTypes[parseInt(btn.dataset.delSymtype, 10)];
     if (!confirm('ลบชนิดอาการ "' + t + '" ออกจากรายการเลือก? (ประวัติอาการเดิมไม่หาย)')) return;
@@ -2424,6 +2429,14 @@ function renderSymptomTypesManager() {
     await saveSymptomTypes(); render();
   }));
 }
+
+document.getElementById('symtype-add').addEventListener('click', async () => {
+  const inp = document.getElementById('symtype-new');
+  const t = inp.value.trim();
+  if (!t) return;
+  if (allSymptomTypes().includes(t)) { alert('มีชนิดอาการนี้อยู่แล้ว'); return; }
+  symptomCustomTypes.push(t); await saveSymptomTypes(); inp.value = ''; render();
+});
 
 function renderCareCalendar() {
   const wrap = document.getElementById('care-calendar');
