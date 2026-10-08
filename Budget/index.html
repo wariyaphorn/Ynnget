@@ -164,6 +164,11 @@
     padding: 8px 16px; font-size: 13px; font-family: 'Sarabun'; cursor: pointer;
     color: var(--text-secondary); white-space: nowrap; flex-shrink: 0;
   }
+  .subtab-nav { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 8px; margin-bottom: 4px; -webkit-overflow-scrolling: touch; }
+  .subtab-nav button { border: 1px solid var(--border); background: var(--card); border-radius: 18px; padding: 7px 14px; font-family: 'Sarabun'; font-size: 13px; cursor: pointer; color: var(--text-secondary); white-space: nowrap; flex: none; }
+  .subtab-nav button.active { background: var(--ink); color: #fff; border-color: var(--ink); font-weight: 600; }
+  .subpane { display: none; }
+  .subpane.active { display: block; }
   .page-tab.active { background: var(--ink); color: #fff; border-color: var(--ink); }
   @media (max-width: 520px) { .g2, .g3, .charts { grid-template-columns: 1fr; } h1 { font-size: 22px; } }
 </style>
@@ -226,6 +231,15 @@
       <div class="metric expense"><p class="label">คงเหลือ (ล็อกไว้)</p><p class="value" id="m-spending-locked">฿0</p></div>
       <div class="metric"><p class="label">คงเหลือ (ไม่ระบุสถานะ)</p><p class="value" id="m-spending-unspecified">฿0</p></div>
     </div>
+  </section>
+  <div class="subtab-nav" data-group="overview">
+    <button type="button" data-sub="summary">สรุป</button>
+    <button type="button" data-sub="budget">งบประมาณ</button>
+    <button type="button" data-sub="goal">เป้าหมาย</button>
+    <button type="button" data-sub="trend">เทรนด์</button>
+  </div>
+  <div class="subpane" data-group="overview" data-sub="summary">
+  <section>
     <div class="card" id="month-estimate-card">
       <div class="row-between" style="align-items:center;">
         <h2 style="margin:0;">ประมาณการรายจ่ายเดือนนี้ (ณ วันนี้)</h2>
@@ -295,26 +309,36 @@
 
   <section>
     <div class="card">
+      <h2>รายการใช้จ่ายสูงสุด 5 อันดับ (เดือนที่กำลังดูอยู่)</h2>
+      <div id="top-expenses-list"></div>
+    </div>
+  </section>
+  </div>
+  <div class="subpane" data-group="overview" data-sub="budget">
+<section>
+    <div class="card">
       <h2>งบประมาณเดือนนี้</h2>
       <div id="budget-progress"></div>
     </div>
   </section>
+</div>
 
-  <section>
+  <div class="subpane" data-group="overview" data-sub="goal">
+<section>
     <div class="card">
       <h2>คาดการณ์เป้าหมายเงินออม</h2>
       <div id="savings-projection-overview"></div>
     </div>
   </section>
+</div>
 
-  <section>
+  <div class="subpane" data-group="overview" data-sub="trend">
+<section>
     <div class="card">
       <h2>เทรนด์รายจ่ายรายหมวดหมู่</h2>
       <p class="muted" style="margin:0 0 10px;">ย้อนหลัง 6 เดือน นับจากเดือนที่กำลังดูอยู่ — ช่วยดูว่าหมวดไหนใช้เพิ่มขึ้นเรื่อยๆ</p>
       <div class="chart-box" style="height:260px;"><canvas id="chart-category-trend"></canvas></div>
       <div id="category-trend-table" style="margin-top:14px;"></div>
-      <h2 style="margin-top:24px;">รายการใช้จ่ายสูงสุด 5 อันดับ (เดือนที่กำลังดูอยู่)</h2>
-      <div id="top-expenses-list"></div>
     </div>
   </section>
 
@@ -324,6 +348,7 @@
       <div id="monthly-history"></div>
     </div>
   </section>
+</div>
   </div>
 
   <div id="page-cards" class="page">
@@ -489,7 +514,14 @@
   </div>
 
   <div id="page-settings" class="page">
-  <section>
+  <div class="subtab-nav" data-group="settings">
+    <button type="button" data-sub="members">สมาชิก/หมวดหมู่</button>
+    <button type="button" data-sub="budget">งบ</button>
+    <button type="button" data-sub="rules">กฎร้านค้า</button>
+    <button type="button" data-sub="backup">สำรอง/กู้คืน</button>
+  </div>
+  <div class="subpane" data-group="settings" data-sub="members">
+<section>
     <div class="card">
       <h2>สมาชิกในบ้าน (แก้ชื่อ / เพิ่ม / ลบ ได้)</h2>
       <div id="members-manager"></div>
@@ -516,8 +548,10 @@
       <p class="muted" style="margin-top:6px;">แก้ชื่อในช่องแล้วกดออกนอกช่อง (Tab/Enter) เพื่อบันทึก ลบได้ตราบใดที่ยังเหลืออย่างน้อย 1 หมวด</p>
     </div>
   </section>
+</div>
 
-  <section>
+  <div class="subpane" data-group="settings" data-sub="budget">
+<section>
     <div class="card">
       <h2>ตั้งงบประมาณรายหมวด</h2>
       <p class="muted" style="margin:0 0 10px;">ตั้งงบต่อเดือนของแต่ละหมวดหมู่ ใช้เทียบกับยอดใช้จริงในหน้า "ภาพรวม" การแก้ไขจะมีผลตั้งแต่เดือนที่เลือกเป็นต้นไป ไม่กระทบเดือนเก่าที่ผ่านไปแล้ว</p>
@@ -535,8 +569,10 @@
       </details>
     </div>
   </section>
+</div>
 
-  <section>
+  <div class="subpane" data-group="settings" data-sub="rules">
+<section>
     <div class="card">
       <h2>กฎจับคู่ร้านค้า (สำหรับนำเข้าบิลบัตรเครดิต)</h2>
       <div id="merchant-rules-manager"></div>
@@ -551,8 +587,10 @@
       <p class="muted" style="margin-top:6px;">สอนระบบไว้ล่วงหน้าว่าร้านไหนเป็นหมวด/คนไหน เช่น ตั้งคำว่า "BIGC" ให้เป็นหมวดของใช้เด็ก + ลูกฝาแฝด พอนำเข้าบิลที่มีชื่อร้าน BigC จะจับหมวดให้อัตโนมัติ (ยังแก้ทีละรายการได้ก่อนบันทึกจริงเสมอ)</p>
     </div>
   </section>
+</div>
 
-  <section>
+  <div class="subpane" data-group="settings" data-sub="backup">
+<section>
     <div class="card">
       <h2>สำรองข้อมูล</h2>
       <p class="muted">ดาวน์โหลดข้อมูลทั้งหมด (บัตร, รายจ่ายประจำ, เป้าหมาย, กระเป๋าเงิน, บัญชี, รายการ, สมาชิก, หมวดหมู่ ฯลฯ) เก็บไว้เป็นไฟล์ ถ้าเกิดปัญหาข้อมูลหายอีก จะได้นำกลับมาใส่คืนได้</p>
@@ -582,10 +620,17 @@
       <p class="muted" id="restore-history-status" style="margin-top:8px;"></p>
     </div>
   </section>
+</div>
   </div>
 
   <div id="page-wallets" class="page">
-  <section>
+  <div class="subtab-nav" data-group="wallets">
+    <button type="button" data-sub="summary">สรุป</button>
+    <button type="button" data-sub="wallets">กระเป๋า</button>
+    <button type="button" data-sub="accounts">บัญชี</button>
+  </div>
+  <div class="subpane" data-group="wallets" data-sub="summary">
+<section>
     <div class="card">
       <h2>สรุปยอดกระเป๋าเงินตามสถานะการดึงมาใช้</h2>
       <div id="wallet-status-summary"></div>
@@ -605,8 +650,10 @@
       <div id="wallet-invested-summary"></div>
     </div>
   </section>
+</div>
 
-  <section>
+  <div class="subpane" data-group="wallets" data-sub="wallets">
+<section>
     <div class="card">
       <h2>ตั้งค่าเริ่มต้น</h2>
       <p class="muted" style="margin:0 0 6px;">กระเป๋าเงินเริ่มต้น ใช้เป็นค่า default ตอนเลือกช่องทางหัก/ชำระ ในหลายจุดของระบบ (บันทึกยอดเป้าหมาย, ชำระบัตรเครดิต, จ่ายรายจ่ายประจำ) ยังแก้เป็นอย่างอื่นได้ทุกครั้ง</p>
@@ -652,8 +699,10 @@
       <p class="muted" style="margin-top:6px;">เลือกกระเป๋านี้จากลิสต์ได้ทุกที่ในระบบ (บันทึกรายการ, เป้าหมาย, ชำระบัตร ฯลฯ) แทนการพิมพ์ชื่อเอง ป้องกันสะกดไม่ตรงกัน</p>
     </div>
   </section>
+</div>
 
-  <section>
+  <div class="subpane" data-group="wallets" data-sub="accounts">
+<section>
     <div class="card">
       <h2>บัญชี (แก้ไข / เพิ่ม / ลบ ได้)</h2>
       <div id="mainaccounts-manager"></div>
@@ -669,6 +718,7 @@
       <p class="muted" style="margin-top:6px;">บัญชีธนาคารจริงที่กระเป๋าเงิน/เป้าหมายอ้างอิงถึง เลือกจากลิสต์แทนการพิมพ์เอง ป้องกันสะกดไม่ตรงกัน</p>
     </div>
   </section>
+</div>
   </div>
 
   <div id="page-entries" class="page">
@@ -4531,6 +4581,21 @@ document.querySelectorAll('.page-tab').forEach(btn => {
     document.getElementById('page-' + btn.dataset.page).classList.add('active');
     window.scrollTo({ top: 0, behavior: 'instant' });
   });
+});
+
+// ---- แท็บย่อยในหน้า (จำแท็บล่าสุดในแต่ละเครื่อง) ----
+const SUBTAB_DEFAULTS = { overview: 'summary', settings: 'members', wallets: 'summary' };
+function showSubTab(group, key) {
+  document.querySelectorAll('.subpane[data-group="' + group + '"]').forEach(el => el.classList.toggle('active', el.dataset.sub === key));
+  document.querySelectorAll('.subtab-nav[data-group="' + group + '"] button').forEach(b => b.classList.toggle('active', b.dataset.sub === key));
+  try { localStorage.setItem('budget-subtab-' + group, key); } catch (e) {}
+  try { window.dispatchEvent(new Event('resize')); } catch (e) {}
+}
+Object.keys(SUBTAB_DEFAULTS).forEach(group => {
+  let key = SUBTAB_DEFAULTS[group];
+  try { const saved = localStorage.getItem('budget-subtab-' + group); if (saved && document.querySelector('.subpane[data-group="' + group + '"][data-sub="' + saved + '"]')) key = saved; } catch (e) {}
+  showSubTab(group, key);
+  document.querySelectorAll('.subtab-nav[data-group="' + group + '"] button').forEach(b => b.addEventListener('click', () => showSubTab(group, b.dataset.sub)));
 });
 
 let billImportResults = [];
