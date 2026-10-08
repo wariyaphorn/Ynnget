@@ -628,20 +628,16 @@
         <div class="child-tabs" id="lab-cat-tabs"></div>
       </div>
     </section>
-
     <section>
-      <div class="card">
-        <h2>ประวัติการตรวจ</h2>
-        <p class="muted" style="margin:0 0 10px;">รวมประวัติตรวจเลือดและผลตรวจภาพ/หัตถการทั้งหมด เรียงตามวันที่ล่าสุด</p>
-        <div id="history-combined-list"></div>
-
-        <h2 style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px;">แนวโน้มค่าแล็บ</h2>
-        <p class="muted" style="margin:0 0 10px;">เลือกค่าที่ต้องการดูแนวโน้มของแมวตัวที่เลือกไว้ด้านบน (ต้องมีข้อมูลอย่างน้อย 2 ครั้ง)</p>
-        <select id="lab-trend-select" style="max-width:320px;margin-bottom:12px;"></select>
-        <div id="lab-trend-chart"></div>
+      <div class="subtab-nav" data-group="labs">
+        <button type="button" data-sub="summary">สรุปผล</button>
+        <button type="button" data-sub="trend">แนวโน้ม</button>
+        <button type="button" data-sub="history">ประวัติ</button>
+        <button type="button" data-sub="labadd">เพิ่มผลเลือด</button>
+        <button type="button" data-sub="usadd">เพิ่มผลหัตถการ</button>
       </div>
     </section>
-
+    <div class="subpane" data-group="labs" data-sub="summary">
     <section>
       <div class="card">
         <h2>ตารางสรุปผลตรวจ</h2>
@@ -649,7 +645,27 @@
         <div id="lab-summary-table-wrap"></div>
       </div>
     </section>
-
+    </div>
+    <div class="subpane" data-group="labs" data-sub="trend">
+    <section>
+      <div class="card">
+        <h2>แนวโน้มค่าแล็บ</h2>
+        <p class="muted" style="margin:0 0 10px;">เลือกค่าที่ต้องการดูแนวโน้มของแมวตัวที่เลือกไว้ด้านบน (ต้องมีข้อมูลอย่างน้อย 2 ครั้ง)</p>
+        <select id="lab-trend-select" style="max-width:320px;margin-bottom:12px;"></select>
+        <div id="lab-trend-chart"></div>
+      </div>
+    </section>
+    </div>
+    <div class="subpane" data-group="labs" data-sub="history">
+    <section>
+      <div class="card">
+        <h2>ประวัติการตรวจ</h2>
+        <p class="muted" style="margin:0 0 10px;">รวมประวัติตรวจเลือดและผลตรวจภาพ/หัตถการทั้งหมด เรียงตามวันที่ล่าสุด</p>
+        <div id="history-combined-list"></div>
+      </div>
+    </section>
+    </div>
+    <div class="subpane" data-group="labs" data-sub="labadd">
     <section>
       <div class="card">
         <h2 id="lab-form-title">+ เพิ่มผลตรวจเลือด</h2>
@@ -720,7 +736,8 @@
         </div>
       </div>
     </section>
-
+    </div>
+    <div class="subpane" data-group="labs" data-sub="usadd">
     <section>
       <div class="card">
         <h2 id="us-form-title">+ บันทึกผลตรวจภาพ/หัตถการ</h2>
@@ -804,6 +821,7 @@
         </div>
       </div>
     </section>
+    </div>
   </div>
 
   <div id="page-labcatalog" class="page">
@@ -2378,7 +2396,7 @@ document.getElementById('fp-quick-add-food').addEventListener('click', async () 
 });
 
 /* ---------------- Sub-tabs (แท็บย่อยในหน้า) ---------------- */
-const SUBTAB_DEFAULTS = { care: 'day', settings: 'lab' };
+const SUBTAB_DEFAULTS = { care: 'day', settings: 'lab', labs: 'summary' };
 function showSubTab(group, key) {
   document.querySelectorAll('.subpane[data-group="' + group + '"]').forEach(el => el.classList.toggle('active', el.dataset.sub === key));
   document.querySelectorAll('.subtab-nav[data-group="' + group + '"] button').forEach(b => b.classList.toggle('active', b.dataset.sub === key));
@@ -3203,6 +3221,7 @@ function startLabEdit(id) {
   document.getElementById('lab-form-title').textContent = '✏️ แก้ไขผลตรวจเลือด';
   document.getElementById('lab-save').textContent = '💾 บันทึกการแก้ไข';
   document.getElementById('lab-cancel-edit').style.display = 'inline-block';
+  showSubTab('labs', 'labadd');
   document.getElementById('lab-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function cancelLabEdit() {
@@ -3299,6 +3318,8 @@ document.getElementById('lab-save').addEventListener('click', async () => {
 
   cancelLabEdit();
   render();
+  showSubTab('labs', 'summary');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
 /* ---------------- รวมข้อมูล "สัญญาณชีพ" จากทั้งผลตรวจเลือดและผลตรวจภาพ/หัตถการ ---------------- */
@@ -3523,6 +3544,7 @@ function startUltrasoundEdit(id) {
   document.getElementById('us-form-title').textContent = '✏️ แก้ไขผลตรวจ';
   document.getElementById('us-save').textContent = '💾 บันทึกการแก้ไข';
   document.getElementById('us-cancel-edit').style.display = 'inline-block';
+  showSubTab('labs', 'usadd');
   document.getElementById('us-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function cancelUltrasoundEdit() {
@@ -3627,6 +3649,8 @@ document.getElementById('us-save').addEventListener('click', async () => {
 
   cancelUltrasoundEdit();
   renderUltrasoundList();
+  showSubTab('labs', 'history');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
 function renderLabTrendSelect() {
