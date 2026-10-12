@@ -642,6 +642,10 @@
       <div class="card">
         <h2>ตารางสรุปผลตรวจ</h2>
         <p class="muted" style="margin:0 0 10px;">ไล่ดูทุกค่าที่เคยตรวจของแมวตัวที่เลือกไว้ เทียบกันแต่ละครั้ง (เรียงคอลัมน์ใหม่ไปเก่า)</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px;">
+          <button type="button" class="btn" id="lab-export-csv">⬇ Export CSV</button>
+          <button type="button" class="btn" id="lab-export-print">🖨 พิมพ์ / บันทึก PDF</button>
+        </div>
         <div id="lab-summary-table-wrap"></div>
       </div>
     </section>
@@ -837,6 +841,7 @@
       <div class="card">
         <h2>ตั้งค่า Master ค่าตรวจ</h2>
         <p class="muted" style="margin:0 0 10px;">จัดการรายการค่าตรวจทั้งหมดที่ใช้ในฟอร์ม "ผลตรวจเลือด" (เพิ่ม/แก้ไข/ลบ) แก้ที่นี่แล้วฟอร์มเพิ่ม/แก้ไขผลตรวจจะอัปเดตทันที — รหัสของแต่ละค่า (ในวงเล็บ) แก้ไขไม่ได้หลังสร้าง</p>
+        <div style="margin:0 0 10px;"><button type="button" class="btn" id="labcatalog-export-csv">⬇ Export รายการค่าตรวจ (CSV)</button></div>
         <div id="labcatalog-list"></div>
       </div>
     </section>
@@ -3405,6 +3410,114 @@ function renderLabSummaryTable() {
     <tbody>${bodyHtml}</tbody>
   </table></div>`;
 }
+
+document.getElementById('labcatalog-export-csv').addEventListener('click', () => {
+  if (!labCatalog.length) { alert('ยังไม่มีรายการค่าตรวจ'); return; }
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const order = ['vitals', 'chem', 'cbc', 'urine', 'other'];
+  const rows = labCatalog.slice().sort((a, b) => {
+    const ga = order.indexOf(a.group || 'other'), gb = order.indexOf(b.group || 'other');
+    return (ga - gb) || String(a.label || '').localeCompare(String(b.label || ''));
+  });
+  const lines = [['กลุ่ม', 'ชื่อที่แสดง', 'รหัส (key)', 'หน่วย', 'ประเภทค่า', 'ต่ำสุด', 'สูงสุด', 'ชื่ออื่นที่จับคู่ (aliases)'].map(q).join(',')];
+  rows.forEach(e => lines.push([
+    LAB_GROUP_LABELS[e.group || 'other'] || e.group || '', e.label || '', e.key || '', e.unit || '',
+    e.valueType === 'text' ? 'ข้อความ' : 'ตัวเลข', e.low != null ? e.low : '', e.high != null ? e.high : '',
+    (e.aliases || []).join(' | ')
+  ].map(q).join(',')));
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'รายการค่าตรวจ-' + toISO(new Date()) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+});
+
+/* ---------------- Export ตารางสรุปผลตรวจ (CSV / พิมพ์ PDF) ---------------- */
+function labSummaryModel() {
+  const tests = combinedVitalsTests(selectedLabCat).sort((a, b) => (a.date || '').localeCompare(b.date || '')).reverse();
+  const usedKeys = new Set();
+  tests.forEach(t => Object.keys(t.values || {}).forEach(k => { const v = t.values[k]; if (v != null && v !== '') usedKeys.add(k); }));
+  const order = ['vitals', 'chem', 'cbc', 'urine', 'other'];
+  const byGroup = {};
+  labCatalog.forEach(e => { if (!usedKeys.has(e.key)) return; const g = e.group || 'other'; (byGroup[g] = byGroup[g] || []).push(e); });
+  const groups = order.filter(g => byGroup[g] && byGroup[g].length).map(g => ({
+    title: LAB_GROUP_LABELS[g] || g,
+    rows: byGroup[g].map(e => ({
+      label: e.label + (e.unit ? ' (' + e.unit + ')' : ''),
+      range: e.valueType === 'text' ? '' : (e.low != null && e.high != null) ? e.low + '–' + e.high : (e.low != null) ? '≥' + e.low : (e.high != null) ? '≤' + e.high : '',
+      cells: tests.map(t => {
+        const v = (t.values || {})[e.key];
+        if (v == null || v === '') return { text: '', status: 'normal' };
+        return { text: String(v), status: labValueStatus(e, v) };
+      })
+    }))
+  }));
+  const cat = catById(selectedLabCat);
+  return { tests, groups, catName: (cat && cat.name) || '' };
+}
+function labExportEsc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+document.getElementById('lab-export-csv').addEventListener('click', () => {
+  const m = labSummaryModel();
+  if (!m.tests.length || !m.groups.length) { alert('ยังไม่มีผลตรวจให้ Export'); return; }
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const lines = [[q('กลุ่ม'), q('ค่า'), q('ช่วงอ้างอิง')].concat(m.tests.map(t => q(t.date || ''))).join(',')];
+  m.groups.forEach(g => g.rows.forEach(r => {
+    lines.push([q(g.title), q(r.label), q(r.range)].concat(r.cells.map(c => q(c.text))).join(','));
+  }));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ผลตรวจ-' + (m.catName || 'แมว') + '-' + toISO(new Date()) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+});
+
+document.getElementById('lab-export-print').addEventListener('click', () => {
+  const m = labSummaryModel();
+  if (!m.tests.length || !m.groups.length) { alert('ยังไม่มีผลตรวจให้พิมพ์'); return; }
+  const head = m.tests.map(t => `<th>${labExportEsc(fmtDateStr(t.date))}</th>`).join('');
+  let body = '';
+  m.groups.forEach(g => {
+    body += `<tr><td class="grp" colspan="${m.tests.length + 2}">${labExportEsc(g.title)}</td></tr>`;
+    g.rows.forEach(r => {
+      body += `<tr><td class="lbl">${labExportEsc(r.label)}</td><td class="rng">${labExportEsc(r.range)}</td>` +
+        r.cells.map(c => `<td class="v ${c.status}">${c.text ? labExportEsc(c.text) : '–'}</td>`).join('') + '</tr>';
+    });
+  });
+  const html = `<!doctype html><html lang="th"><head><meta charset="utf-8"><title>ผลตรวจ ${labExportEsc(m.catName)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet">
+<style>
+@page { size: A4 landscape; margin: 12mm; }
+body { font-family: 'Sarabun', sans-serif; color: #2b2b2b; font-size: 11px; margin: 0; }
+h1 { font-size: 16px; margin: 0 0 2px; } .sub { color: #777; margin: 0 0 10px; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid #ddd; padding: 3px 6px; }
+th { background: #f3efe6; text-align: center; white-space: nowrap; } th:first-child, th:nth-child(2) { text-align: left; }
+.grp { background: #f3efe6; font-weight: 600; }
+.lbl { white-space: nowrap; } .rng { color: #888; white-space: nowrap; }
+.v { text-align: center; font-weight: 600; } .v.high { color: #C0392B; } .v.low { color: #2B6CB0; }
+tr { page-break-inside: avoid; }
+.note { margin-top: 8px; color: #888; font-size: 10px; }
+</style></head><body>
+<h1>ผลตรวจสุขภาพ — ${labExportEsc(m.catName)}</h1>
+<p class="sub">ออกรายงานเมื่อ ${labExportEsc(fmtDateStr(toISO(new Date())))} · ค่าสีแดง = สูงกว่าช่วงอ้างอิง, สีน้ำเงิน = ต่ำกว่า</p>
+<table><thead><tr><th>ค่า</th><th>ช่วงอ้างอิง</th>${head}</tr></thead><tbody>${body}</tbody></table>
+<p class="note">ช่วงอ้างอิงเป็นค่าที่ตั้งไว้ในแอพ ใช้ประกอบเท่านั้น การแปลผลโดยสัตวแพทย์</p>
+</body></html>`;
+  const old = document.getElementById('lab-print-frame');
+  if (old) old.remove();
+  const fr = document.createElement('iframe');
+  fr.id = 'lab-print-frame';
+  fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  document.body.appendChild(fr);
+  fr.srcdoc = html;
+  fr.onload = () => {
+    const go = () => { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (e) { alert('เปิดหน้าพิมพ์ไม่ได้ ลองใช้ปุ่ม Export CSV แทน'); } };
+    if (fr.contentDocument && fr.contentDocument.fonts && fr.contentDocument.fonts.ready) fr.contentDocument.fonts.ready.then(() => setTimeout(go, 150)); else setTimeout(go, 500);
+  };
+});
 
 /* ---------------- Ultrasound records (PDF + note, แนบได้หลายไฟล์) ---------------- */
 function ultrasoundFileKey(id) { return 'pet-ultrasound-file-' + id; }
