@@ -2543,7 +2543,13 @@ function parseAndCheckAliases(raw, entry) {
 }
 function findLabCatalogEntry(rawKey) {
   const n = normKey(rawKey);
-  return labCatalog.find(e => normKey(e.key) === n || (e.aliases || []).some(a => normKey(a) === n));
+  const found = labCatalog.find(e => normKey(e.key) === n || (e.aliases || []).some(a => normKey(a) === n));
+  // ถ้าชื่อที่วางมีเครื่องหมาย % (เช่น %RETIC, NEU%) ให้ไปที่ค่าแบบ % ของค่านั้นก่อน ไม่ใช่ตัวจำนวนเม็ด
+  if (found && /%/.test(String(rawKey || '')) && !/_PCT$/.test(found.key)) {
+    const pct = labCatalog.find(e => e.key === found.key + '_PCT');
+    if (pct) return pct;
+  }
+  return found;
 }
 
 function renderLabValuesGrid(prefill) {
