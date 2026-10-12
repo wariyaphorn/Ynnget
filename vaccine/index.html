@@ -155,6 +155,10 @@
   .banner { background: #FDEEDC; border: 1px solid #F7D9AE; border-radius: 14px; padding: 12px 16px; margin-bottom: 1.25rem; font-size: 13px; color: #7A4E12; }
   .banner a { color: var(--ink); font-weight: 600; }
   .banner-due { background: #FDEEDC; border: 1px solid #F7D9AE; border-radius: 14px; padding: 12px 16px; margin-bottom: 1.25rem; font-size: 13px; color: #7A4E12; }
+  .due-summary-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #FDEEDC; border: 1px solid #F7D9AE; border-radius: 12px; padding: 8px 14px; margin-bottom: 1rem; font-size: 13px; cursor: pointer; }
+  .due-summary-bar .overdue-n { color: #C0402A; font-weight: 700; }
+  .due-summary-bar .go { color: var(--text-secondary); white-space: nowrap; }
+  .page-tab .tab-count { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: #E8604C; color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
   .banner-due .due-row { padding: 3px 0; }
   .banner-due .due-row.overdue { color: #C0402A; font-weight: 600; }
   .banner-due .due-group { margin-top: 10px; }
@@ -209,6 +213,7 @@
   <nav class="page-tabs">
     <button class="page-tab active" data-page="vaccine">วัคซีนเด็ก</button>
     <button class="page-tab" data-page="adult-vaccine">วัคซีนผู้ใหญ่</button>
+    <button class="page-tab" data-page="alerts" id="alerts-tab">แจ้งเตือน</button>
     <button class="page-tab" data-page="dentist">ทันตกรรม</button>
     <button class="page-tab" data-page="checkup">นัดหมอ</button>
     <button class="page-tab" data-page="growth">การเจริญเติบโต</button>
@@ -217,11 +222,7 @@
   </nav>
 
   <div id="setup-banner"></div>
-  <div id="due-threshold-wrap" style="margin-bottom:8px;font-size:13px;color:var(--text-secondary);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-    <label for="due-threshold-date">ดูแจ้งเตือนถึงวันที่:</label>
-    <input type="date" id="due-threshold-date" style="width:auto;padding:6px 8px;">
-  </div>
-  <div id="due-banner"></div>
+  <div id="due-summary" style="display:none;"></div>
 
   <div id="page-vaccine" class="page active">
     <section>
@@ -238,6 +239,20 @@
         <h2>เพิ่มวัคซีนรายการใหม่</h2>
         <p class="muted" style="margin:0 0 10px;">เพิ่มวัคซีนใหม่พร้อมตั้งจำนวนเข็มและกำหนดการเองได้ทั้งหมด</p>
         <button class="btn btn-primary" id="vc-add-open">+ เพิ่มวัคซีนใหม่</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="page-alerts" class="page">
+    <section>
+      <div class="card">
+        <h2>แจ้งเตือนกำหนดและนัดหมาย</h2>
+        <p class="muted" style="margin:0 0 10px;">วัคซีนที่ใกล้ถึง/เลยกำหนด นัดหมอ และนัดทันตกรรม ของทุกคนในบ้าน เรียงตามวัน</p>
+        <div id="due-threshold-wrap" style="margin-bottom:8px;font-size:13px;color:var(--text-secondary);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <label for="due-threshold-date">ดูแจ้งเตือนถึงวันที่:</label>
+    <input type="date" id="due-threshold-date" style="width:auto;padding:6px 8px;">
+        </div>
+        <div id="due-banner"></div>
       </div>
     </section>
   </div>
@@ -1870,6 +1885,19 @@ function initDueThresholdControl() {
   });
 }
 
+function updateDueSummary(items) {
+  const bar = document.getElementById('due-summary');
+  const tab = document.getElementById('alerts-tab');
+  const total = items.length;
+  const overdue = items.filter(it => it.status === 'overdue').length;
+  if (tab) tab.innerHTML = 'แจ้งเตือน' + (total ? '<span class="tab-count">' + total + '</span>' : '');
+  if (!bar) return;
+  if (!total) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  bar.style.display = 'block';
+  bar.innerHTML = '<div class="due-summary-bar" id="due-summary-go"><span>📅 กำหนดใกล้ถึง <strong>' + total + '</strong> รายการ' + (overdue ? ' · <span class="overdue-n">เลยกำหนด ' + overdue + '</span>' : '') + '</span><span class="go">ดูทั้งหมด ›</span></div>';
+  document.getElementById('due-summary-go').addEventListener('click', () => { if (tab) tab.click(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+}
+
 function renderDueBanner() {
   const wrap = document.getElementById('due-banner');
   if (!wrap) return;
@@ -1897,7 +1925,8 @@ function renderDueBanner() {
     }
   });
   items.sort((a, b) => a.date.localeCompare(b.date));
-  if (!items.length) { wrap.innerHTML = ''; return; }
+  updateDueSummary(items);
+  if (!items.length) { wrap.innerHTML = '<p class="empty">ไม่มีกำหนดหรือนัดหมายที่ใกล้ถึง ภายในวันที่เลือก</p>'; return; }
   const statusLabel = {
     overdue: 'เลยกำหนดแล้ว (คาดการณ์)',
     predicted: 'ใกล้ถึงกำหนด (คาดการณ์)',
