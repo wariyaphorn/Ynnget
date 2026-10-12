@@ -885,6 +885,10 @@
             <input type="number" step="any" id="lc-new-high" placeholder="ไม่บังคับ">
           </div>
         </div>
+        <div style="margin-bottom:10px;">
+          <label class="field-label" for="lc-new-alias">ชื่ออื่นที่จับคู่ (ไม่บังคับ คั่นด้วย ,)</label>
+          <input type="text" id="lc-new-alias" placeholder="เช่น USG, T4 ตัวย่อที่แล็บใช้เขียน">
+        </div>
         <button class="btn btn-primary" id="lc-new-add">+ เพิ่มค่านี้</button>
         <p class="muted" id="lc-new-status" style="margin-top:8px;"></p>
       </div>
@@ -1160,6 +1164,20 @@ async function load() {
       e.valueType = LAB_VALUETYPE_UPDATES[e.key];
       labCatalogMigrated = true;
     }
+  });
+  // เติมชื่ออื่น (ตัวย่อที่แล็บใช้) ให้ค่าปัสสาวะ จะได้จับคู่ตอนวางผลแบบข้อความ — ทำครั้งเดียวต่อค่า (ลบทิ้งทีหลังได้ ไม่ถูกเติมซ้ำ)
+  const URINE_ALIAS_SEED = { SG: ['USG'], GLUCOSE: ['U-GLU'], BILIRUBIN: ['BIL', 'U-BIL'], BLOOD: ['BLD'], KETONE: ['KET'], PROTEIN: ['PRO'], LEUKOCYTE: ['LEU'], UROBILINOGEN: ['UBG'], PH: ['URINEPH'], MICROSCOPIC: ['MICRO'] };
+  labCatalog.forEach(e => {
+    const add = URINE_ALIAS_SEED[e.key];
+    if (!add || e._aliasMig || (e.group || 'other') !== 'urine') return;
+    e.aliases = e.aliases || [];
+    add.forEach(a => {
+      const n = normKey(a);
+      const taken = labCatalog.some(o => o !== e && (normKey(o.key) === n || (o.aliases || []).some(x => normKey(x) === n)));
+      if (!taken && !e.aliases.some(x => normKey(x) === n)) e.aliases.push(a);
+    });
+    e._aliasMig = 1;
+    labCatalogMigrated = true;
   });
   // เปลี่ยนชื่อ RDW เดิม ให้ตรงกับชื่อใหม่ที่แยกชัดว่าเป็น RDW-CV (แยกจาก RDW-SD ที่เพิ่มเข้ามาใหม่)
   const LAB_LABEL_UPDATES = { RDW: 'RDW-CV' };
@@ -2509,6 +2527,20 @@ document.getElementById('care-cal-next').addEventListener('click', () => {
 
 /* ---------------- Lab tab ---------------- */
 function normKey(s) { return (s || '').toString().trim().toUpperCase().replace(/[^A-Z0-9/]/g, ''); }
+// แยกชื่ออื่น (คั่นด้วย , หรือ |) ตรวจว่าชื่อที่เพิ่มใหม่ไม่ชนกับรหัส/ชื่ออื่นของค่าอื่น
+function parseAndCheckAliases(raw, entry) {
+  const parts = String(raw || '').split(/[,|]/).map(x => x.trim()).filter(Boolean);
+  const seen = new Set(), list = [];
+  parts.forEach(a => { const n = normKey(a); if (n && !seen.has(n) && (!entry || n !== normKey(entry.key))) { seen.add(n); list.push(a); } });
+  const oldNorm = new Set(((entry && entry.aliases) || []).map(normKey));
+  for (const a of list) {
+    const n = normKey(a);
+    if (oldNorm.has(n)) continue; // ชื่อที่มีอยู่เดิมไม่ตรวจซ้ำ
+    const other = labCatalog.find(e => e !== entry && (normKey(e.key) === n || (e.aliases || []).some(x => normKey(x) === n)));
+    if (other) return { error: 'ชื่อ "' + a + '" ซ้ำกับค่า "' + other.label + '" (' + other.key + ') ที่มีอยู่แล้ว ใช้ชื่ออื่นแทนนะ' };
+  }
+  return { aliases: list };
+}
 function findLabCatalogEntry(rawKey) {
   const n = normKey(rawKey);
   return labCatalog.find(e => normKey(e.key) === n || (e.aliases || []).some(a => normKey(a) === n));
@@ -2639,6 +2671,7 @@ function renderLabCatalogTab() {
         <div>
           <input type="text" class="lc-edit-label" value="${(e.label || '').toString().replace(/"/g, '&quot;')}" style="width:100%;margin-bottom:4px;">
           <span class="muted" style="font-size:11px;">(${e.key})</span>
+          <input type="text" class="lc-edit-alias" value="${(e.aliases || []).join(', ').replace(/"/g, '&quot;')}" placeholder="ชื่ออื่นที่จับคู่ (คั่นด้วย ,) เช่น USG, T4" style="width:100%;margin-top:4px;font-size:12px;">
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;">
           <input type="text" class="lc-edit-unit" value="${(e.unit || '').toString().replace(/"/g, '&quot;')}" placeholder="หน่วย">
@@ -2669,6 +2702,9 @@ function renderLabCatalogTab() {
     if (!entry) return;
     const row = wrap.querySelector(`[data-lcrow="${CSS.escape(key)}"]`);
     if (!row) return;
+    const aliasRes = parseAndCheckAliases(row.querySelector('.lc-edit-alias').value, entry);
+    if (aliasRes.error) { alert(aliasRes.error); return; }
+    entry.aliases = aliasRes.aliases;
     const newLabel = row.querySelector('.lc-edit-label').value.trim();
     entry.label = newLabel || entry.label;
     entry.unit = row.querySelector('.lc-edit-unit').value.trim();
@@ -2744,6 +2780,10 @@ document.getElementById('lc-new-add').addEventListener('click', async () => {
   const key = normKey(label);
   if (!key) { statusEl.textContent = 'ชื่อค่านี้ใช้ตั้งรหัสไม่ได้ ลองใช้ชื่ออื่น'; return; }
   if (labCatalog.some(e => normKey(e.key) === key)) { statusEl.textContent = 'มีค่านี้อยู่แล้ว (รหัสซ้ำ)'; return; }
+  const aliasOwner = labCatalog.find(e => (e.aliases || []).some(a => normKey(a) === key));
+  if (aliasOwner) { statusEl.textContent = 'ชื่อนี้ซ้ำกับชื่ออื่นของ "' + aliasOwner.label + '" ลองเติมคำบอกประเภท เช่น "(ปัสสาวะ)"'; return; }
+  const aliasRes = parseAndCheckAliases(document.getElementById('lc-new-alias').value, { key, aliases: [] });
+  if (aliasRes.error) { statusEl.textContent = aliasRes.error; return; }
   const isText = document.getElementById('lc-new-type').value === 'text';
   const low = document.getElementById('lc-new-low').value;
   const high = document.getElementById('lc-new-high').value;
@@ -2752,7 +2792,7 @@ document.getElementById('lc-new-add').addEventListener('click', async () => {
     label,
     unit: document.getElementById('lc-new-unit').value.trim(),
     group: document.getElementById('lc-new-group').value,
-    aliases: []
+    aliases: aliasRes.aliases
   };
   if (isText) {
     entry.valueType = 'text';
@@ -2765,6 +2805,7 @@ document.getElementById('lc-new-add').addEventListener('click', async () => {
   labCatalog.push(entry);
   document.getElementById('lc-new-label').value = '';
   document.getElementById('lc-new-unit').value = '';
+  document.getElementById('lc-new-alias').value = '';
   document.getElementById('lc-new-low').value = '';
   document.getElementById('lc-new-high').value = '';
   document.getElementById('lc-new-group').value = 'other';
