@@ -406,6 +406,7 @@
         <button type="button" data-sub="fluid">น้ำเกลือ</button>
         <button type="button" data-sub="med">ยา</button>
         <button type="button" data-sub="food">อาหาร</button>
+        <button type="button" data-sub="admit">แอดมิด</button>
       </div>
     </section>
     <div class="subpane" data-group="care" data-sub="day">
@@ -615,6 +616,67 @@
         <div style="display:flex;gap:8px;">
           <button class="btn btn-primary" id="fp-add" style="flex:1;">+ บันทึกแผนใหม่</button>
           <button class="btn" id="fp-cancel-edit" style="display:none;">ยกเลิก</button>
+        </div>
+      </div>
+    </section>
+    </div>
+    <div class="subpane" data-group="care" data-sub="admit">
+    <section>
+      <div class="card">
+        <h2>ประวัติการแอดมิด</h2>
+        <p class="muted" style="margin:0 0 10px;">บันทึกครั้งเดียวต่อรอบ ปฏิทินด้านบนจะขึ้น 🏥 ให้ทุกวันในช่วงที่แอดมิดเอง (ใช้ได้ทั้งไปเช้าเย็นกลับและนอนค้าง)</p>
+        <div id="admit-list"></div>
+      </div>
+    </section>
+    <section>
+      <div class="card">
+        <h2 id="admit-form-title">+ บันทึกการแอดมิด</h2>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="admit-start">วันเริ่มแอดมิด</label>
+            <input type="date" id="admit-start">
+          </div>
+          <div>
+            <label class="field-label" for="admit-end">วันสุดท้าย / วันกลับบ้าน</label>
+            <input type="date" id="admit-end">
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:4px 0 10px;"><input type="checkbox" id="admit-ongoing" style="width:auto;"> ยังอยู่ระหว่างรักษา (ยังไม่จบรอบ)</label>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="admit-type">รูปแบบ</label>
+            <select id="admit-type">
+              <option value="day">ไปเช้าเย็นกลับ</option>
+              <option value="overnight">นอนค้าง</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="admit-hospital">โรงพยาบาล/คลินิก</label>
+            <input type="text" id="admit-hospital" list="chk-hospital-list" placeholder="ไม่บังคับ">
+          </div>
+        </div>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="admit-fluid">น้ำเกลือ / สารน้ำ</label>
+            <input type="text" id="admit-fluid" placeholder="เช่น IV น้ำเกลือ LRS">
+          </div>
+          <div>
+            <label class="field-label" for="admit-cost">ค่าใช้จ่ายรวม (บาท)</label>
+            <input type="number" id="admit-cost" min="0" placeholder="ใส่ตอนจบรอบได้">
+          </div>
+        </div>
+        <div style="margin-bottom:10px;">
+          <label class="field-label" for="admit-meds">ยา/การรักษาที่ให้</label>
+          <input type="text" id="admit-meds" placeholder="ไม่บังคับ">
+        </div>
+        <div style="margin-bottom:10px;">
+          <label class="field-label" for="admit-note">หมายเหตุ/อาการ</label>
+          <textarea id="admit-note" rows="3" placeholder="ไม่บังคับ"></textarea>
+        </div>
+        <p class="muted" id="admit-status" style="margin:0 0 8px;"></p>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="admit-save" style="flex:1;">+ บันทึก</button>
+          <button class="btn" id="admit-cancel-edit" style="display:none;">ยกเลิก</button>
         </div>
       </div>
     </section>
@@ -955,6 +1017,7 @@ const MEDICATIONS_KEY = 'pet-medications';
 const FOOD_CATALOG_KEY = 'pet-food-catalog';
 const FOOD_PLANS_KEY = 'pet-food-plans';
 const SYMPTOM_LOGS_KEY = 'pet-symptom-logs';
+const ADMIT_RECORDS_KEY = 'pet-admit-records';
 const SYMPTOM_TYPES_KEY = 'pet-symptom-types';
 
 const defaultCats = () => [];
@@ -1065,6 +1128,8 @@ let selectedCheckupCat = null;
 let selectedLabCat = null;
 let selectedCareCat = null;
 let careCalendarMonth = null;
+let admitRecords = [];
+let editingAdmitId = null;
 let labTrendSelectedKey = null;
 let expandedLabIds = new Set();
 let expandedDetailIds = new Set();
@@ -1129,6 +1194,7 @@ async function saveFluidRegimens() { try { await window.storage.set(FLUID_REGIME
 async function saveCareLogs() { try { await window.storage.set(CARE_LOGS_KEY, JSON.stringify(careLogs)); } catch (e) { console.error(e); } }
 async function saveMedications() { try { await window.storage.set(MEDICATIONS_KEY, JSON.stringify(medications)); } catch (e) { console.error(e); } }
 async function saveFoodCatalog() { try { await window.storage.set(FOOD_CATALOG_KEY, JSON.stringify(foodCatalog)); } catch (e) { console.error(e); } }
+async function saveAdmitRecords() { try { await window.storage.set(ADMIT_RECORDS_KEY, JSON.stringify(admitRecords)); } catch (e) { console.error(e); } }
 async function saveSymptomLogs() { try { await window.storage.set(SYMPTOM_LOGS_KEY, JSON.stringify(symptomLogs)); } catch (e) { console.error(e); } }
 async function saveSymptomTypes() { try { await window.storage.set(SYMPTOM_TYPES_KEY, JSON.stringify(symptomCustomTypes)); } catch (e) { console.error(e); } }
 async function saveFoodPlans() { try { await window.storage.set(FOOD_PLANS_KEY, JSON.stringify(foodPlans)); } catch (e) { console.error(e); } }
@@ -1147,6 +1213,7 @@ async function load() {
   try { const r = await window.storage.get(FOOD_CATALOG_KEY); foodCatalog = r ? JSON.parse(r.value) : defaultFoodCatalog(); } catch (e) { foodCatalog = defaultFoodCatalog(); }
   try { const r = await window.storage.get(FOOD_PLANS_KEY); foodPlans = r ? JSON.parse(r.value) : defaultFoodPlans(); } catch (e) { foodPlans = defaultFoodPlans(); }
   try { const r = await window.storage.get(SYMPTOM_LOGS_KEY); symptomLogs = r ? JSON.parse(r.value) : []; } catch (e) { symptomLogs = []; }
+  try { const r = await window.storage.get(ADMIT_RECORDS_KEY); admitRecords = r ? JSON.parse(r.value) : []; } catch (e) { admitRecords = []; }
   try { const r = await window.storage.get(SYMPTOM_TYPES_KEY); symptomCustomTypes = r ? JSON.parse(r.value) : []; } catch (e) { symptomCustomTypes = []; }
 
   // เติมค่าแล็บใหม่ที่เพิ่มเข้ามาทีหลัง (เช่น ความดันโลหิต) ให้ผู้ใช้เก่าที่เคยบันทึก labCatalog ไว้แล้วโดยไม่มีค่านี้
@@ -1773,6 +1840,7 @@ function renderCareTab() {
   renderFoodPlanSection();
   renderCareChecklists();
   renderSymptomSection();
+  renderAdmitSection();
   renderCareCalendar();
 }
 
@@ -2461,6 +2529,109 @@ document.getElementById('symtype-add').addEventListener('click', async () => {
   symptomCustomTypes.push(t); await saveSymptomTypes(); inp.value = ''; render();
 });
 
+/* ---------------- แอดมิด (ไปเช้าเย็นกลับ / นอนค้าง) ---------------- */
+function admitDayCount(a) {
+  if (!a.start) return 0;
+  const end = a.end || toISO(new Date());
+  return Math.max(1, Math.round((new Date(end + 'T00:00:00') - new Date(a.start + 'T00:00:00')) / 86400000) + 1);
+}
+function renderAdmitSection() {
+  const wrap = document.getElementById('admit-list');
+  if (!wrap) return;
+  const list = admitRecords.filter(a => a.catId === selectedCareCat).sort((a, b) => (b.start || '').localeCompare(a.start || ''));
+  if (!list.length) { wrap.innerHTML = '<p class="empty">ยังไม่มีประวัติการแอดมิด</p>'; return; }
+  wrap.innerHTML = list.map(a => {
+    const range = a.end && a.end !== a.start ? fmtDateStr(a.start) + ' – ' + fmtDateStr(a.end) : fmtDateStr(a.start) + (a.end ? '' : ' – ปัจจุบัน');
+    const details = [a.hospital, a.fluid ? 'น้ำเกลือ: ' + a.fluid : '', a.meds ? 'ยา: ' + a.meds : ''].filter(Boolean).map(symEsc).join(' · ');
+    return `<div class="visit-card">
+      <div class="row-between">
+        <span><strong>🏥 ${range}</strong> · ${admitDayCount(a)} วัน${a.end ? '' : ' <span class="chip chip-condition">ยังอยู่ระหว่างรักษา</span>'}</span>
+        <span>
+          <button class="del-btn" data-admit-edit="${a.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
+          <button class="del-btn" data-admit-del="${a.id}" aria-label="ลบ">✕</button>
+        </span>
+      </div>
+      <p class="muted" style="margin:4px 0 0;">${a.type === 'overnight' ? 'นอนค้าง' : 'ไปเช้าเย็นกลับ'}${details ? ' · ' + details : ''}${a.cost != null ? ' · ' + fmt(a.cost) : ''}</p>
+      ${a.note ? `<p style="margin:4px 0 0;white-space:pre-wrap;">${symEsc(a.note)}</p>` : ''}
+    </div>`;
+  }).join('');
+  wrap.querySelectorAll('[data-admit-edit]').forEach(b => b.addEventListener('click', () => startAdmitEdit(b.dataset.admitEdit)));
+  wrap.querySelectorAll('[data-admit-del]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('ลบประวัติการแอดมินี้?')) return;
+    admitRecords = admitRecords.filter(a => a.id !== b.dataset.admitDel);
+    if (editingAdmitId === b.dataset.admitDel) cancelAdmitEdit();
+    await saveAdmitRecords(); renderAdmitSection(); renderCareCalendar();
+  }));
+}
+function syncAdmitOngoingUI() {
+  const on = document.getElementById('admit-ongoing').checked;
+  const end = document.getElementById('admit-end');
+  end.disabled = on;
+  if (on) end.value = '';
+}
+document.getElementById('admit-ongoing').addEventListener('change', syncAdmitOngoingUI);
+function cancelAdmitEdit() {
+  editingAdmitId = null;
+  ['admit-start', 'admit-end', 'admit-hospital', 'admit-fluid', 'admit-cost', 'admit-meds', 'admit-note'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('admit-type').value = 'day';
+  document.getElementById('admit-ongoing').checked = false;
+  syncAdmitOngoingUI();
+  document.getElementById('admit-form-title').textContent = '+ บันทึกการแอดมิด';
+  document.getElementById('admit-save').textContent = '+ บันทึก';
+  document.getElementById('admit-cancel-edit').style.display = 'none';
+  document.getElementById('admit-status').textContent = '';
+}
+function startAdmitEdit(id) {
+  const a = admitRecords.find(x => x.id === id);
+  if (!a) return;
+  editingAdmitId = id;
+  document.getElementById('admit-start').value = a.start || '';
+  document.getElementById('admit-end').value = a.end || '';
+  document.getElementById('admit-ongoing').checked = !a.end;
+  document.getElementById('admit-type').value = a.type || 'day';
+  document.getElementById('admit-hospital').value = a.hospital || '';
+  document.getElementById('admit-fluid').value = a.fluid || '';
+  document.getElementById('admit-cost').value = a.cost != null ? a.cost : '';
+  document.getElementById('admit-meds').value = a.meds || '';
+  document.getElementById('admit-note').value = a.note || '';
+  syncAdmitOngoingUI();
+  document.getElementById('admit-form-title').textContent = '✏️ แก้ไขการแอดมิด';
+  document.getElementById('admit-save').textContent = '💾 บันทึกการแก้ไข';
+  document.getElementById('admit-cancel-edit').style.display = '';
+  document.getElementById('admit-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+document.getElementById('admit-cancel-edit').addEventListener('click', cancelAdmitEdit);
+document.getElementById('admit-save').addEventListener('click', async () => {
+  const statusEl = document.getElementById('admit-status');
+  if (!selectedCareCat) { statusEl.textContent = 'กรุณาเลือกน้องแมวก่อน'; return; }
+  const start = document.getElementById('admit-start').value;
+  const ongoing = document.getElementById('admit-ongoing').checked;
+  const end = ongoing ? '' : document.getElementById('admit-end').value;
+  if (!start) { statusEl.textContent = 'กรุณาใส่วันเริ่มแอดมิด'; return; }
+  if (!ongoing && !end) { statusEl.textContent = 'ใส่วันสุดท้าย หรือติ๊ก "ยังอยู่ระหว่างรักษา"'; return; }
+  if (end && end < start) { statusEl.textContent = 'วันสุดท้ายต้องไม่ก่อนวันเริ่ม'; return; }
+  const costRaw = document.getElementById('admit-cost').value;
+  const data = {
+    catId: selectedCareCat, start, end,
+    type: document.getElementById('admit-type').value,
+    hospital: document.getElementById('admit-hospital').value.trim(),
+    fluid: document.getElementById('admit-fluid').value.trim(),
+    meds: document.getElementById('admit-meds').value.trim(),
+    note: document.getElementById('admit-note').value.trim(),
+    cost: costRaw !== '' ? Number(costRaw) : null
+  };
+  if (editingAdmitId) {
+    const idx = admitRecords.findIndex(a => a.id === editingAdmitId);
+    if (idx > -1) admitRecords[idx] = Object.assign({}, admitRecords[idx], data);
+  } else {
+    admitRecords.push(Object.assign({ id: genId() }, data));
+  }
+  await saveAdmitRecords();
+  cancelAdmitEdit();
+  statusEl.textContent = '✅ บันทึกแล้ว';
+  renderAdmitSection(); renderCareCalendar();
+});
+
 function renderCareCalendar() {
   const wrap = document.getElementById('care-calendar');
   const label = document.getElementById('care-cal-label');
@@ -2474,6 +2645,7 @@ function renderCareCalendar() {
   careLogs.filter(l => l.catId === selectedCareCat && l.date.slice(0, 7) === careCalendarMonth).forEach(l => { logsByDate[l.date] = l; });
   const symByDate = {};
   symptomLogs.filter(x => x.catId === selectedCareCat && (x.date || '').slice(0, 7) === careCalendarMonth).forEach(x => { (symByDate[x.date] = symByDate[x.date] || []).push(x); });
+  const todayCalISO = toISO(new Date());
   const dayLabels = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
   let html = '<div class="care-cal-grid">';
   dayLabels.forEach(d => { html += `<div class="care-cal-daylabel">${d}</div>`; });
@@ -2490,9 +2662,11 @@ function renderCareCalendar() {
       }
       if (log.foodIds && log.foodIds.length) marks.push(`🍽${log.foodIds.length}`);
     }
+    const inAdmit = admitRecords.some(a => a.catId === selectedCareCat && a.start && a.start <= dateStr && dateStr <= (a.end || todayCalISO));
+    if (inAdmit) marks.unshift('🏥');
     const syms = symByDate[dateStr] || [];
     const symHigh = syms.some(x => x.severity === 'high');
-    html += `<div class="care-cal-cell${log ? ' has-log' : ''}" data-caldate="${dateStr}">
+    html += `<div class="care-cal-cell${(log || inAdmit) ? ' has-log' : ''}" data-caldate="${dateStr}">
       <div class="daynum">${d}</div>
       ${marks.map(mk => `<div>${mk}</div>`).join('')}
       ${syms.length ? `<div style="${symHigh ? 'color:var(--rust);font-weight:700;' : 'color:#B5651D;font-weight:600;'}">🩺${syms.length}</div>` : ''}
