@@ -987,6 +987,7 @@
               <option value="cbc">ความสมบูรณ์เม็ดเลือด (CBC)</option>
               <option value="vitals">สัญญาณชีพ (Vitals)</option>
               <option value="urine">ตรวจปัสสาวะ (Urine)</option>
+              <option value="gas">เลือดดำ / อิเล็กโทรไลต์ (Blood gas)</option>
               <option value="other" selected>อื่นๆ</option>
             </select>
           </div>
@@ -1155,10 +1156,22 @@ const LAB_CATALOG_SEED = [
   { key: 'BASO_PCT', label: '%Basophil', unit: '%', low: null, high: null, group: 'cbc', aliases: [] },
   { key: 'PLT', label: 'Platelet', unit: 'K/µL', low: 151, high: 600, group: 'cbc', aliases: ['PLATELET'] },
   { key: 'MPV', label: 'MPV', unit: 'fL', low: 11.4, high: 21.6, group: 'cbc', aliases: [] },
-  { key: 'PCT', label: 'PCT', unit: '%', low: 0.17, high: 0.86, group: 'cbc', aliases: [] }
+  { key: 'PCT', label: 'PCT', unit: '%', low: 0.17, high: 0.86, group: 'cbc', aliases: [] },
+  { key: 'VPH', label: 'pH (เลือดดำ)', unit: '', low: 7.24, high: 7.4, group: 'gas', aliases: ['PH(VEN)', 'VENOUSPH', 'BLOODPH'] },
+  { key: 'HCO3', label: 'HCO3 (ไบคาร์บอเนต)', unit: 'mmol/L', low: 22.0, high: 24.0, group: 'gas', aliases: ['HCO3(VEN)', 'BICARBONATE'] },
+  { key: 'PCO2', label: 'PCO2', unit: 'mmHg', low: 34.0, high: 38.0, group: 'gas', aliases: ['PCO2(VEN)'] },
+  { key: 'PO2', label: 'PO2', unit: 'mmHg', low: 34.0, high: 45.0, group: 'gas', aliases: ['PO2(VEN)'] },
+  { key: 'TCO2', label: 'tCO2 (Total CO2)', unit: 'mmol/L', low: 27.0, high: 31.0, group: 'gas', aliases: ['TCO2(VEN)', 'TOTALCO2'] },
+  { key: 'ANGAP', label: 'Anion Gap', unit: 'mmol/L', low: null, high: null, group: 'gas', aliases: ['ANGAP', 'ANION GAP', 'AG'] },
+  { key: 'BE', label: 'Base Excess (BE)', unit: 'mmol/L', low: null, high: null, group: 'gas', aliases: ['BASEEXCESS', 'BE(B)'] },
+  { key: 'THB', label: 'tHb (Total Hemoglobin)', unit: 'g/dL', low: 8.0, high: 15.0, group: 'gas', aliases: ['TOTALHB'] },
+  { key: 'SO2', label: 'SO2 (Oxygen Saturation)', unit: '%', low: 93.0, high: 100.0, group: 'gas', aliases: ['O2SAT', 'SAO2'] },
+  { key: 'NA', label: 'Sodium (Na)', unit: 'mmol/L', low: 150.0, high: 165.0, group: 'gas', aliases: ['SODIUM', 'NA+'] },
+  { key: 'K', label: 'Potassium (K)', unit: 'mmol/L', low: 3.5, high: 5.8, group: 'gas', aliases: ['POTASSIUM', 'K+'] },
+  { key: 'CL', label: 'Chloride (Cl)', unit: 'mmol/L', low: 112.0, high: 129.0, group: 'gas', aliases: ['CHLORIDE', 'CL-'] }
 ];
 
-const LAB_GROUP_LABELS = { chem: 'เคมีเลือด (Chemistry)', cbc: 'ความสมบูรณ์เม็ดเลือด (CBC)', vitals: 'สัญญาณชีพ (Vitals)', urine: 'ตรวจปัสสาวะ (Urine)', other: 'อื่นๆ' };
+const LAB_GROUP_LABELS = { chem: 'เคมีเลือด (Chemistry)', cbc: 'ความสมบูรณ์เม็ดเลือด (CBC)', vitals: 'สัญญาณชีพ (Vitals)', urine: 'ตรวจปัสสาวะ (Urine)', gas: 'เลือดดำ / อิเล็กโทรไลต์ (Blood gas)', other: 'อื่นๆ' };
 
 let members = [];
 let cats = [];
@@ -3036,7 +3049,7 @@ function renderLabValuesGrid(prefill) {
   const wrap = document.getElementById('lab-values-grid');
   if (!wrap) return;
   wrap.innerHTML = '';
-  const groups = ['vitals', 'chem', 'cbc', 'urine', 'other'];
+  const groups = ['vitals', 'chem', 'cbc', 'urine', 'gas', 'other'];
   groups.forEach(g => {
     const entries = labCatalog.filter(e => (e.group || 'other') === g);
     if (!entries.length) return;
@@ -3143,7 +3156,7 @@ document.getElementById('lv-new-add').addEventListener('click', async () => {
 function renderLabCatalogTab() {
   const wrap = document.getElementById('labcatalog-list');
   if (!wrap) return;
-  const groups = ['chem', 'cbc', 'vitals', 'urine', 'other'];
+  const groups = ['chem', 'cbc', 'vitals', 'urine', 'gas', 'other'];
   wrap.innerHTML = groups.map(g => {
     const entries = labCatalog.filter(e => (e.group || 'other') === g);
     if (!entries.length) return '';
@@ -3609,7 +3622,7 @@ function renderCombinedHistoryList() {
       let valuesHtml = '';
       const attCount = (t.attachments && t.attachments.length) || (t.hasPhoto ? 1 : 0);
       if (expanded) {
-        const labGroupOrder = ['chem', 'cbc', 'vitals', 'urine', 'other'];
+        const labGroupOrder = ['chem', 'cbc', 'vitals', 'urine', 'gas', 'other'];
         const valuesByGroup = {};
         Object.keys(t.values || {}).forEach(k => {
           const entry = labCatalog.find(e => e.key === k) || { label: k, unit: '', group: 'other' };
@@ -3904,7 +3917,7 @@ function renderLabSummaryTable() {
   // เอาเฉพาะค่าที่เคยมีการบันทึกจริงอย่างน้อย 1 ครั้ง จัดกลุ่มตามหมวดเหมือนหน้ากรอกผลตรวจ
   const usedKeys = new Set();
   tests.forEach(t => Object.keys(t.values || {}).forEach(k => usedKeys.add(k)));
-  const labGroupOrder = ['vitals', 'chem', 'cbc', 'urine', 'other'];
+  const labGroupOrder = ['vitals', 'chem', 'cbc', 'urine', 'gas', 'other'];
   const rowsByGroup = {};
   labCatalog.forEach(entry => {
     if (!usedKeys.has(entry.key)) return;
@@ -3940,7 +3953,7 @@ function renderLabSummaryTable() {
 document.getElementById('labcatalog-export-csv').addEventListener('click', () => {
   if (!labCatalog.length) { alert('ยังไม่มีรายการค่าตรวจ'); return; }
   const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-  const order = ['vitals', 'chem', 'cbc', 'urine', 'other'];
+  const order = ['vitals', 'chem', 'cbc', 'urine', 'gas', 'other'];
   const rows = labCatalog.slice().sort((a, b) => {
     const ga = order.indexOf(a.group || 'other'), gb = order.indexOf(b.group || 'other');
     return (ga - gb) || String(a.label || '').localeCompare(String(b.label || ''));
@@ -3964,7 +3977,7 @@ function labSummaryModel() {
   const tests = combinedVitalsTests(selectedLabCat).sort((a, b) => (a.date || '').localeCompare(b.date || '')).reverse();
   const usedKeys = new Set();
   tests.forEach(t => Object.keys(t.values || {}).forEach(k => { const v = t.values[k]; if (v != null && v !== '') usedKeys.add(k); }));
-  const order = ['vitals', 'chem', 'cbc', 'urine', 'other'];
+  const order = ['vitals', 'chem', 'cbc', 'urine', 'gas', 'other'];
   const byGroup = {};
   labCatalog.forEach(e => { if (!usedKeys.has(e.key)) return; const g = e.group || 'other'; (byGroup[g] = byGroup[g] || []).push(e); });
   const groups = order.filter(g => byGroup[g] && byGroup[g].length).map(g => ({
