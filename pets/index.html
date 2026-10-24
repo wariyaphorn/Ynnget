@@ -868,7 +868,7 @@
     <section>
       <div class="card">
         <h2 id="us-form-title">+ บันทึกผลตรวจภาพ/หัตถการ</h2>
-        <p class="muted" style="margin:0 0 10px;">เช่น อัลตราซาวด์, X-Ray, Echo หัวใจ แนบรูป/ไฟล์ PDF (ไม่บังคับ) พร้อมบันทึกหมายเหตุ — ใช้แมวตัวที่เลือกไว้ด้านบน</p>
+        <p class="muted" style="margin:0 0 10px;">เช่น อัลตราซาวด์, X-Ray, Echo หัวใจ, เพาะเชื้อ แนบรูป/ไฟล์ PDF (ไม่บังคับ) พร้อมบันทึกหมายเหตุ — ใช้แมวตัวที่เลือกไว้ด้านบน</p>
         <div class="form-grid g2">
           <div>
             <label class="field-label" for="us-type">ประเภทการตรวจ</label>
@@ -876,6 +876,7 @@
               <option value="ultrasound">🔊 อัลตราซาวด์</option>
               <option value="xray">🩻 X-Ray</option>
               <option value="echo">💓 Echo (หัวใจ)</option>
+              <option value="culture">🧫 เพาะเชื้อ</option>
               <option value="other">🔬 อื่นๆ</option>
             </select>
           </div>
@@ -1223,6 +1224,7 @@ const EXAM_TYPES = {
   ultrasound: { label: 'อัลตราซาวด์', icon: '🔊' },
   xray: { label: 'X-Ray', icon: '🩻' },
   echo: { label: 'Echo (หัวใจ)', icon: '💓' },
+  culture: { label: 'เพาะเชื้อ', icon: '🧫' },
   other: { label: 'อื่นๆ', icon: '🔬' }
 };
 function examTypeInfo(u) {
