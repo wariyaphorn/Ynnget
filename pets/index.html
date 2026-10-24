@@ -395,7 +395,7 @@
             <button type="button" class="btn" id="care-cal-next">›</button>
           </div>
         </div>
-        <p class="muted" style="margin:0 0 10px;">💧 น้ำเกลือ (มล.) · 💊 จำนวนยาที่ให้ · 🍽 จำนวนอาหารที่ให้ — กดวันที่เพื่อดู/แก้ไขบันทึกของวันนั้น</p>
+        <p class="muted" style="margin:0 0 10px;">💧 น้ำเกลือ (มล.) · 💊 จำนวนยาที่ให้ · 🍽 กรัมอาหารรวม (หรือจำนวนชนิดถ้าไม่ได้ใส่กรัม) · 🚰 ป้อนน้ำ (มล.) · 💩 อึ · 🚽 ฉี่ — กดวันที่เพื่อดู/แก้ไขบันทึกของวันนั้น</p>
         <div id="care-calendar"></div>
       </div>
     </section>
@@ -406,6 +406,7 @@
         <button type="button" data-sub="fluid">น้ำเกลือ</button>
         <button type="button" data-sub="med">ยา</button>
         <button type="button" data-sub="food">อาหาร</button>
+        <button type="button" data-sub="excr">ขับถ่าย/น้ำ</button>
         <button type="button" data-sub="admit">แอดมิด</button>
       </div>
     </section>
@@ -678,6 +679,66 @@
           <button class="btn btn-primary" id="admit-save" style="flex:1;">+ บันทึก</button>
           <button class="btn" id="admit-cancel-edit" style="display:none;">ยกเลิก</button>
         </div>
+      </div>
+    </section>
+    </div>
+    <div class="subpane" data-group="care" data-sub="excr">
+    <section>
+      <div class="card">
+        <h2 id="ex-form-title">🚰 บันทึกป้อนน้ำ / อึ / ฉี่</h2>
+        <p class="muted" style="margin:0 0 10px;">เลือกประเภท ใส่รายละเอียดสั้นๆ แล้วกดบันทึก เวลาเริ่มต้นคือตอนนี้ แนบรูปได้ (ไว้ให้หมอดู)</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+          <button type="button" class="btn ex-kind-btn" data-kind="water">🚰 ป้อนน้ำ</button>
+          <button type="button" class="btn ex-kind-btn" data-kind="poop">💩 อึ</button>
+          <button type="button" class="btn ex-kind-btn" data-kind="pee">🚽 ฉี่</button>
+        </div>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="ex-date">วันที่</label>
+            <input type="date" id="ex-date">
+          </div>
+          <div>
+            <label class="field-label" for="ex-time">เวลา</label>
+            <input type="time" id="ex-time">
+          </div>
+        </div>
+        <div id="ex-water-wrap" style="display:none;margin-bottom:10px;">
+          <label class="field-label" for="ex-amount">ป้อนด้วยไซริงค์ (มล.)</label>
+          <input type="number" step="any" min="0" id="ex-amount" placeholder="เช่น 10">
+        </div>
+        <div id="ex-form-wrap" style="display:none;margin-bottom:10px;">
+          <label class="field-label" for="ex-form" id="ex-form-label">ลักษณะ</label>
+          <select id="ex-form"></select>
+        </div>
+        <div id="ex-color-wrap" style="display:none;margin-bottom:10px;">
+          <label class="field-label" for="ex-color">สี / ลักษณะอื่น (ไม่บังคับ)</label>
+          <input type="text" id="ex-color" placeholder="เช่น เหลืองใส, เข้ม, มีเลือด">
+        </div>
+        <div style="margin-bottom:10px;">
+          <label class="field-label" for="ex-note">หมายเหตุ (ไม่บังคับ)</label>
+          <input type="text" id="ex-note" placeholder="เช่น ป้อนหลังตื่น กลืนได้ดี">
+        </div>
+        <div style="margin-bottom:10px;">
+          <label class="field-label" for="ex-photo">แนบรูป (ได้หลายรูป)</label>
+          <input type="file" id="ex-photo" accept="image/*" multiple>
+          <p class="muted" id="ex-photo-status" style="margin:4px 0 0;"></p>
+          <div id="ex-photo-existing" style="margin-top:6px;"></div>
+          <div id="ex-photo-pending" style="margin-top:6px;"></div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="ex-save" style="flex:1;">+ บันทึก</button>
+          <button class="btn" id="ex-cancel-edit" style="display:none;">ยกเลิก</button>
+        </div>
+      </div>
+    </section>
+    <section>
+      <div class="card">
+        <div class="row-between" style="margin-bottom:6px;">
+          <h2 style="margin:0;">สรุปรายวัน</h2>
+          <button class="btn" id="ex-export-csv" style="font-size:12px;padding:4px 10px;">⬇ Export CSV</button>
+        </div>
+        <p class="muted" id="ex-photo-note" style="margin:0 0 10px;font-size:12.5px;"></p>
+        <div id="ex-list"></div>
       </div>
     </section>
     </div>
@@ -1018,6 +1079,7 @@ const FOOD_CATALOG_KEY = 'pet-food-catalog';
 const FOOD_PLANS_KEY = 'pet-food-plans';
 const SYMPTOM_LOGS_KEY = 'pet-symptom-logs';
 const ADMIT_RECORDS_KEY = 'pet-admit-records';
+const EXCRETION_KEY = 'pet-excretion-logs';
 const SYMPTOM_TYPES_KEY = 'pet-symptom-types';
 
 const defaultCats = () => [];
@@ -1129,6 +1191,7 @@ let selectedLabCat = null;
 let selectedCareCat = null;
 let careCalendarMonth = null;
 let admitRecords = [];
+let excretionLogs = [];
 let editingAdmitId = null;
 let labTrendSelectedKey = null;
 let expandedLabIds = new Set();
@@ -1194,6 +1257,7 @@ async function saveFluidRegimens() { try { await window.storage.set(FLUID_REGIME
 async function saveCareLogs() { try { await window.storage.set(CARE_LOGS_KEY, JSON.stringify(careLogs)); } catch (e) { console.error(e); } }
 async function saveMedications() { try { await window.storage.set(MEDICATIONS_KEY, JSON.stringify(medications)); } catch (e) { console.error(e); } }
 async function saveFoodCatalog() { try { await window.storage.set(FOOD_CATALOG_KEY, JSON.stringify(foodCatalog)); } catch (e) { console.error(e); } }
+async function saveExcretionLogs() { try { await window.storage.set(EXCRETION_KEY, JSON.stringify(excretionLogs)); } catch (e) { console.error(e); } }
 async function saveAdmitRecords() { try { await window.storage.set(ADMIT_RECORDS_KEY, JSON.stringify(admitRecords)); } catch (e) { console.error(e); } }
 async function saveSymptomLogs() { try { await window.storage.set(SYMPTOM_LOGS_KEY, JSON.stringify(symptomLogs)); } catch (e) { console.error(e); } }
 async function saveSymptomTypes() { try { await window.storage.set(SYMPTOM_TYPES_KEY, JSON.stringify(symptomCustomTypes)); } catch (e) { console.error(e); } }
@@ -1213,6 +1277,7 @@ async function load() {
   try { const r = await window.storage.get(FOOD_CATALOG_KEY); foodCatalog = r ? JSON.parse(r.value) : defaultFoodCatalog(); } catch (e) { foodCatalog = defaultFoodCatalog(); }
   try { const r = await window.storage.get(FOOD_PLANS_KEY); foodPlans = r ? JSON.parse(r.value) : defaultFoodPlans(); } catch (e) { foodPlans = defaultFoodPlans(); }
   try { const r = await window.storage.get(SYMPTOM_LOGS_KEY); symptomLogs = r ? JSON.parse(r.value) : []; } catch (e) { symptomLogs = []; }
+  try { const r = await window.storage.get(EXCRETION_KEY); excretionLogs = r ? JSON.parse(r.value) : []; } catch (e) { excretionLogs = []; }
   try { const r = await window.storage.get(ADMIT_RECORDS_KEY); admitRecords = r ? JSON.parse(r.value) : []; } catch (e) { admitRecords = []; }
   try { const r = await window.storage.get(SYMPTOM_TYPES_KEY); symptomCustomTypes = r ? JSON.parse(r.value) : []; } catch (e) { symptomCustomTypes = []; }
 
@@ -1841,6 +1906,7 @@ function renderCareTab() {
   renderCareChecklists();
   renderSymptomSection();
   renderAdmitSection();
+  renderExcretionSection();
   renderCareCalendar();
 }
 
@@ -2162,11 +2228,14 @@ function renderCareChecklists() {
   }
   if (foodWrap) {
     const prevChecked = new Set(Array.from(document.querySelectorAll('.care-food-check:checked')).map(cb => cb.value));
+    const prevG = {};
+    document.querySelectorAll('.care-food-g').forEach(inp => { if (inp.value) prevG[inp.dataset.foodid] = inp.value; });
     const foods = foodCatalog;
     foodWrap.innerHTML = foods.length ? foods.map(f => `
-      <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;flex-wrap:wrap;">
         <input type="checkbox" class="care-food-check" value="${f.id}" ${prevChecked.has(f.id) ? 'checked' : ''} style="width:auto;">
         ${f.name}
+        <input type="number" step="any" min="0" class="care-food-g" data-foodid="${f.id}" value="${prevG[f.id] || ''}" placeholder="g/วัน" style="width:90px;margin-left:auto;">
       </label>
     `).join('') : '<p class="empty">ยังไม่มีอาหารในคลัง — เพิ่มได้ที่หน้า ตั้งค่า / คลังกลาง</p>';
   }
@@ -2199,6 +2268,7 @@ function startCareLogEdit(id) {
   document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = (l.medIds || []).includes(cb.value); });
   document.querySelectorAll('.care-med-time').forEach(inp => { inp.value = (l.medTimes && l.medTimes[inp.dataset.medid]) || ''; });
   document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = (l.foodIds || []).includes(cb.value); });
+  document.querySelectorAll('.care-food-g').forEach(inp => { const g = l.foodGrams && l.foodGrams[inp.dataset.foodid]; inp.value = g != null ? g : ''; });
   document.getElementById('care-note').value = l.note || '';
   document.getElementById('care-log-form-title').textContent = '✏️ แก้ไขบันทึกวันที่ ' + fmtDateStr(l.date);
   document.getElementById('care-log-save').textContent = '💾 บันทึกการแก้ไข';
@@ -2216,6 +2286,7 @@ function cancelCareLogEdit() {
   document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = false; });
   document.querySelectorAll('.care-med-time').forEach(inp => { inp.value = ''; });
   document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = false; });
+  document.querySelectorAll('.care-food-g').forEach(inp => { inp.value = ''; });
   updateFoodPlanHint(d);
   document.getElementById('care-note').value = '';
   document.getElementById('care-log-form-title').textContent = '+ บันทึกวันนี้';
@@ -2236,6 +2307,7 @@ document.getElementById('care-date').addEventListener('change', () => {
   document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = false; });
   document.querySelectorAll('.care-med-time').forEach(inp => { inp.value = ''; });
   document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = false; });
+  document.querySelectorAll('.care-food-g').forEach(inp => { inp.value = ''; });
   updateFoodPlanHint(dateVal);
 });
 document.getElementById('care-log-save').addEventListener('click', async () => {
@@ -2252,6 +2324,8 @@ document.getElementById('care-log-save').addEventListener('click', async () => {
     if (inp && inp.value) medTimes[id] = inp.value;
   });
   const foodIds = Array.from(document.querySelectorAll('.care-food-check:checked')).map(cb => cb.value);
+  const foodGrams = {};
+  document.querySelectorAll('.care-food-g').forEach(inp => { if (inp.value !== '' && Number(inp.value) > 0) { foodGrams[inp.dataset.foodid] = Number(inp.value); if (!foodIds.includes(inp.dataset.foodid)) foodIds.push(inp.dataset.foodid); } });
   const note = document.getElementById('care-note').value.trim();
   const data = {
     catId: selectedCareCat,
@@ -2260,6 +2334,7 @@ document.getElementById('care-log-save').addEventListener('click', async () => {
     medIds,
     medTimes,
     foodIds,
+    foodGrams,
     note
   };
   if (editingCareLogId) {
@@ -2529,6 +2604,227 @@ document.getElementById('symtype-add').addEventListener('click', async () => {
   symptomCustomTypes.push(t); await saveSymptomTypes(); inp.value = ''; render();
 });
 
+/* ---------------- ขับถ่าย / ป้อนน้ำ ---------------- */
+const EX_KINDS = { water: '🚰 ป้อนน้ำ', poop: '💩 อึ', pee: '🚽 ฉี่' };
+const EX_FORMS = {
+  poop: { label: 'ลักษณะอึ', opts: { normal: 'ปกติ', hard: 'แข็ง/เม็ดเล็ก', soft: 'นิ่ม', loose: 'เหลว', bloody: 'มีเลือด/มูก' } },
+  pee: { label: 'ปริมาณฉี่', opts: { none: 'ไม่ออก', little: 'น้อย', normal: 'ปกติ', much: 'มาก' } }
+};
+let exKind = null;
+let editingExId = null;
+let exPendingPhotos = [], exExistingPhotos = [], exRemovedPhotoIds = [];
+let exShowAll = false;
+function exPhotoKey(logId, photoId) { return 'pet-excretion-photo-' + logId + '-' + photoId; }
+function nowHHMM() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function exLabel(x) {
+  const f = x.kind !== 'water' && EX_FORMS[x.kind] ? EX_FORMS[x.kind].opts[x.form] : '';
+  if (x.kind === 'water') return x.amount !== '' && x.amount != null ? x.amount + ' มล.' : 'ป้อนน้ำ';
+  return [f, x.color].filter(Boolean).join(' · ');
+}
+function updateExKindUI() {
+  document.querySelectorAll('.ex-kind-btn').forEach(b => b.classList.toggle('btn-primary', b.dataset.kind === exKind));
+  document.getElementById('ex-water-wrap').style.display = exKind === 'water' ? '' : 'none';
+  const hasForm = exKind === 'poop' || exKind === 'pee';
+  document.getElementById('ex-form-wrap').style.display = hasForm ? '' : 'none';
+  document.getElementById('ex-color-wrap').style.display = exKind === 'pee' ? '' : 'none';
+  if (hasForm) {
+    const cfg = EX_FORMS[exKind];
+    document.getElementById('ex-form-label').textContent = cfg.label;
+    const sel = document.getElementById('ex-form');
+    const cur = sel.dataset.kind === exKind ? sel.value : (exKind === 'poop' ? 'normal' : 'normal');
+    sel.innerHTML = Object.keys(cfg.opts).map(k => `<option value="${k}">${cfg.opts[k]}</option>`).join('');
+    sel.value = cfg.opts[cur] ? cur : 'normal';
+    sel.dataset.kind = exKind;
+  }
+}
+function renderExPhotoLists() {
+  const pend = document.getElementById('ex-photo-pending');
+  const exist = document.getElementById('ex-photo-existing');
+  pend.innerHTML = exPendingPhotos.map(ph => `
+    <span style="display:inline-block;position:relative;margin:2px 6px 4px 0;">
+      <img src="${ph.dataUrl}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border);">
+      <button type="button" data-ex-rmpending="${ph.id}" style="position:absolute;top:-6px;right:-6px;border:none;background:var(--rust);color:#fff;border-radius:50%;width:20px;height:20px;cursor:pointer;font-weight:700;line-height:1;">✕</button>
+    </span>`).join('');
+  pend.querySelectorAll('[data-ex-rmpending]').forEach(b => b.addEventListener('click', () => {
+    exPendingPhotos = exPendingPhotos.filter(x => x.id !== b.dataset.exRmpending); renderExPhotoLists();
+  }));
+  const kept = exExistingPhotos.filter(ph => !exRemovedPhotoIds.includes(ph.id));
+  exist.innerHTML = kept.length ? `<span class="muted" style="font-size:12.5px;">รูปที่บันทึกไว้แล้ว ${kept.length} รูป</span> ` + kept.map((ph, i) => `
+    <span class="chip-condition" style="display:inline-flex;align-items:center;gap:6px;margin:2px 4px 2px 0;">🖼 รูปที่ ${i + 1}
+      <button type="button" data-ex-viewexisting="${ph.id}" style="border:none;background:none;cursor:pointer;">👁</button>
+      <button type="button" data-ex-rmexisting="${ph.id}" style="border:none;background:none;color:var(--rust);cursor:pointer;font-weight:700;">✕</button>
+    </span>`).join('') : '';
+  exist.querySelectorAll('[data-ex-viewexisting]').forEach(b => b.addEventListener('click', async () => {
+    try {
+      const r = await window.storage.get(exPhotoKey(editingExId, b.dataset.exViewexisting));
+      if (!r || !r.value) { alert('ไม่พบรูปนี้'); return; }
+      openPhotoModal([r.value]);
+    } catch (e) { alert('โหลดรูปไม่สำเร็จ'); }
+  }));
+  exist.querySelectorAll('[data-ex-rmexisting]').forEach(b => b.addEventListener('click', () => {
+    exRemovedPhotoIds.push(b.dataset.exRmexisting); renderExPhotoLists();
+  }));
+}
+function resetExForm(keepKind) {
+  editingExId = null;
+  if (!keepKind) exKind = null;
+  exPendingPhotos = []; exExistingPhotos = []; exRemovedPhotoIds = [];
+  document.getElementById('ex-date').value = toISO(new Date());
+  document.getElementById('ex-time').value = nowHHMM();
+  document.getElementById('ex-color').value = '';
+  document.getElementById('ex-note').value = '';
+  document.getElementById('ex-photo').value = '';
+  document.getElementById('ex-photo-status').textContent = '';
+  document.getElementById('ex-form-title').textContent = '🚰 บันทึกป้อนน้ำ / อึ / ฉี่';
+  document.getElementById('ex-save').textContent = '+ บันทึก';
+  document.getElementById('ex-cancel-edit').style.display = 'none';
+  updateExKindUI(); renderExPhotoLists();
+}
+function startExEdit(id) {
+  const x = excretionLogs.find(l => l.id === id);
+  if (!x) return;
+  showSubTab('care', 'excr');
+  editingExId = id; exKind = x.kind;
+  exPendingPhotos = []; exRemovedPhotoIds = []; exExistingPhotos = (x.photos || []).slice();
+  document.getElementById('ex-date').value = x.date;
+  document.getElementById('ex-time').value = x.time || '';
+  updateExKindUI();
+  document.getElementById('ex-amount').value = x.amount != null ? x.amount : '';
+  if (x.form && document.getElementById('ex-form').querySelector(`option[value="${x.form}"]`)) document.getElementById('ex-form').value = x.form;
+  document.getElementById('ex-color').value = x.color || '';
+  document.getElementById('ex-note').value = x.note || '';
+  document.getElementById('ex-photo').value = '';
+  document.getElementById('ex-photo-status').textContent = '';
+  document.getElementById('ex-form-title').textContent = '✏️ แก้ไข ' + EX_KINDS[x.kind] + ' วันที่ ' + fmtDateStr(x.date);
+  document.getElementById('ex-save').textContent = '💾 บันทึกการแก้ไข';
+  document.getElementById('ex-cancel-edit').style.display = 'inline-block';
+  renderExPhotoLists();
+  document.getElementById('ex-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function renderExcretionSection() {
+  const list = document.getElementById('ex-list');
+  if (!list) return;
+  if (!document.getElementById('ex-date').value) { document.getElementById('ex-date').value = toISO(new Date()); document.getElementById('ex-time').value = nowHHMM(); }
+  const mine = excretionLogs.filter(x => x.catId === selectedCareCat);
+  const photoCount = mine.reduce((t, x) => t + ((x.photos || []).length), 0);
+  document.getElementById('ex-photo-note').textContent = photoCount ? `รูปแนบทั้งหมด ${photoCount} รูป (ใช้พื้นที่ประมาณ ${(photoCount * 0.15).toFixed(1)} MB จากพื้นที่ฟรี 1 GB ใช้ร่วมกับทั้งแอพ) ลบรายการเก่าเพื่อคืนพื้นที่ได้` : '';
+  if (!mine.length) { list.innerHTML = '<p class="empty">ยังไม่มีบันทึก</p>'; return; }
+  const byDate = {};
+  mine.forEach(x => { (byDate[x.date] = byDate[x.date] || []).push(x); });
+  let dates = Object.keys(byDate).sort().reverse();
+  const total = dates.length;
+  if (!exShowAll) dates = dates.slice(0, 14);
+  list.innerHTML = dates.map(d => {
+    const rows = byDate[d].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    const w = rows.filter(r => r.kind === 'water');
+    const ml = w.reduce((t, r) => t + (Number(r.amount) || 0), 0);
+    const pn = rows.filter(r => r.kind === 'poop').length, un = rows.filter(r => r.kind === 'pee').length;
+    const sum = [w.length ? `🚰 ${w.length} ครั้ง${ml ? ' รวม ' + ml + ' มล.' : ''}` : '', pn ? `💩 ${pn} ครั้ง` : '', un ? `🚽 ${un} ครั้ง` : ''].filter(Boolean).join(' · ');
+    return `<div style="margin-bottom:12px;">
+      <div style="font-weight:700;margin-bottom:4px;">📅 ${fmtDateStr(d)} <span class="muted" style="font-weight:500;font-size:12.5px;">${sum}</span></div>
+      ${rows.map(x => `<div class="visit-card" style="margin-bottom:6px;">
+        <div class="row-between">
+          <span>${x.time ? '<strong>' + symEsc(x.time) + ' น.</strong> · ' : ''}${EX_KINDS[x.kind] || x.kind} <span class="muted">${symEsc(exLabel(x))}</span></span>
+          <span>
+            <button class="del-btn" data-ex-edit="${x.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
+            <button class="del-btn" data-ex-del="${x.id}" aria-label="ลบ">✕</button>
+          </span>
+        </div>
+        ${x.note ? `<p class="muted" style="margin:4px 0 0;">${symEsc(x.note)}</p>` : ''}
+        ${(x.photos && x.photos.length) ? `<p style="margin:6px 0 0;"><button class="btn" data-ex-photos="${x.id}" style="padding:3px 10px;font-size:12.5px;">🖼 ดูรูป (${x.photos.length})</button></p>` : ''}
+      </div>`).join('')}
+    </div>`;
+  }).join('') + (total > 14 ? `<button class="btn" id="ex-toggle-all" style="width:100%;">${exShowAll ? 'แสดงเฉพาะ 14 วันล่าสุด' : 'แสดงทั้งหมด (' + total + ' วัน)'}</button>` : '');
+  const tg = document.getElementById('ex-toggle-all');
+  if (tg) tg.addEventListener('click', () => { exShowAll = !exShowAll; renderExcretionSection(); });
+  list.querySelectorAll('[data-ex-edit]').forEach(b => b.addEventListener('click', () => startExEdit(b.dataset.exEdit)));
+  list.querySelectorAll('[data-ex-del]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('ลบบันทึกนี้?')) return;
+    const x = excretionLogs.find(l => l.id === b.dataset.exDel);
+    excretionLogs = excretionLogs.filter(l => l.id !== b.dataset.exDel);
+    if (editingExId === b.dataset.exDel) resetExForm();
+    await saveExcretionLogs();
+    if (x && x.photos) for (const ph of x.photos) { try { await window.storage.set(exPhotoKey(x.id, ph.id), ''); } catch (e) {} }
+    render();
+  }));
+  list.querySelectorAll('[data-ex-photos]').forEach(b => b.addEventListener('click', async () => {
+    const x = excretionLogs.find(l => l.id === b.dataset.exPhotos);
+    if (!x) return;
+    const pages = [];
+    for (const ph of (x.photos || [])) {
+      try { const r = await window.storage.get(exPhotoKey(x.id, ph.id)); pages.push(r && r.value ? r.value : ''); } catch (e) { pages.push(''); }
+    }
+    if (!pages.filter(Boolean).length) { alert('ไม่พบรูป'); return; }
+    openPhotoModal(pages);
+  }));
+}
+document.querySelectorAll('.ex-kind-btn').forEach(b => b.addEventListener('click', () => {
+  exKind = exKind === b.dataset.kind && !editingExId ? null : b.dataset.kind;
+  updateExKindUI();
+  if (exKind === 'water' && !document.getElementById('ex-amount').value) {
+    const last = excretionLogs.filter(x => x.catId === selectedCareCat && x.kind === 'water' && x.amount != null && x.amount !== '').sort((a, c) => ((c.date || '') + (c.time || '')).localeCompare((a.date || '') + (a.time || '')))[0];
+    if (last) document.getElementById('ex-amount').value = last.amount;
+  }
+}));
+document.getElementById('ex-photo').addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files || []);
+  const statusEl = document.getElementById('ex-photo-status');
+  if (!files.length) return;
+  statusEl.textContent = 'กำลังประมวลผลรูป...';
+  for (const file of files) {
+    try { exPendingPhotos.push({ id: genId(), dataUrl: await compressImageFile(file) }); }
+    catch (err) { console.error(err); statusEl.textContent = `แนบรูป "${file.name}" ไม่สำเร็จ ลองใหม่อีกครั้ง`; }
+  }
+  e.target.value = '';
+  renderExPhotoLists();
+  statusEl.textContent = exPendingPhotos.length ? `✅ เตรียมรูป ${exPendingPhotos.length} รูป (บันทึกตอนกด "บันทึก")` : statusEl.textContent;
+});
+document.getElementById('ex-cancel-edit').addEventListener('click', () => resetExForm());
+document.getElementById('ex-save').addEventListener('click', async () => {
+  if (!selectedCareCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
+  if (!exKind) { alert('กรุณาเลือกประเภท (ป้อนน้ำ / อึ / ฉี่)'); return; }
+  const date = document.getElementById('ex-date').value;
+  if (!date) { alert('กรุณาเลือกวันที่'); return; }
+  const id = editingExId || genId();
+  const keptPhotos = exExistingPhotos.filter(ph => !exRemovedPhotoIds.includes(ph.id));
+  try {
+    for (const ph of exPendingPhotos) await window.storage.set(exPhotoKey(id, ph.id), ph.dataUrl);
+    for (const rid of exRemovedPhotoIds) { try { await window.storage.set(exPhotoKey(id, rid), ''); } catch (e) {} }
+  } catch (err) { console.error(err); alert('บันทึกรูปไม่สำเร็จ ลองใหม่อีกครั้ง'); return; }
+  const amt = document.getElementById('ex-amount').value;
+  const data = {
+    id, catId: selectedCareCat, kind: exKind, date,
+    time: document.getElementById('ex-time').value || '',
+    amount: exKind === 'water' && amt !== '' ? Number(amt) : null,
+    form: (exKind === 'poop' || exKind === 'pee') ? document.getElementById('ex-form').value : '',
+    color: exKind === 'pee' ? document.getElementById('ex-color').value.trim() : '',
+    note: document.getElementById('ex-note').value.trim(),
+    photos: keptPhotos.concat(exPendingPhotos.map(ph => ({ id: ph.id })))
+  };
+  const idx = excretionLogs.findIndex(l => l.id === id);
+  if (idx > -1) excretionLogs[idx] = data; else excretionLogs.push(data);
+  await saveExcretionLogs();
+  const keep = exKind;
+  resetExForm(true);
+  exKind = keep; updateExKindUI();
+  if (exKind === 'water') document.getElementById('ex-amount').value = data.amount != null ? data.amount : '';
+  render();
+});
+document.getElementById('ex-export-csv').addEventListener('click', () => {
+  const mine = excretionLogs.filter(x => x.catId === selectedCareCat).sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
+  if (!mine.length) { alert('ยังไม่มีบันทึกให้ Export'); return; }
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const lines = [['วันที่', 'เวลา', 'ประเภท', 'ปริมาณน้ำ (มล.)', 'ลักษณะ/ปริมาณ', 'สี/อื่นๆ', 'หมายเหตุ', 'จำนวนรูป'].map(q).join(',')];
+  mine.forEach(x => lines.push([x.date, x.time || '', EX_KINDS[x.kind] || x.kind, x.amount != null ? x.amount : '', (EX_FORMS[x.kind] && EX_FORMS[x.kind].opts[x.form]) || '', x.color || '', x.note || '', (x.photos || []).length].map(q).join(',')));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const c = catById(selectedCareCat);
+  a.download = 'ขับถ่าย-น้ำ-' + ((c && c.name) || 'แมว') + '-' + toISO(new Date()) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+});
+
 /* ---------------- แอดมิด (ไปเช้าเย็นกลับ / นอนค้าง) ---------------- */
 function admitDayCount(a) {
   if (!a.start) return 0;
@@ -2660,13 +2956,22 @@ function renderCareCalendar() {
         const medTimesList = log.medIds.map(id => (log.medTimes && log.medTimes[id]) ? log.medTimes[id] : null).filter(Boolean);
         marks.push(`💊${log.medIds.length}${medTimesList.length ? ' ' + medTimesList.join(',') : ''}`);
       }
-      if (log.foodIds && log.foodIds.length) marks.push(`🍽${log.foodIds.length}`);
+      if (log.foodIds && log.foodIds.length) { const tg = Object.values(log.foodGrams || {}).reduce((t, v) => t + (Number(v) || 0), 0); marks.push(tg ? `🍽${tg}g` : `🍽${log.foodIds.length}`); }
+    }
+    const exDay = excretionLogs.filter(x => x.catId === selectedCareCat && x.date === dateStr);
+    if (exDay.length) {
+      const wml = exDay.filter(x => x.kind === 'water').reduce((t, x) => t + (Number(x.amount) || 0), 0);
+      const wn = exDay.filter(x => x.kind === 'water').length;
+      const pn = exDay.filter(x => x.kind === 'poop').length, un = exDay.filter(x => x.kind === 'pee').length;
+      if (wn) marks.push('🚰' + (wml ? wml : wn + 'ครั้ง'));
+      if (pn) marks.push('💩' + pn);
+      if (un) marks.push('🚽' + un);
     }
     const inAdmit = admitRecords.some(a => a.catId === selectedCareCat && a.start && a.start <= dateStr && dateStr <= (a.end || todayCalISO));
     if (inAdmit) marks.unshift('🏥');
     const syms = symByDate[dateStr] || [];
     const symHigh = syms.some(x => x.severity === 'high');
-    html += `<div class="care-cal-cell${(log || inAdmit) ? ' has-log' : ''}" data-caldate="${dateStr}">
+    html += `<div class="care-cal-cell${(log || inAdmit || exDay.length) ? ' has-log' : ''}" data-caldate="${dateStr}">
       <div class="daynum">${d}</div>
       ${marks.map(mk => `<div>${mk}</div>`).join('')}
       ${syms.length ? `<div style="${symHigh ? 'color:var(--rust);font-weight:700;' : 'color:#B5651D;font-weight:600;'}">🩺${syms.length}</div>` : ''}
