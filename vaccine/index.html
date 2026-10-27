@@ -383,14 +383,34 @@
     <section>
       <div class="card">
         <h2 id="ill-form-title">+ บันทึกการเจ็บป่วย</h2>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;margin-bottom:10px;">
+          <input type="checkbox" id="ill-injury" style="width:auto;"> อุบัติเหตุ / บาดเจ็บ (เหตุการณ์ครั้งเดียว)
+        </label>
         <div class="form-grid g2">
           <div>
-            <label class="field-label" for="ill-start">วันที่เริ่มป่วย</label>
+            <label class="field-label" for="ill-start" id="ill-start-label">วันที่เริ่มป่วย</label>
             <input type="date" id="ill-start">
           </div>
-          <div>
+          <div id="ill-end-wrap">
             <label class="field-label" for="ill-end">วันที่หาย (เว้นว่างถ้ายังไม่หาย)</label>
             <input type="date" id="ill-end">
+          </div>
+        </div>
+        <div id="ill-injury-wrap" style="display:none;">
+          <div class="form-grid g2">
+            <div>
+              <label class="field-label" for="ill-where">เกิดที่ไหน / บาดเจ็บส่วนไหน</label>
+              <input type="text" id="ill-where" placeholder="เช่น ตกเตียง สูงประมาณ 60 ซม. พื้นปูนา">
+            </div>
+            <div>
+              <label class="field-label" for="ill-head">ศีรษะกระแทกไหม</label>
+              <select id="ill-head">
+                <option value="">ไม่ระบุ</option>
+                <option value="no">ไม่</option>
+                <option value="yes">กระแทก</option>
+                <option value="unsure">ไม่แน่ใจ</option>
+              </select>
+            </div>
           </div>
         </div>
         <label class="field-label">ชื่อโรค/อาการ (เลือกได้หลายอย่าง)</label>
@@ -404,7 +424,7 @@
         </label>
         <div class="form-grid">
           <div>
-            <label class="field-label" for="ill-symptoms">อาการหลัก</label>
+            <label class="field-label" for="ill-symptoms" id="ill-symptoms-label">อาการหลัก</label>
             <input type="text" id="ill-symptoms" placeholder="เช่น ไข้ ไอ หายใจเร็ว น้ำมูก">
           </div>
         </div>
@@ -2049,8 +2069,10 @@ const ILLNESS_PRESET_GROUPS = [
   ['ทางเดินหายใจ', ['หวัด/ไข้หวัด', 'ไข้หวัดใหญ่ (Influenza)', 'RSV', 'หลอดลมอักเสบ', 'ปอดอักเสบ', 'หอบ/ภูมิแพ้ทางเดินหายใจ', 'COVID-19', 'หูชั้นกลางอักเสบ']],
   ['ทางเดินอาหาร', ['ท้องเสีย', 'ไวรัสลงกระเพาะ (โรตา)', 'อาเจียน']],
   ['ผิวหนัง / โรคติดต่อ', ['มือเท้าปาก', 'อีสุกอีใส', 'ผื่นแพ้', 'ไข้ออกผื่น']],
-  ['อื่นๆ', ['ไข้ไม่ทราบสาเหตุ', 'ตาอักเสบ', 'ไข้เลือดออก']]
+  ['อื่นๆ', ['ไข้ไม่ทราบสาเหตุ', 'ตาอักเสบ', 'ไข้เลือดออก']],
+  ['บาดเจ็บ / อุบัติเหตุ', ['ตกเตียง/ตกจากที่สูง', 'ศีรษะกระแทก', 'ล้ม/หกล้ม', 'ถูกลวก/ไฟไหม้', 'สำลัก/กลืนสิ่งแปลกปลอม', 'แมลงกัด/สัตว์กัด']]
 ];
+const ILLNESS_INJURY_PRESETS = ['ตกเตียง/ตกจากที่สูง', 'ศีรษะกระแทก', 'ล้ม/หกล้ม', 'ถูกลวก/ไฟไหม้', 'สำลัก/กลืนสิ่งแปลกปลอม', 'แมลงกัด/สัตว์กัด'];
 function illnessAllPresets() { return ILLNESS_PRESET_GROUPS.reduce((a, g) => a.concat(g[1]), []); }
 function renderIllnessChips() {
   const wrap = document.getElementById('ill-disease-chips');
@@ -2066,7 +2088,9 @@ function renderIllnessChips() {
   }).join('')}</div>`).join('');
   wrap.querySelectorAll('[data-ill-d]').forEach(b => b.addEventListener('click', () => {
     const n = b.dataset.illD;
-    illnessSelectedDiseases = illnessSelectedDiseases.includes(n) ? illnessSelectedDiseases.filter(x => x !== n) : illnessSelectedDiseases.concat(n);
+    const adding = !illnessSelectedDiseases.includes(n);
+    illnessSelectedDiseases = adding ? illnessSelectedDiseases.concat(n) : illnessSelectedDiseases.filter(x => x !== n);
+    if (adding && ILLNESS_INJURY_PRESETS.includes(n) && !document.getElementById('ill-injury').checked) { document.getElementById('ill-injury').checked = true; updateIllnessKindUI(); }
     renderIllnessChips();
   }));
   wrap.querySelectorAll('[data-ill-rmtype]').forEach(b => b.addEventListener('click', async () => {
@@ -2076,6 +2100,15 @@ function renderIllnessChips() {
     await saveIllnessTypes(); renderIllnessChips();
   }));
 }
+function updateIllnessKindUI() {
+  const inj = document.getElementById('ill-injury').checked;
+  document.getElementById('ill-end-wrap').style.display = inj ? 'none' : '';
+  document.getElementById('ill-injury-wrap').style.display = inj ? '' : 'none';
+  document.getElementById('ill-start-label').textContent = inj ? 'วันที่เกิดเหตุ' : 'วันที่เริ่มป่วย';
+  document.getElementById('ill-symptoms-label').textContent = inj ? 'อาการหลังเกิดเหตุ' : 'อาการหลัก';
+  document.getElementById('ill-symptoms').placeholder = inj ? 'เช่น ร้องไห้ทันที อาเจียน ซึม มีบวม/แผล' : 'เช่น ไข้ ไอ หายใจเร็ว น้ำมูก';
+}
+document.getElementById('ill-injury').addEventListener('change', updateIllnessKindUI);
 function illnessDays(r) {
   const end = r.end || toISOLocal(new Date());
   return Math.max(1, Math.round((new Date(end + 'T00:00:00') - new Date(r.start + 'T00:00:00')) / 86400000) + 1);
@@ -2098,24 +2131,28 @@ function renderIllnessTab() {
   const listWrap = document.getElementById('illness-list');
   const list = illnessRecords.filter(r => r.member === selectedIllnessChild).sort((a, b) => (b.start || '').localeCompare(a.start || ''));
   const yr = String(new Date().getFullYear());
-  const thisYear = list.filter(r => (r.start || '').slice(0, 4) === yr).length;
-  document.getElementById('illness-year-note').textContent = list.length ? `ปีนี้ป่วย ${thisYear} ครั้ง · ทั้งหมด ${list.length} ครั้ง` : '';
+  const yrList = list.filter(r => (r.start || '').slice(0, 4) === yr);
+  const yrInj = yrList.filter(r => r.injury).length, yrSick = yrList.length - yrInj;
+  const allInj = list.filter(r => r.injury).length, allSick = list.length - allInj;
+  document.getElementById('illness-year-note').textContent = list.length ? `ปีนี้: ป่วย ${yrSick} ครั้ง · อุบัติเหตุ ${yrInj} ครั้ง  |  ทั้งหมด: ป่วย ${allSick} ครั้ง · อุบัติเหตุ ${allInj} ครั้ง` : '';
   if (!list.length) { listWrap.innerHTML = '<p class="empty">ยังไม่มีประวัติเจ็บป่วย</p>'; return; }
   listWrap.innerHTML = list.map(r => {
     const names = (r.diseases || []).length ? r.diseases.map(escAttr).join(', ') : 'ไม่ระบุชื่อโรค';
-    const range = r.end ? `${fmtDateStr(r.start)} – ${fmtDateStr(r.end)} (${illnessDays(r)} วัน)` : `${fmtDateStr(r.start)} – ยังไม่หาย (${illnessDays(r)} วัน)`;
-    const tags = [r.unconfirmed ? '<span class="type-badge" style="background:#FDEEDC;color:#B5651D;">หมอยังไม่ยืนยัน</span>' : '', r.admitted ? '<span class="type-badge" style="background:#FCE3DD;color:#C0402A;">นอนโรงพยาบาล</span>' : '', !r.end ? '<span class="type-badge" style="background:#FFF6D9;color:#8A6D1B;">ยังไม่หาย</span>' : ''].join('');
+    const range = r.injury ? `เกิดเหตุ ${fmtDateStr(r.start)}` : (r.end ? `${fmtDateStr(r.start)} – ${fmtDateStr(r.end)} (${illnessDays(r)} วัน)` : `${fmtDateStr(r.start)} – ยังไม่หาย (${illnessDays(r)} วัน)`);
+    const headLbl = { no: 'ศีรษะไม่กระแทก', yes: 'ศีรษะกระแทก', unsure: 'ศีรษะกระแทก: ไม่แน่ใจ' }[r.head] || '';
+    const tags = [r.injury ? '<span class="type-badge" style="background:#EDE8FA;color:#5B4B9E;">อุบัติเหตุ</span>' : '', r.unconfirmed ? '<span class="type-badge" style="background:#FDEEDC;color:#B5651D;">หมอยังไม่ยืนยัน</span>' : '', r.admitted ? '<span class="type-badge" style="background:#FCE3DD;color:#C0402A;">นอนโรงพยาบาล</span>' : '', (!r.end && !r.injury) ? '<span class="type-badge" style="background:#FFF6D9;color:#8A6D1B;">ยังไม่หาย</span>' : ''].join('');
     return `<div class="visit-card" style="margin-bottom:8px;">
       <div class="row-between">
         <span><strong>${names}</strong>${tags}</span>
         <span>
-          ${!r.end ? `<button class="btn" data-ill-done="${r.id}" style="padding:2px 8px;font-size:12px;margin-right:4px;">หายแล้ว</button>` : ''}
+          ${(!r.end && !r.injury) ? `<button class="btn" data-ill-done="${r.id}" style="padding:2px 8px;font-size:12px;margin-right:4px;">หายแล้ว</button>` : ''}
           <button class="del-btn" data-ill-edit="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
           <button class="del-btn" data-ill-del="${r.id}" aria-label="ลบ">✕</button>
         </span>
       </div>
       <p class="muted" style="margin:4px 0 0;">${range}</p>
-      ${r.symptoms ? `<p class="muted" style="margin:4px 0 0;">อาการ: ${escAttr(r.symptoms)}</p>` : ''}
+      ${(r.where || headLbl) ? `<p class="muted" style="margin:4px 0 0;">${[r.where ? escAttr(r.where) : '', headLbl].filter(Boolean).join(' · ')}</p>` : ''}
+      ${r.symptoms ? `<p class="muted" style="margin:4px 0 0;">${r.injury ? 'อาการหลังเกิดเหตุ' : 'อาการ'}: ${escAttr(r.symptoms)}</p>` : ''}
       ${r.meds ? `<p class="muted" style="margin:4px 0 0;">ยา: ${escAttr(r.meds)}</p>` : ''}
       ${r.hospital ? `<p class="muted" style="margin:4px 0 0;">พบหมอที่: ${escAttr(r.hospital)}</p>` : ''}
       ${r.note ? `<p class="muted" style="margin:4px 0 0;">${escAttr(r.note)}</p>` : ''}
@@ -2144,12 +2181,16 @@ function startIllnessEdit(id) {
   document.getElementById('ill-start').value = r.start || '';
   document.getElementById('ill-end').value = r.end || '';
   document.getElementById('ill-unconfirmed').checked = !!r.unconfirmed;
+  document.getElementById('ill-injury').checked = !!r.injury;
+  document.getElementById('ill-where').value = r.where || '';
+  document.getElementById('ill-head').value = r.head || '';
+  updateIllnessKindUI();
   document.getElementById('ill-symptoms').value = r.symptoms || '';
   document.getElementById('ill-meds').value = r.meds || '';
   document.getElementById('ill-hospital').value = r.hospital || '';
   document.getElementById('ill-admitted').checked = !!r.admitted;
   document.getElementById('ill-note').value = r.note || '';
-  document.getElementById('ill-form-title').textContent = '✏️ แก้ไขบันทึกการเจ็บป่วย';
+  document.getElementById('ill-form-title').textContent = r.injury ? '✏️ แก้ไขบันทึกอุบัติเหตุ' : '✏️ แก้ไขบันทึกการเจ็บป่วย';
   document.getElementById('ill-add').textContent = '💾 บันทึกการแก้ไข';
   document.getElementById('ill-cancel-edit').style.display = 'inline-block';
   renderIllnessChips();
@@ -2161,6 +2202,10 @@ function cancelIllnessEdit() {
   ['ill-start', 'ill-end', 'ill-symptoms', 'ill-meds', 'ill-hospital', 'ill-note', 'ill-custom'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('ill-unconfirmed').checked = false;
   document.getElementById('ill-admitted').checked = false;
+  document.getElementById('ill-injury').checked = false;
+  document.getElementById('ill-where').value = '';
+  document.getElementById('ill-head').value = '';
+  updateIllnessKindUI();
   document.getElementById('ill-form-title').textContent = '+ บันทึกการเจ็บป่วย';
   document.getElementById('ill-add').textContent = '+ บันทึก';
   document.getElementById('ill-cancel-edit').style.display = 'none';
@@ -2181,7 +2226,8 @@ document.getElementById('ill-add').addEventListener('click', async () => {
   if (!selectedIllnessChild) return;
   const start = document.getElementById('ill-start').value;
   if (!start) { alert('กรุณาเลือกวันที่เริ่มป่วย'); return; }
-  const end = document.getElementById('ill-end').value || null;
+  const injury = document.getElementById('ill-injury').checked;
+  const end = injury ? null : (document.getElementById('ill-end').value || null);
   if (end && end < start) { alert('วันที่หายต้องไม่ก่อนวันที่เริ่มป่วย'); return; }
   // ถ้ายังพิมพ์ชื่ออื่นค้างอยู่ในช่อง ให้นับรวมด้วย
   const pending = document.getElementById('ill-custom').value.trim();
@@ -2190,7 +2236,9 @@ document.getElementById('ill-add').addEventListener('click', async () => {
     if (!illnessSelectedDiseases.includes(pending)) illnessSelectedDiseases.push(pending);
   }
   const values = {
-    start, end,
+    start, end, injury,
+    where: injury ? document.getElementById('ill-where').value.trim() : '',
+    head: injury ? document.getElementById('ill-head').value : '',
     diseases: illnessSelectedDiseases.slice(),
     unconfirmed: document.getElementById('ill-unconfirmed').checked,
     symptoms: document.getElementById('ill-symptoms').value.trim(),
