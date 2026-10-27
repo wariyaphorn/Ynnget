@@ -402,7 +402,7 @@
     <section>
       <div class="subtab-nav" data-group="care">
         <button type="button" data-sub="day">บันทึกวันนี้</button>
-        <button type="button" data-sub="excr">ขับถ่าย/น้ำ</button>
+        <button type="button" data-sub="excr">ป้อน/ขับถ่าย</button>
         <button type="button" data-sub="sym">อาการ</button>
         <button type="button" data-sub="fluid">น้ำเกลือ</button>
         <button type="button" data-sub="med">ยา</button>
@@ -685,10 +685,11 @@
     <div class="subpane" data-group="care" data-sub="excr">
     <section>
       <div class="card">
-        <h2 id="ex-form-title">🚰 บันทึกป้อนน้ำ / อึ / ฉี่</h2>
+        <h2 id="ex-form-title">🚰 บันทึกป้อนน้ำ / ป้อนอาหาร / อึ / ฉี่</h2>
         <p class="muted" style="margin:0 0 10px;">เลือกประเภท ใส่รายละเอียดสั้นๆ แล้วกดบันทึก เวลาเริ่มต้นคือตอนนี้ แนบรูปได้ (ไว้ให้หมอดู)</p>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
           <button type="button" class="btn ex-kind-btn" data-kind="water">🚰 ป้อนน้ำ</button>
+          <button type="button" class="btn ex-kind-btn" data-kind="feed">🍽 ป้อนอาหาร</button>
           <button type="button" class="btn ex-kind-btn" data-kind="poop">💩 อึ</button>
           <button type="button" class="btn ex-kind-btn" data-kind="pee">🚽 ฉี่</button>
         </div>
@@ -705,6 +706,18 @@
         <div id="ex-water-wrap" style="display:none;margin-bottom:10px;">
           <label class="field-label" for="ex-amount">ป้อนด้วยไซริงค์ (มล.)</label>
           <input type="number" step="any" min="0" id="ex-amount" placeholder="เช่น 10">
+        </div>
+        <div id="ex-feed-wrap" style="display:none;margin-bottom:10px;">
+          <div class="form-grid g2">
+            <div>
+              <label class="field-label" for="ex-food">อาหาร</label>
+              <select id="ex-food"></select>
+            </div>
+            <div>
+              <label class="field-label" for="ex-grams">ปริมาณ (g)</label>
+              <input type="number" step="any" min="0" id="ex-grams" placeholder="เช่น 40">
+            </div>
+          </div>
         </div>
         <div id="ex-form-wrap" style="display:none;margin-bottom:10px;">
           <label class="field-label" for="ex-form" id="ex-form-label">ลักษณะ</label>
@@ -2620,7 +2633,7 @@ document.getElementById('symtype-add').addEventListener('click', async () => {
 });
 
 /* ---------------- ขับถ่าย / ป้อนน้ำ ---------------- */
-const EX_KINDS = { water: '🚰 ป้อนน้ำ', poop: '💩 อึ', pee: '🚽 ฉี่' };
+const EX_KINDS = { water: '🚰 ป้อนน้ำ', feed: '🍽 ป้อนอาหาร', poop: '💩 อึ', pee: '🚽 ฉี่' };
 const EX_FORMS = {
   poop: { label: 'ลักษณะอึ', opts: { normal: 'ปกติ', hard: 'แข็ง/เม็ดเล็ก', soft: 'นิ่ม', loose: 'เหลว', bloody: 'มีเลือด/มูก' } },
   pee: { label: 'ปริมาณฉี่', opts: { none: 'ไม่ออก', little: 'น้อย', normal: 'ปกติ', much: 'มาก' } }
@@ -2634,11 +2647,18 @@ function nowHHMM() { const d = new Date(); return String(d.getHours()).padStart(
 function exLabel(x) {
   const f = x.kind !== 'water' && EX_FORMS[x.kind] ? EX_FORMS[x.kind].opts[x.form] : '';
   if (x.kind === 'water') return x.amount !== '' && x.amount != null ? x.amount + ' มล.' : 'ป้อนน้ำ';
+  if (x.kind === 'feed') { const f = foodCatalog.find(c => c.id === x.foodId); const nm = f ? f.name : (x.foodName || 'อาหาร'); return nm + (x.amount != null && x.amount !== '' ? ' ' + x.amount + ' g' : ''); }
   return [f, x.color].filter(Boolean).join(' · ');
 }
 function updateExKindUI() {
   document.querySelectorAll('.ex-kind-btn').forEach(b => b.classList.toggle('btn-primary', b.dataset.kind === exKind));
   document.getElementById('ex-water-wrap').style.display = exKind === 'water' ? '' : 'none';
+  document.getElementById('ex-feed-wrap').style.display = exKind === 'feed' ? '' : 'none';
+  if (exKind === 'feed') {
+    const fs = document.getElementById('ex-food'), prev = fs.value;
+    fs.innerHTML = foodCatalog.length ? foodCatalog.map(f => `<option value="${f.id}">${symEsc(f.name)}</option>`).join('') : '<option value="">(ยังไม่มีอาหารในคลัง)</option>';
+    if (prev && foodCatalog.some(f => f.id === prev)) fs.value = prev;
+  }
   const hasForm = exKind === 'poop' || exKind === 'pee';
   document.getElementById('ex-form-wrap').style.display = hasForm ? '' : 'none';
   document.getElementById('ex-color-wrap').style.display = exKind === 'pee' ? '' : 'none';
@@ -2687,10 +2707,11 @@ function resetExForm(keepKind) {
   document.getElementById('ex-date').value = toISO(new Date());
   document.getElementById('ex-time').value = nowHHMM();
   document.getElementById('ex-color').value = '';
+  document.getElementById('ex-grams').value = '';
   document.getElementById('ex-note').value = '';
   document.getElementById('ex-photo').value = '';
   document.getElementById('ex-photo-status').textContent = '';
-  document.getElementById('ex-form-title').textContent = '🚰 บันทึกป้อนน้ำ / อึ / ฉี่';
+  document.getElementById('ex-form-title').textContent = '🚰 บันทึกป้อนน้ำ / ป้อนอาหาร / อึ / ฉี่';
   document.getElementById('ex-save').textContent = '+ บันทึก';
   document.getElementById('ex-cancel-edit').style.display = 'none';
   updateExKindUI(); renderExPhotoLists();
@@ -2704,7 +2725,13 @@ function startExEdit(id) {
   document.getElementById('ex-date').value = x.date;
   document.getElementById('ex-time').value = x.time || '';
   updateExKindUI();
-  document.getElementById('ex-amount').value = x.amount != null ? x.amount : '';
+  document.getElementById('ex-amount').value = (x.kind === 'water' && x.amount != null) ? x.amount : '';
+  if (x.kind === 'feed') {
+    const fs = document.getElementById('ex-food');
+    if (x.foodId && !foodCatalog.some(f => f.id === x.foodId)) fs.insertAdjacentHTML('beforeend', `<option value="${x.foodId}">${symEsc(x.foodName || 'อาหารที่ลบแล้ว')}</option>`);
+    fs.value = x.foodId || '';
+    document.getElementById('ex-grams').value = x.amount != null ? x.amount : '';
+  }
   if (x.form && document.getElementById('ex-form').querySelector(`option[value="${x.form}"]`)) document.getElementById('ex-form').value = x.form;
   document.getElementById('ex-color').value = x.color || '';
   document.getElementById('ex-note').value = x.note || '';
@@ -2733,8 +2760,10 @@ function renderExcretionSection() {
     const rows = byDate[d].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
     const w = rows.filter(r => r.kind === 'water');
     const ml = w.reduce((t, r) => t + (Number(r.amount) || 0), 0);
+    const fd = rows.filter(r => r.kind === 'feed');
+    const fg = fd.reduce((t, r) => t + (Number(r.amount) || 0), 0);
     const pn = rows.filter(r => r.kind === 'poop').length, un = rows.filter(r => r.kind === 'pee').length;
-    const sum = [w.length ? `🚰 ${w.length} ครั้ง${ml ? ' รวม ' + ml + ' มล.' : ''}` : '', pn ? `💩 ${pn} ครั้ง` : '', un ? `🚽 ${un} ครั้ง` : ''].filter(Boolean).join(' · ');
+    const sum = [w.length ? `🚰 ${w.length} ครั้ง${ml ? ' รวม ' + ml + ' มล.' : ''}` : '', fd.length ? `🍽 ${fd.length} ครั้ง${fg ? ' รวม ' + fg + ' g' : ''}` : '', pn ? `💩 ${pn} ครั้ง` : '', un ? `🚽 ${un} ครั้ง` : ''].filter(Boolean).join(' · ');
     return `<div style="margin-bottom:12px;">
       <div style="font-weight:700;margin-bottom:4px;">📅 ${fmtDateStr(d)} <span class="muted" style="font-weight:500;font-size:12.5px;">${sum}</span></div>
       ${rows.map(x => `<div class="visit-card" style="margin-bottom:6px;">
@@ -2780,6 +2809,10 @@ document.querySelectorAll('.ex-kind-btn').forEach(b => b.addEventListener('click
     const last = excretionLogs.filter(x => x.catId === selectedCareCat && x.kind === 'water' && x.amount != null && x.amount !== '').sort((a, c) => ((c.date || '') + (c.time || '')).localeCompare((a.date || '') + (a.time || '')))[0];
     if (last) document.getElementById('ex-amount').value = last.amount;
   }
+  if (exKind === 'feed' && !editingExId && !document.getElementById('ex-grams').value) {
+    const lf = excretionLogs.filter(x => x.catId === selectedCareCat && x.kind === 'feed').sort((a, c) => ((c.date || '') + (c.time || '')).localeCompare((a.date || '') + (a.time || '')))[0];
+    if (lf) { if (lf.amount != null) document.getElementById('ex-grams').value = lf.amount; if (lf.foodId && foodCatalog.some(f => f.id === lf.foodId)) document.getElementById('ex-food').value = lf.foodId; }
+  }
 }));
 document.getElementById('ex-photo').addEventListener('change', async (e) => {
   const files = Array.from(e.target.files || []);
@@ -2797,7 +2830,7 @@ document.getElementById('ex-photo').addEventListener('change', async (e) => {
 document.getElementById('ex-cancel-edit').addEventListener('click', () => resetExForm());
 document.getElementById('ex-save').addEventListener('click', async () => {
   if (!selectedCareCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
-  if (!exKind) { alert('กรุณาเลือกประเภท (ป้อนน้ำ / อึ / ฉี่)'); return; }
+  if (!exKind) { alert('กรุณาเลือกประเภท (ป้อนน้ำ / ป้อนอาหาร / อึ / ฉี่)'); return; }
   const date = document.getElementById('ex-date').value;
   if (!date) { alert('กรุณาเลือกวันที่'); return; }
   const id = editingExId || genId();
@@ -2810,7 +2843,9 @@ document.getElementById('ex-save').addEventListener('click', async () => {
   const data = {
     id, catId: selectedCareCat, kind: exKind, date,
     time: document.getElementById('ex-time').value || '',
-    amount: exKind === 'water' && amt !== '' ? Number(amt) : null,
+    amount: exKind === 'water' && amt !== '' ? Number(amt) : (exKind === 'feed' && document.getElementById('ex-grams').value !== '' ? Number(document.getElementById('ex-grams').value) : null),
+    foodId: exKind === 'feed' ? (document.getElementById('ex-food').value || '') : '',
+    foodName: exKind === 'feed' ? ((foodCatalog.find(f => f.id === document.getElementById('ex-food').value) || {}).name || '') : '',
     form: (exKind === 'poop' || exKind === 'pee') ? document.getElementById('ex-form').value : '',
     color: exKind === 'pee' ? document.getElementById('ex-color').value.trim() : '',
     note: document.getElementById('ex-note').value.trim(),
@@ -2823,19 +2858,20 @@ document.getElementById('ex-save').addEventListener('click', async () => {
   resetExForm(true);
   exKind = keep; updateExKindUI();
   if (exKind === 'water') document.getElementById('ex-amount').value = data.amount != null ? data.amount : '';
+  if (exKind === 'feed') { document.getElementById('ex-grams').value = data.amount != null ? data.amount : ''; if (data.foodId) document.getElementById('ex-food').value = data.foodId; }
   render();
 });
 document.getElementById('ex-export-csv').addEventListener('click', () => {
   const mine = excretionLogs.filter(x => x.catId === selectedCareCat).sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
   if (!mine.length) { alert('ยังไม่มีบันทึกให้ Export'); return; }
   const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-  const lines = [['วันที่', 'เวลา', 'ประเภท', 'ปริมาณน้ำ (มล.)', 'ลักษณะ/ปริมาณ', 'สี/อื่นๆ', 'หมายเหตุ', 'จำนวนรูป'].map(q).join(',')];
-  mine.forEach(x => lines.push([x.date, x.time || '', EX_KINDS[x.kind] || x.kind, x.amount != null ? x.amount : '', (EX_FORMS[x.kind] && EX_FORMS[x.kind].opts[x.form]) || '', x.color || '', x.note || '', (x.photos || []).length].map(q).join(',')));
+  const lines = [['วันที่', 'เวลา', 'ประเภท', 'ปริมาณน้ำ (มล.)', 'อาหาร', 'ปริมาณอาหาร (g)', 'ลักษณะ/ปริมาณ', 'สี/อื่นๆ', 'หมายเหตุ', 'จำนวนรูป'].map(q).join(',')];
+  mine.forEach(x => lines.push([x.date, x.time || '', EX_KINDS[x.kind] || x.kind, x.kind === 'water' && x.amount != null ? x.amount : '', x.kind === 'feed' ? ((foodCatalog.find(f => f.id === x.foodId) || {}).name || x.foodName || '') : '', x.kind === 'feed' && x.amount != null ? x.amount : '', (EX_FORMS[x.kind] && EX_FORMS[x.kind].opts[x.form]) || '', x.color || '', x.note || '', (x.photos || []).length].map(q).join(',')));
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   const c = catById(selectedCareCat);
-  a.download = 'ขับถ่าย-น้ำ-' + ((c && c.name) || 'แมว') + '-' + toISO(new Date()) + '.csv';
+  a.download = 'ป้อน-ขับถ่าย-' + ((c && c.name) || 'แมว') + '-' + toISO(new Date()) + '.csv';
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 });
@@ -2979,6 +3015,8 @@ function renderCareCalendar() {
       const wn = exDay.filter(x => x.kind === 'water').length;
       const pn = exDay.filter(x => x.kind === 'poop').length, un = exDay.filter(x => x.kind === 'pee').length;
       if (wn) marks.push('🚰' + (wml ? wml : wn + 'ครั้ง'));
+      const fdr = exDay.filter(x => x.kind === 'feed'), fdg = fdr.reduce((t, x) => t + (Number(x.amount) || 0), 0);
+      if (fdr.length) marks.push('🥣' + (fdg ? fdg + 'g' : fdr.length + 'ครั้ง'));
       if (pn) marks.push('💩' + pn);
       if (un) marks.push('🚽' + un);
     }
