@@ -216,6 +216,7 @@
     <button class="page-tab" data-page="alerts" id="alerts-tab">แจ้งเตือน</button>
     <button class="page-tab" data-page="dentist">ทันตกรรม</button>
     <button class="page-tab" data-page="checkup">นัดหมอ</button>
+    <button class="page-tab" data-page="illness">เจ็บป่วย</button>
     <button class="page-tab" data-page="growth">การเจริญเติบโต</button>
     <button class="page-tab" data-page="expenses">ค่าใช้จ่าย</button>
     <button class="page-tab" data-page="setup">ตั้งค่า</button>
@@ -364,6 +365,71 @@
         <div style="display:flex;gap:8px;margin-top:8px;">
           <button class="btn btn-primary" id="chk-add" style="flex:1;">+ บันทึกนัด</button>
           <button class="btn" id="chk-cancel-edit" style="display:none;">ยกเลิก</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="page-illness" class="page">
+    <section>
+      <div class="card">
+        <h2>ประวัติเจ็บป่วย</h2>
+        <p class="muted" style="margin:0 0 10px;">จดช่วงที่ป่วยของแต่ละคน เช่น RSV ชื่อโรคจดตามที่หมอแจ้ง ถ้ายังไม่ทราบให้ติ๊ก "หมอยังไม่ยืนยัน" ไว้ก่อน ไม่ต้องเดาชื่อโรค</p>
+        <div class="child-tabs" id="illness-child-tabs"></div>
+        <p class="muted" id="illness-year-note" style="margin:0 0 8px;"></p>
+        <div id="illness-list"></div>
+      </div>
+    </section>
+    <section>
+      <div class="card">
+        <h2 id="ill-form-title">+ บันทึกการเจ็บป่วย</h2>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="ill-start">วันที่เริ่มป่วย</label>
+            <input type="date" id="ill-start">
+          </div>
+          <div>
+            <label class="field-label" for="ill-end">วันที่หาย (เว้นว่างถ้ายังไม่หาย)</label>
+            <input type="date" id="ill-end">
+          </div>
+        </div>
+        <label class="field-label">ชื่อโรค/อาการ (เลือกได้หลายอย่าง)</label>
+        <div id="ill-disease-chips" style="margin-bottom:6px;"></div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;">
+          <input type="text" id="ill-custom" placeholder="อื่นๆ พิมพ์ชื่อเอง แล้วกด +">
+          <button class="btn" id="ill-custom-add" type="button">+</button>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;margin-bottom:10px;">
+          <input type="checkbox" id="ill-unconfirmed" style="width:auto;"> หมอยังไม่ยืนยัน / ยังไม่ทราบสาเหตุ (จดเป็นอาการ)
+        </label>
+        <div class="form-grid">
+          <div>
+            <label class="field-label" for="ill-symptoms">อาการหลัก</label>
+            <input type="text" id="ill-symptoms" placeholder="เช่น ไข้ ไอ หายใจเร็ว น้ำมูก">
+          </div>
+        </div>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="ill-meds">ยาที่ได้</label>
+            <input type="text" id="ill-meds" placeholder="ไม่บังคับ">
+          </div>
+          <div>
+            <label class="field-label" for="ill-hospital">พบหมอที่</label>
+            <input type="text" id="ill-hospital" list="chk-hospital-list" placeholder="ไม่บังคับ">
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;margin-bottom:10px;">
+          <input type="checkbox" id="ill-admitted" style="width:auto;"> นอนโรงพยาบาล
+        </label>
+        <div class="form-grid">
+          <div>
+            <label class="field-label" for="ill-note">หมายเหตุ</label>
+            <input type="text" id="ill-note" placeholder="ไม่บังคับ">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-primary" id="ill-add" style="flex:1;">+ บันทึก</button>
+          <button class="btn" id="ill-cancel-edit" style="display:none;">ยกเลิก</button>
         </div>
       </div>
     </section>
@@ -617,6 +683,8 @@ const VACCINE_RECORDS_KEY = 'vaccine-records';
 const DENTIST_RECORDS_KEY = 'dentist-records';
 const OTHER_EXPENSES_KEY = 'other-expenses';
 const CHECKUP_RECORDS_KEY = 'checkup-records';
+const ILLNESS_RECORDS_KEY = 'illness-records';
+const ILLNESS_TYPES_KEY = 'illness-custom-types';
 const GROWTH_RECORDS_KEY = 'growth-records';
 const ADULTS_KEY = 'vaccine-adults';
 const ADULT_VACCINE_CATALOG_KEY = 'adult-vaccine-catalog';
@@ -690,6 +758,11 @@ let checkupRecords = [];
 let growthRecords = [];
 let selectedDentistChild = null;
 let selectedCheckupChild = null;
+let illnessRecords = [];
+let illnessCustomTypes = [];
+let selectedIllnessChild = null;
+let editingIllnessId = null;
+let illnessSelectedDiseases = [];
 let selectedGrowthChild = null;
 let editingDentistId = null;
 let editingCheckupId = null;
@@ -772,6 +845,8 @@ async function saveVaccineCatalog() { try { await window.storage.set(VACCINE_CAT
 async function saveVaccineRecords() { try { await window.storage.set(VACCINE_RECORDS_KEY, JSON.stringify(vaccineRecords)); } catch (e) { console.error(e); } }
 async function saveDentistRecords() { try { await window.storage.set(DENTIST_RECORDS_KEY, JSON.stringify(dentistRecords)); } catch (e) { console.error(e); } }
 async function saveOtherExpenses() { try { await window.storage.set(OTHER_EXPENSES_KEY, JSON.stringify(otherExpenses)); } catch (e) { console.error(e); } }
+async function saveIllnessRecords() { try { await window.storage.set(ILLNESS_RECORDS_KEY, JSON.stringify(illnessRecords)); } catch (e) { console.error(e); } }
+async function saveIllnessTypes() { try { await window.storage.set(ILLNESS_TYPES_KEY, JSON.stringify(illnessCustomTypes)); } catch (e) { console.error(e); } }
 async function saveCheckupRecords() { try { await window.storage.set(CHECKUP_RECORDS_KEY, JSON.stringify(checkupRecords)); } catch (e) { console.error(e); } }
 async function saveGrowthRecords() { try { await window.storage.set(GROWTH_RECORDS_KEY, JSON.stringify(growthRecords)); } catch (e) { console.error(e); } }
 async function saveAdults() { try { await window.storage.set(ADULTS_KEY, JSON.stringify(adults)); } catch (e) { console.error(e); } }
@@ -839,6 +914,8 @@ async function load() {
   try { const r = await window.storage.get(DENTIST_RECORDS_KEY); dentistRecords = r ? JSON.parse(r.value) : defaultDentistRecords(); } catch (e) { dentistRecords = defaultDentistRecords(); }
   try { const r = await window.storage.get(OTHER_EXPENSES_KEY); otherExpenses = r ? JSON.parse(r.value) : defaultOtherExpenses(); } catch (e) { otherExpenses = defaultOtherExpenses(); }
   try { const r = await window.storage.get(CHECKUP_RECORDS_KEY); checkupRecords = r ? JSON.parse(r.value) : defaultCheckupRecords(); } catch (e) { checkupRecords = defaultCheckupRecords(); }
+  try { const r = await window.storage.get(ILLNESS_RECORDS_KEY); illnessRecords = r ? JSON.parse(r.value) : []; } catch (e) { illnessRecords = []; }
+  try { const r = await window.storage.get(ILLNESS_TYPES_KEY); illnessCustomTypes = r ? JSON.parse(r.value) : []; } catch (e) { illnessCustomTypes = []; }
   try { const r = await window.storage.get(GROWTH_RECORDS_KEY); growthRecords = r ? JSON.parse(r.value) : defaultGrowthRecords(); } catch (e) { growthRecords = defaultGrowthRecords(); }
   try { const r = await window.storage.get(ADULTS_KEY); adults = r && JSON.parse(r.value).length ? JSON.parse(r.value) : defaultAdults(); } catch (e) { adults = defaultAdults(); }
   try { const r = await window.storage.get(ADULT_VACCINE_CATALOG_KEY); adultVaccineCatalog = r && JSON.parse(r.value).length ? JSON.parse(r.value) : defaultAdultVaccineCatalog(); } catch (e) { adultVaccineCatalog = defaultAdultVaccineCatalog(); }
@@ -877,6 +954,7 @@ async function load() {
 
   if (!selectedDentistChild && (children.length || adults.length)) selectedDentistChild = (children[0] || adults[0]).slug;
   if (!selectedCheckupChild && (children.length || adults.length)) selectedCheckupChild = (children[0] || adults[0]).slug;
+  if (!selectedIllnessChild && (children.length || adults.length)) selectedIllnessChild = (children[0] || adults[0]).slug;
   if (!selectedGrowthChild && (children.length || adults.length)) selectedGrowthChild = (children[0] || adults[0]).slug;
   if (!growthChartSelected.length && children.length) growthChartSelected = children.map(c => c.slug);
   render();
@@ -1966,6 +2044,171 @@ function renderDueBanner() {
   wrap.innerHTML = `<div class="banner-due"><strong>📅 กำหนดที่ใกล้ถึง/เลยกำหนด (ถึงวันที่ ${fmtDateStr(thresholdDate)})</strong>${groups}</div>`;
 }
 
+/* ---------------- ประวัติเจ็บป่วย ---------------- */
+const ILLNESS_PRESET_GROUPS = [
+  ['ทางเดินหายใจ', ['หวัด/ไข้หวัด', 'ไข้หวัดใหญ่ (Influenza)', 'RSV', 'หลอดลมอักเสบ', 'ปอดอักเสบ', 'หอบ/ภูมิแพ้ทางเดินหายใจ', 'COVID-19', 'หูชั้นกลางอักเสบ']],
+  ['ทางเดินอาหาร', ['ท้องเสีย', 'ไวรัสลงกระเพาะ (โรตา)', 'อาเจียน']],
+  ['ผิวหนัง / โรคติดต่อ', ['มือเท้าปาก', 'อีสุกอีใส', 'ผื่นแพ้', 'ไข้ออกผื่น']],
+  ['อื่นๆ', ['ไข้ไม่ทราบสาเหตุ', 'ตาอักเสบ', 'ไข้เลือดออก']]
+];
+function illnessAllPresets() { return ILLNESS_PRESET_GROUPS.reduce((a, g) => a.concat(g[1]), []); }
+function renderIllnessChips() {
+  const wrap = document.getElementById('ill-disease-chips');
+  if (!wrap) return;
+  const groups = ILLNESS_PRESET_GROUPS.map(g => [g[0], g[1].map(n => ({ n, custom: false }))]);
+  const customs = illnessCustomTypes.filter(n => !illnessAllPresets().includes(n));
+  // ชื่อที่เลือกไว้แต่ไม่อยู่ในรายการ (เช่น ตอนแก้ไขรายการเก่า) ให้แสดงด้วย
+  illnessSelectedDiseases.forEach(n => { if (!illnessAllPresets().includes(n) && !customs.includes(n)) customs.push(n); });
+  if (customs.length) groups.push(['ที่เพิ่มเอง', customs.map(n => ({ n, custom: true }))]);
+  wrap.innerHTML = groups.map(g => `<div style="margin-bottom:6px;"><span class="muted" style="font-size:12px;">${escAttr(g[0])}</span><br>${g[1].map(o => {
+    const on = illnessSelectedDiseases.includes(o.n);
+    return `<button type="button" class="chip ${on ? 'chip-overdue' : 'chip-empty'}" data-ill-d="${escAttr(o.n)}">${on ? '✓ ' : ''}${escAttr(o.n)}</button>` + (o.custom ? `<button type="button" class="del-btn" data-ill-rmtype="${escAttr(o.n)}" title="ลบชื่อนี้ออกจากรายการ" aria-label="ลบชื่อนี้ออกจากรายการ" style="margin-right:4px;">✕</button>` : '');
+  }).join('')}</div>`).join('');
+  wrap.querySelectorAll('[data-ill-d]').forEach(b => b.addEventListener('click', () => {
+    const n = b.dataset.illD;
+    illnessSelectedDiseases = illnessSelectedDiseases.includes(n) ? illnessSelectedDiseases.filter(x => x !== n) : illnessSelectedDiseases.concat(n);
+    renderIllnessChips();
+  }));
+  wrap.querySelectorAll('[data-ill-rmtype]').forEach(b => b.addEventListener('click', async () => {
+    const n = b.dataset.illRmtype;
+    illnessCustomTypes = illnessCustomTypes.filter(x => x !== n);
+    illnessSelectedDiseases = illnessSelectedDiseases.filter(x => x !== n);
+    await saveIllnessTypes(); renderIllnessChips();
+  }));
+}
+function illnessDays(r) {
+  const end = r.end || toISOLocal(new Date());
+  return Math.max(1, Math.round((new Date(end + 'T00:00:00') - new Date(r.start + 'T00:00:00')) / 86400000) + 1);
+}
+function toISOLocal(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function renderIllnessTab() {
+  const tabsWrap = document.getElementById('illness-child-tabs');
+  if (!tabsWrap) return;
+  tabsWrap.innerHTML = '';
+  const allMembers = [...children, ...adults];
+  if (!allMembers.length) { tabsWrap.innerHTML = '<p class="empty">ยังไม่มีข้อมูลสมาชิก ไปที่แท็บ "ตั้งค่า" ก่อน</p>'; document.getElementById('illness-list').innerHTML = ''; return; }
+  allMembers.forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'child-tab' + (selectedIllnessChild === c.slug ? ' active' : '');
+    btn.textContent = childLabel(c) + currentAgeLabel(c);
+    btn.addEventListener('click', () => { selectedIllnessChild = c.slug; cancelIllnessEdit(); render(); });
+    tabsWrap.appendChild(btn);
+  });
+  renderIllnessChips();
+  const listWrap = document.getElementById('illness-list');
+  const list = illnessRecords.filter(r => r.member === selectedIllnessChild).sort((a, b) => (b.start || '').localeCompare(a.start || ''));
+  const yr = String(new Date().getFullYear());
+  const thisYear = list.filter(r => (r.start || '').slice(0, 4) === yr).length;
+  document.getElementById('illness-year-note').textContent = list.length ? `ปีนี้ป่วย ${thisYear} ครั้ง · ทั้งหมด ${list.length} ครั้ง` : '';
+  if (!list.length) { listWrap.innerHTML = '<p class="empty">ยังไม่มีประวัติเจ็บป่วย</p>'; return; }
+  listWrap.innerHTML = list.map(r => {
+    const names = (r.diseases || []).length ? r.diseases.map(escAttr).join(', ') : 'ไม่ระบุชื่อโรค';
+    const range = r.end ? `${fmtDateStr(r.start)} – ${fmtDateStr(r.end)} (${illnessDays(r)} วัน)` : `${fmtDateStr(r.start)} – ยังไม่หาย (${illnessDays(r)} วัน)`;
+    const tags = [r.unconfirmed ? '<span class="type-badge" style="background:#FDEEDC;color:#B5651D;">หมอยังไม่ยืนยัน</span>' : '', r.admitted ? '<span class="type-badge" style="background:#FCE3DD;color:#C0402A;">นอนโรงพยาบาล</span>' : '', !r.end ? '<span class="type-badge" style="background:#FFF6D9;color:#8A6D1B;">ยังไม่หาย</span>' : ''].join('');
+    return `<div class="visit-card" style="margin-bottom:8px;">
+      <div class="row-between">
+        <span><strong>${names}</strong>${tags}</span>
+        <span>
+          ${!r.end ? `<button class="btn" data-ill-done="${r.id}" style="padding:2px 8px;font-size:12px;margin-right:4px;">หายแล้ว</button>` : ''}
+          <button class="del-btn" data-ill-edit="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
+          <button class="del-btn" data-ill-del="${r.id}" aria-label="ลบ">✕</button>
+        </span>
+      </div>
+      <p class="muted" style="margin:4px 0 0;">${range}</p>
+      ${r.symptoms ? `<p class="muted" style="margin:4px 0 0;">อาการ: ${escAttr(r.symptoms)}</p>` : ''}
+      ${r.meds ? `<p class="muted" style="margin:4px 0 0;">ยา: ${escAttr(r.meds)}</p>` : ''}
+      ${r.hospital ? `<p class="muted" style="margin:4px 0 0;">พบหมอที่: ${escAttr(r.hospital)}</p>` : ''}
+      ${r.note ? `<p class="muted" style="margin:4px 0 0;">${escAttr(r.note)}</p>` : ''}
+    </div>`;
+  }).join('');
+  listWrap.querySelectorAll('[data-ill-del]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('ลบรายการนี้?')) return;
+    illnessRecords = illnessRecords.filter(r => r.id !== b.dataset.illDel);
+    if (editingIllnessId === b.dataset.illDel) cancelIllnessEdit();
+    await saveIllnessRecords(); render();
+  }));
+  listWrap.querySelectorAll('[data-ill-edit]').forEach(b => b.addEventListener('click', () => startIllnessEdit(b.dataset.illEdit)));
+  listWrap.querySelectorAll('[data-ill-done]').forEach(b => b.addEventListener('click', async () => {
+    const r = illnessRecords.find(x => x.id === b.dataset.illDone);
+    if (!r) return;
+    r.end = toISOLocal(new Date());
+    if (r.end < r.start) r.end = r.start;
+    await saveIllnessRecords(); render();
+  }));
+}
+function startIllnessEdit(id) {
+  const r = illnessRecords.find(x => x.id === id);
+  if (!r) return;
+  editingIllnessId = id;
+  illnessSelectedDiseases = (r.diseases || []).slice();
+  document.getElementById('ill-start').value = r.start || '';
+  document.getElementById('ill-end').value = r.end || '';
+  document.getElementById('ill-unconfirmed').checked = !!r.unconfirmed;
+  document.getElementById('ill-symptoms').value = r.symptoms || '';
+  document.getElementById('ill-meds').value = r.meds || '';
+  document.getElementById('ill-hospital').value = r.hospital || '';
+  document.getElementById('ill-admitted').checked = !!r.admitted;
+  document.getElementById('ill-note').value = r.note || '';
+  document.getElementById('ill-form-title').textContent = '✏️ แก้ไขบันทึกการเจ็บป่วย';
+  document.getElementById('ill-add').textContent = '💾 บันทึกการแก้ไข';
+  document.getElementById('ill-cancel-edit').style.display = 'inline-block';
+  renderIllnessChips();
+  document.getElementById('ill-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function cancelIllnessEdit() {
+  editingIllnessId = null;
+  illnessSelectedDiseases = [];
+  ['ill-start', 'ill-end', 'ill-symptoms', 'ill-meds', 'ill-hospital', 'ill-note', 'ill-custom'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('ill-unconfirmed').checked = false;
+  document.getElementById('ill-admitted').checked = false;
+  document.getElementById('ill-form-title').textContent = '+ บันทึกการเจ็บป่วย';
+  document.getElementById('ill-add').textContent = '+ บันทึก';
+  document.getElementById('ill-cancel-edit').style.display = 'none';
+  renderIllnessChips();
+}
+document.getElementById('ill-custom-add').addEventListener('click', async () => {
+  const inp = document.getElementById('ill-custom');
+  const n = inp.value.trim();
+  if (!n) return;
+  if (!illnessAllPresets().includes(n) && !illnessCustomTypes.includes(n)) { illnessCustomTypes.push(n); await saveIllnessTypes(); }
+  if (!illnessSelectedDiseases.includes(n)) illnessSelectedDiseases.push(n);
+  inp.value = '';
+  renderIllnessChips();
+});
+document.getElementById('ill-custom').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('ill-custom-add').click(); } });
+document.getElementById('ill-cancel-edit').addEventListener('click', () => { cancelIllnessEdit(); });
+document.getElementById('ill-add').addEventListener('click', async () => {
+  if (!selectedIllnessChild) return;
+  const start = document.getElementById('ill-start').value;
+  if (!start) { alert('กรุณาเลือกวันที่เริ่มป่วย'); return; }
+  const end = document.getElementById('ill-end').value || null;
+  if (end && end < start) { alert('วันที่หายต้องไม่ก่อนวันที่เริ่มป่วย'); return; }
+  // ถ้ายังพิมพ์ชื่ออื่นค้างอยู่ในช่อง ให้นับรวมด้วย
+  const pending = document.getElementById('ill-custom').value.trim();
+  if (pending) {
+    if (!illnessAllPresets().includes(pending) && !illnessCustomTypes.includes(pending)) { illnessCustomTypes.push(pending); await saveIllnessTypes(); }
+    if (!illnessSelectedDiseases.includes(pending)) illnessSelectedDiseases.push(pending);
+  }
+  const values = {
+    start, end,
+    diseases: illnessSelectedDiseases.slice(),
+    unconfirmed: document.getElementById('ill-unconfirmed').checked,
+    symptoms: document.getElementById('ill-symptoms').value.trim(),
+    meds: document.getElementById('ill-meds').value.trim(),
+    hospital: document.getElementById('ill-hospital').value.trim(),
+    admitted: document.getElementById('ill-admitted').checked,
+    note: document.getElementById('ill-note').value.trim()
+  };
+  if (editingIllnessId) {
+    const rec = illnessRecords.find(r => r.id === editingIllnessId);
+    if (rec) Object.assign(rec, values);
+  } else {
+    illnessRecords.push(Object.assign({ id: genId(), member: selectedIllnessChild }, values));
+  }
+  cancelIllnessEdit();
+  await saveIllnessRecords(); render();
+});
+
 function render() {
   renderSetupBanner();
   renderDueBanner();
@@ -1973,6 +2216,7 @@ function render() {
   renderAdultVaccineTable();
   renderDentistTab();
   renderCheckupTab();
+  renderIllnessTab();
   renderGrowthTab();
   renderGrowthChart();
   renderExpenses();
