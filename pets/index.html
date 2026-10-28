@@ -59,6 +59,10 @@
   }
 
   window.storage = {
+    listAll: async function() {
+      var snap = await __db.collection('households').doc(window.HOUSEHOLD_ID).collection('data').get();
+      return snap.docs.map(function(d) { var v = d.data(); return { key: d.id, value: v && typeof v.value === 'string' ? v.value : '' }; });
+    },
     get: async function(key) {
       var snap = await __storageDocRef(key).get();
       if (!snap.exists) return null;
@@ -207,7 +211,7 @@
     <section>
       <div class="card">
         <h2>รายชื่อแมว</h2>
-        <p class="muted" style="margin:0 0 10px;">บันทึกโรคประจำตัวไว้ที่นี่ เพื่อใช้อ้างอิงเวลาดูผลตรวจเลือดของแมวแต่ละตัว</p>
+        <p class="muted" style="margin:0 0 10px;">กด ▲ ▼ เพื่อเรียงลำดับแมว ลำดับนี้ใช้กับแถบเลือกแมวทุกหน้า · บันทึกโรคประจำตัวไว้ที่นี่ เพื่อใช้อ้างอิงเวลาดูผลตรวจเลือดของแมวแต่ละตัว</p>
         <div id="cats-list"></div>
       </div>
     </section>
@@ -971,6 +975,7 @@
         <button type="button" data-sub="lab">คลังค่าตรวจ</button>
         <button type="button" data-sub="food">คลังอาหาร</button>
         <button type="button" data-sub="symtypes">ชนิดอาการ</button>
+        <button type="button" data-sub="datainfo">ข้อมูล/สำรอง</button>
       </div>
     </section>
     <div class="subpane" data-group="settings" data-sub="lab">
@@ -1047,6 +1052,27 @@
         <div style="display:flex;gap:8px;">
           <button class="btn btn-primary" id="food-add" style="flex:1;">+ เพิ่มอาหาร</button>
         </div>
+      </div>
+    </section>
+    </div>
+    <div class="subpane" data-group="settings" data-sub="datainfo">
+    <section>
+      <div class="card">
+        <h2>📊 ตรวจขนาดข้อมูล</h2>
+        <p class="muted" style="margin:0 0 10px;">นับขนาดข้อมูลที่เก็บใน Firebase ของครัวเรือนนี้ เทียบกับโควต้าฟรี 1 GB (ใช้ร่วมกันทุกแอพ) กดตรวจเมื่อสงสัยเท่านั้น เพราะต้องอ่านข้อมูลทั้งหมดหนึ่งรอบ (นับเป็น reads ตามจำนวนรายการ ซึ่งยังห่างจากเพดานรายวันมาก)</p>
+        <button class="btn btn-primary" id="datainfo-check">📊 ตรวจขนาดข้อมูล</button>
+        <div id="datainfo-result" style="margin-top:12px;"></div>
+      </div>
+    </section>
+    <section>
+      <div class="card">
+        <h2>⬇ สำรองข้อมูลแอพสัตว์</h2>
+        <p class="muted" style="margin:0 0 10px;">ดาวน์โหลดข้อมูลของแอพสัตว์ (เฉพาะรหัส pet-) เป็นไฟล์ .json เก็บไว้กันข้อมูลหาย ไม่รวมข้อมูลของแอพบัญชี/วัคซีนลูก/ลงทุน ตอนนี้ยังไม่มีปุ่มนำเข้ากลับ ไฟล์นี้ใช้เป็นสำเนาเก็บไว้ และใช้ย้ายข้อมูลได้เมื่อมีปุ่มนำเข้า</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn" id="datainfo-backup-text">⬇ สำรองเฉพาะข้อความ (ไฟล์เล็ก)</button>
+          <button class="btn" id="datainfo-backup-all">⬇ สำรองรวมรูป/ไฟล์ผลตรวจ (ไฟล์ใหญ่)</button>
+        </div>
+        <p class="muted" id="datainfo-backup-status" style="margin:8px 0 0;"></p>
       </div>
     </section>
     </div>
@@ -1485,7 +1511,7 @@ function renderCatsTab() {
   if (!wrap) return;
   wrap.innerHTML = '';
   if (!cats.length) { wrap.innerHTML = '<p class="empty">ยังไม่มีข้อมูลแมว เพิ่มได้จากฟอร์มด้านล่าง</p>'; return; }
-  cats.forEach(c => {
+  cats.forEach((c, ci) => {
     const div = document.createElement('div');
     div.className = 'visit-card';
     const conditions = (c.conditions || []).map(x => `<span class="chip chip-condition">${x}</span>`).join('');
@@ -1503,7 +1529,8 @@ function renderCatsTab() {
             ${c.birthDate ? `<p class="muted" style="margin:2px 0 0;">🎂 เกิด ${fmtDateStr(c.birthDate)}</p>` : ''}
           </div>
         </div>
-        <span>
+        <span style="white-space:nowrap;">
+          ${cats.length > 1 ? `<button class="del-btn" data-catmove="up" data-catid="${c.id}" aria-label="เลื่อนขึ้น" title="เลื่อนขึ้น" ${ci === 0 ? 'disabled style="opacity:.3;cursor:default;margin-right:2px;"' : 'style="margin-right:2px;"'}>▲</button><button class="del-btn" data-catmove="down" data-catid="${c.id}" aria-label="เลื่อนลง" title="เลื่อนลง" ${ci === cats.length - 1 ? 'disabled style="opacity:.3;cursor:default;margin-right:6px;"' : 'style="margin-right:6px;"'}>▼</button>` : ''}
           <button class="del-btn" data-edit="${c.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
           <button class="del-btn" data-del="${c.id}" aria-label="ลบ">✕</button>
         </span>
@@ -1523,6 +1550,14 @@ function renderCatsTab() {
     render();
   }));
   wrap.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => startCatEdit(btn.dataset.edit)));
+  wrap.querySelectorAll('[data-catmove]').forEach(btn => btn.addEventListener('click', async () => {
+    const i = cats.findIndex(c => c.id === btn.dataset.catid);
+    const j = btn.dataset.catmove === 'up' ? i - 1 : i + 1;
+    if (i < 0 || j < 0 || j >= cats.length) return;
+    const tmp = cats[i]; cats[i] = cats[j]; cats[j] = tmp;
+    await saveCats();
+    render();
+  }));
 
   // โหลดรูปแมวที่ยังไม่เคยดึงมา แล้วสลับจากตัวอักษรเป็นรูปจริงทันทีที่โหลดเสร็จ (ไม่ต้อง render ใหม่ทั้งหมด)
   cats.forEach(c => {
@@ -2631,6 +2666,71 @@ document.getElementById('symtype-add').addEventListener('click', async () => {
   if (allSymptomTypes().includes(t)) { alert('มีชนิดอาการนี้อยู่แล้ว'); return; }
   symptomCustomTypes.push(t); await saveSymptomTypes(); inp.value = ''; render();
 });
+
+/* ---------------- ตรวจขนาดข้อมูล / สำรองข้อมูล ---------------- */
+const DATAINFO_BINARY_RE = /^pet-(cat-photo|symptom-photo|excretion-photo|lab-photo|lab-file|ultrasound-file)/;
+function dataBytes(key, value) { return new TextEncoder().encode(String(key) + String(value || '')).length + 32; }
+function fmtBytes(n) { return n >= 1048576 ? (n / 1048576).toFixed(n >= 10485760 ? 0 : 1) + ' MB' : (n / 1024).toFixed(0) + ' KB'; }
+async function loadAllDocs() {
+  if (!window.storage || !window.storage.listAll) throw new Error('listAll ไม่พร้อมใช้งาน');
+  return (await window.storage.listAll()).filter(d => d.key !== '__meta');
+}
+document.getElementById('datainfo-check').addEventListener('click', async () => {
+  const out = document.getElementById('datainfo-result');
+  out.textContent = 'กำลังตรวจ...';
+  try {
+    const docs = await loadAllDocs();
+    let petText = 0, petBin = 0, other = 0, petTextN = 0, petBinN = 0, otherN = 0;
+    docs.forEach(d => {
+      if (!d.value) return;
+      const b = dataBytes(d.key, d.value);
+      if (!d.key.startsWith('pet-')) { other += b; otherN++; }
+      else if (DATAINFO_BINARY_RE.test(d.key)) { petBin += b; petBinN++; }
+      else { petText += b; petTextN++; }
+    });
+    const total = petText + petBin + other;
+    const GB = 1073741824;
+    const pct = (n) => ((n / GB) * 100).toFixed(n / GB < 0.01 ? 2 : 1) + '%';
+    const biggest = docs.filter(d => d.value).map(d => ({ key: d.key, b: dataBytes(d.key, d.value) })).sort((a, b) => b.b - a.b).slice(0, 3);
+    const warn = docs.filter(d => d.value && d.key.startsWith('pet-') && !DATAINFO_BINARY_RE.test(d.key) && dataBytes(d.key, d.value) > 0.7 * 1048576);
+    out.innerHTML = `
+      <div style="font-size:15px;margin-bottom:6px;"><strong>รวมทั้งครัวเรือน ${fmtBytes(total)}</strong> จาก 1 GB (${pct(total)})</div>
+      <div style="height:10px;background:#F3E6D6;border-radius:6px;overflow:hidden;margin-bottom:10px;"><div style="height:100%;width:${Math.max(0.5, Math.min(100, total / GB * 100)).toFixed(1)}%;background:var(--sage);"></div></div>
+      <table style="font-size:13px;border-collapse:collapse;">
+        <tr><td style="padding:2px 10px 2px 0;">แอพสัตว์: ข้อความ</td><td>${fmtBytes(petText)}</td><td class="muted" style="padding-left:8px;">${petTextN} รายการ</td></tr>
+        <tr><td style="padding:2px 10px 2px 0;">แอพสัตว์: รูป/ไฟล์ผลตรวจ</td><td>${fmtBytes(petBin)}</td><td class="muted" style="padding-left:8px;">${petBinN} รายการ</td></tr>
+        <tr><td style="padding:2px 10px 2px 0;">แอพอื่น (บัญชี/วัคซีน/ลงทุน)</td><td>${fmtBytes(other)}</td><td class="muted" style="padding-left:8px;">${otherN} รายการ</td></tr>
+      </table>
+      <p class="muted" style="margin:8px 0 0;">รายการที่ใหญ่ที่สุด (เพดานต่อรายการ ~1 MB): ${biggest.map(x => symEsc(x.key) + ' ' + fmtBytes(x.b) + ' (' + Math.round(x.b / 1048576 * 100) + '%)').join(' · ') || '-'}</p>
+      ${warn.length ? '<p style="margin:6px 0 0;color:var(--rust);font-size:13px;">⚠ มีรายการข้อมูล (ไม่ใช่รูป/ไฟล์) ที่ใกล้เพดานต่อรายการ 1 MB: ' + warn.map(d => symEsc(d.key)).join(', ') + ' ควรสำรองข้อมูลไว้ทันที</p>' : ''}
+      <p class="muted" style="margin:6px 0 0;">เป็นตัวเลขประมาณจากขนาดข้อมูลที่แอพเห็น ไม่ใช่ตัวเลขทางการของ Firebase</p>`;
+  } catch (e) {
+    console.error(e);
+    out.textContent = 'ตรวจไม่สำเร็จ: ' + (e.message || e);
+  }
+});
+async function petBackup(includeBinary) {
+  const st = document.getElementById('datainfo-backup-status');
+  st.textContent = 'กำลังเตรียมไฟล์สำรอง...';
+  try {
+    const docs = (await loadAllDocs()).filter(d => d.key.startsWith('pet-') && d.value && (includeBinary || !DATAINFO_BINARY_RE.test(d.key)));
+    const data = {};
+    docs.forEach(d => { data[d.key] = d.value; });
+    const payload = { app: 'pet-health', exportedAt: new Date().toISOString(), householdId: window.HOUSEHOLD_ID || '', includes: includeBinary ? 'text+files' : 'text', count: docs.length, data };
+    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'pet-backup-' + (includeBinary ? 'all-' : 'text-') + toISO(new Date()) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    st.textContent = `✅ ดาวน์โหลดแล้ว ${docs.length} รายการ (${fmtBytes(blob.size)})`;
+  } catch (e) {
+    console.error(e);
+    st.textContent = 'สำรองไม่สำเร็จ: ' + (e.message || e);
+  }
+}
+document.getElementById('datainfo-backup-text').addEventListener('click', () => petBackup(false));
+document.getElementById('datainfo-backup-all').addEventListener('click', () => petBackup(true));
 
 /* ---------------- ขับถ่าย / ป้อนน้ำ ---------------- */
 const EX_KINDS = { water: '🚰 ป้อนน้ำ', feed: '🍽 ป้อนอาหาร', poop: '💩 อึ', pee: '🚽 ฉี่' };
