@@ -2642,6 +2642,8 @@ let exKind = null;
 let editingExId = null;
 let exPendingPhotos = [], exExistingPhotos = [], exRemovedPhotoIds = [];
 let exShowAll = false;
+const exOpenDays = new Set();
+let exOpenInit = false;
 function exPhotoKey(logId, photoId) { return 'pet-excretion-photo-' + logId + '-' + photoId; }
 function nowHHMM() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
 function exLabel(x) {
@@ -2755,7 +2757,10 @@ function renderExcretionSection() {
   mine.forEach(x => { (byDate[x.date] = byDate[x.date] || []).push(x); });
   let dates = Object.keys(byDate).sort().reverse();
   const total = dates.length;
-  if (!exShowAll) dates = dates.slice(0, 14);
+  const todayIso = toISO(new Date());
+  if (!exOpenInit) { exOpenDays.add(todayIso); exOpenInit = true; }
+  if (!exShowAll) dates = dates.slice(0, 7);
+  const KIND_COLOR = { water: '#4A90C2', feed: '#E0883A', poop: '#8B5E3C', pee: '#E0B93A' };
   list.innerHTML = dates.map(d => {
     const rows = byDate[d].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
     const w = rows.filter(r => r.kind === 'water');
@@ -2763,22 +2768,31 @@ function renderExcretionSection() {
     const fd = rows.filter(r => r.kind === 'feed');
     const fg = fd.reduce((t, r) => t + (Number(r.amount) || 0), 0);
     const pn = rows.filter(r => r.kind === 'poop').length, un = rows.filter(r => r.kind === 'pee').length;
-    const sum = [w.length ? `🚰 ${w.length} ครั้ง${ml ? ' รวม ' + ml + ' มล.' : ''}` : '', fd.length ? `🍽 ${fd.length} ครั้ง${fg ? ' รวม ' + fg + ' g' : ''}` : '', pn ? `💩 ${pn} ครั้ง` : '', un ? `🚽 ${un} ครั้ง` : ''].filter(Boolean).join(' · ');
-    return `<div style="margin-bottom:12px;">
-      <div style="font-weight:700;margin-bottom:4px;">📅 ${fmtDateStr(d)} <span class="muted" style="font-weight:500;font-size:12.5px;">${sum}</span></div>
-      ${rows.map(x => `<div class="visit-card" style="margin-bottom:6px;">
-        <div class="row-between">
-          <span>${x.time ? '<strong>' + symEsc(x.time) + ' น.</strong> · ' : ''}${EX_KINDS[x.kind] || x.kind} <span class="muted">${symEsc(exLabel(x))}</span></span>
-          <span>
-            <button class="del-btn" data-ex-edit="${x.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
+    const sum = [w.length ? `🚰 ${w.length}${ml ? ' · ' + ml + ' มล.' : ''}` : '', fd.length ? `🍽 ${fd.length}${fg ? ' · ' + fg + ' g' : ''}` : '', pn ? `💩 ${pn}` : '', un ? `🚽 ${un}` : ''].filter(Boolean).join('  ');
+    const isToday = d === todayIso;
+    const open = exOpenDays.has(d);
+    const wd = new Date(d + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short' });
+    const head = `<button type="button" data-ex-day="${d}" aria-expanded="${open}" style="position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:8px 12px;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:14px;background:${isToday ? 'var(--sage)' : '#F3E6D6'};color:${isToday ? '#fff' : 'var(--ink)'};">
+        <span style="font-weight:700;white-space:nowrap;">${open ? '▾' : '▸'} ${wd} ${fmtDateStr(d)}${isToday ? ' (วันนี้)' : ''}</span>
+        <span style="margin-left:auto;font-size:12.5px;opacity:.95;text-align:right;">${sum}</span>
+      </button>`;
+    const body = open ? rows.map(x => `<div style="border-left:4px solid ${KIND_COLOR[x.kind] || '#ccc'};background:var(--card);border-bottom:1px solid var(--border);padding:5px 8px;">
+        <div class="row-between" style="gap:6px;">
+          <span style="font-size:13.5px;">${x.time ? '<strong>' + symEsc(x.time) + '</strong> ' : ''}${EX_KINDS[x.kind] || x.kind} <span class="muted">${symEsc(exLabel(x))}</span>${(x.photos && x.photos.length) ? ` <button class="btn" data-ex-photos="${x.id}" style="padding:0 7px;font-size:12px;">🖼 ${x.photos.length}</button>` : ''}</span>
+          <span style="white-space:nowrap;">
+            <button class="del-btn" data-ex-edit="${x.id}" aria-label="แก้ไข" style="margin-right:2px;">✏️</button>
             <button class="del-btn" data-ex-del="${x.id}" aria-label="ลบ">✕</button>
           </span>
         </div>
-        ${x.note ? `<p class="muted" style="margin:4px 0 0;">${symEsc(x.note)}</p>` : ''}
-        ${(x.photos && x.photos.length) ? `<p style="margin:6px 0 0;"><button class="btn" data-ex-photos="${x.id}" style="padding:3px 10px;font-size:12.5px;">🖼 ดูรูป (${x.photos.length})</button></p>` : ''}
-      </div>`).join('')}
-    </div>`;
-  }).join('') + (total > 14 ? `<button class="btn" id="ex-toggle-all" style="width:100%;">${exShowAll ? 'แสดงเฉพาะ 14 วันล่าสุด' : 'แสดงทั้งหมด (' + total + ' วัน)'}</button>` : '');
+        ${x.note ? `<div class="muted" style="font-size:12.5px;margin-top:1px;">${symEsc(x.note)}</div>` : ''}
+      </div>`).join('') : '';
+    return `<div style="margin-bottom:10px;border-radius:10px;overflow:visible;">${head}${body}</div>`;
+  }).join('') + (total > 7 ? `<button class="btn" id="ex-toggle-all" style="width:100%;">${exShowAll ? 'แสดงเฉพาะ 7 วันล่าสุด' : 'ดูเพิ่ม (ทั้งหมด ' + total + ' วัน)'}</button>` : '');
+  list.querySelectorAll('[data-ex-day]').forEach(b => b.addEventListener('click', () => {
+    const d = b.dataset.exDay;
+    if (exOpenDays.has(d)) exOpenDays.delete(d); else exOpenDays.add(d);
+    renderExcretionSection();
+  }));
   const tg = document.getElementById('ex-toggle-all');
   if (tg) tg.addEventListener('click', () => { exShowAll = !exShowAll; renderExcretionSection(); });
   list.querySelectorAll('[data-ex-edit]').forEach(b => b.addEventListener('click', () => startExEdit(b.dataset.exEdit)));
@@ -2853,6 +2867,7 @@ document.getElementById('ex-save').addEventListener('click', async () => {
   };
   const idx = excretionLogs.findIndex(l => l.id === id);
   if (idx > -1) excretionLogs[idx] = data; else excretionLogs.push(data);
+  exOpenDays.add(date);
   await saveExcretionLogs();
   const keep = exKind;
   resetExForm(true);
