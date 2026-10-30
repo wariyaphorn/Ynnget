@@ -441,6 +441,11 @@
         <select id="x-member"></select>
         <input type="date" id="x-due" placeholder="ครบกำหนดครั้งถัดไป">
       </div>
+      <label style="display:flex;align-items:center;gap:6px;margin:8px 0 4px;font-size:13px;"><input type="checkbox" id="x-inst"> เป็นการผ่อน/หนี้ (นับงวด)</label>
+      <div class="form-grid g2" id="x-inst-box" style="display:none;">
+        <input type="number" id="x-inst-total" placeholder="จำนวนงวดทั้งหมด" min="1" step="1">
+        <input type="number" id="x-inst-paid" placeholder="จ่ายไปแล้วกี่งวด (ถึงวันนี้)" min="0" step="1">
+      </div>
       <button class="btn btn-primary" id="x-add">+ เพิ่มรายจ่ายประจำ</button>
       <p class="muted" style="margin-top:6px;">ใช้กรอกทิ้งไว้ก่อนว่ามีค่าใช้จ่ายประจำอะไรบ้าง วันครบกำหนดไม่บังคับ พอถึงเวลาจ่ายจริงค่อยกดปุ่ม "บันทึกว่าจ่ายแล้ว" ทีหลัง</p>
     </div>
@@ -2279,7 +2284,7 @@ function renderMonthEstimate() {
 
   // 3) รายจ่ายประจำที่ยังไม่จ่าย (ครบกำหนดในเดือนนี้ หรือเลยกำหนดมาแล้ว)
   const nextMonthFirstDay = shiftMonth(ym, 1) + '-01';
-  const pendingFixed = fixedExpenses.filter(x => x.dueDate && x.dueDate < nextMonthFirstDay);
+  const pendingFixed = fixedExpenses.filter(x => x.dueDate && x.dueDate < nextMonthFirstDay && !instDone(x));
   const pendingFixedSum = pendingFixed.reduce((s, x) => s + x.amount, 0);
 
   // 4) เป้าหมายที่มียอดต่องวด/เดือนตั้งไว้ — หักไปแล้วเท่าไหร่ ยังขาดเท่าไหร่
@@ -2467,6 +2472,33 @@ function renderMainAccountsManager() {
 let editingFixedId = null;
 let payingFixedId = null;
 
+// ---- ผ่อน/หนี้ (นับงวด) ----
+function instPaid(x) {
+  const i = x.installment; if (!i) return 0;
+  const base = i.baseline || 0, bd = i.baselineDate || '';
+  const extra = (x.history || []).filter(h => h.date > bd).length;
+  return Math.min(i.total, base + extra);
+}
+function instDone(x) { return !!(x.installment && instPaid(x) >= x.installment.total); }
+function instInfo(x) {
+  const i = x.installment; if (!i) return null;
+  const paid = instPaid(x), total = i.total, remaining = Math.max(0, total - paid);
+  let endISO = '';
+  if (remaining > 0 && x.dueDate) {
+    const d = new Date(x.dueDate + 'T00:00:00'); d.setMonth(d.getMonth() + remaining - 1); endISO = toISO(d);
+  }
+  return { paid, total, remaining, endISO, balance: remaining * x.amount, done: remaining === 0 };
+}
+function instBlock(x) {
+  const n = instInfo(x); if (!n) return '';
+  const pct = Math.round(n.paid / n.total * 100);
+  const head = n.done
+    ? `<b>ผ่อนครบแล้ว 🎉</b> (${n.total}/${n.total} งวด)`
+    : `<b>งวดถัดไป: งวดที่ ${n.paid + 1} / ${n.total}</b> · จ่ายแล้ว ${n.paid} งวด · เหลือ ${n.remaining} งวด`;
+  const tail = n.done ? '' : `<div class="muted" style="font-size:12.5px;margin-top:4px;">${n.endISO ? 'งวดสุดท้ายประมาณ ' + fmtDateStr(n.endISO) + ' · ' : ''}ยอดคงเหลือโดยประมาณ ${fmt(n.balance)} <span>(งวดละ × งวดที่เหลือ ไม่ใช่ยอดปิดบัญชี)</span></div>`;
+  return `<div style="margin:6px 0 10px;font-size:13.5px;">${head}
+    <div style="height:8px;background:var(--paper);border:1px solid var(--border,#ddd);border-radius:6px;overflow:hidden;margin-top:6px;"><div style="height:100%;width:${pct}%;background:var(--accent,#4a7c59);"></div></div>${tail}</div>`;
+}
 function advanceDue(dueISO, freq) {
   const d = new Date(dueISO + 'T00:00:00');
   if (freq === 'yearly') d.setFullYear(d.getFullYear() + 1); else d.setMonth(d.getMonth() + 1);
@@ -2540,6 +2572,11 @@ function renderFixedExpenses() {
           <select class="xe-member">${memberOptions}</select>
           <input type="date" class="xe-due" value="${x.dueDate || ''}">
         </div>
+        <label style="display:flex;align-items:center;gap:6px;margin:8px 0 4px;font-size:13px;"><input type="checkbox" class="xe-inst" ${x.installment ? 'checked' : ''}> เป็นการผ่อน/หนี้ (นับงวด)</label>
+        <div class="form-grid g2 xe-inst-box" style="${x.installment ? '' : 'display:none;'}">
+          <input type="number" class="xe-inst-total" value="${x.installment ? x.installment.total : ''}" placeholder="จำนวนงวดทั้งหมด" min="1" step="1">
+          <input type="number" class="xe-inst-paid" value="${x.installment ? instPaid(x) : ''}" placeholder="จ่ายไปแล้วกี่งวด (ถึงวันนี้)" min="0" step="1">
+        </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
           <button class="btn" data-x-cancel="${x.id}">ยกเลิก</button>
           <button class="btn btn-primary" data-x-save="${x.id}">บันทึก</button>
@@ -2549,7 +2586,7 @@ function renderFixedExpenses() {
     }
 
     const cat = getCat(x.category);
-    const overdue = x.dueDate && x.dueDate < todayISO;
+    const overdue = x.dueDate && x.dueDate < todayISO && !instDone(x);
     const lastPaid = x.history && x.history.length ? x.history[x.history.length - 1] : null;
     const freqLabel = x.frequency === 'yearly' ? 'รายปี' : 'รายเดือน';
 
@@ -2575,6 +2612,7 @@ function renderFixedExpenses() {
       </div>
       ${x.dueDate ? `<p class="secondary-text" style="color:${overdue ? 'var(--rust)' : 'var(--text-secondary)'};margin:4px 0;">ครบกำหนดถัดไป ${fmtDateStr(x.dueDate)}${overdue ? ' (เลยกำหนด)' : ''}</p>` : ''}
       ${lastPaid ? `<p class="muted" style="margin:0 0 8px;">จ่ายล่าสุด ${fmtDateStr(lastPaid.date)} · ${fmt(lastPaid.amount)}</p>` : ''}
+      ${instBlock(x)}
       <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
         ${manualOrder ? `<button class="btn" data-x-move="${x.id}" data-dir="-1" ${xi === 0 ? 'disabled style="opacity:.3;"' : ''} aria-label="เลื่อนขึ้น">▲</button><button class="btn" data-x-move="${x.id}" data-dir="1" ${xi === sortedFixedExpenses.length - 1 ? 'disabled style="opacity:.3;"' : ''} aria-label="เลื่อนลง">▼</button>` : ''}
         <button class="btn" data-x-edit="${x.id}">แก้ไข</button>
@@ -2590,6 +2628,9 @@ function renderFixedExpenses() {
     if (i < 0 || j < 0 || j >= fixedExpenses.length) return;
     [fixedExpenses[i], fixedExpenses[j]] = [fixedExpenses[j], fixedExpenses[i]];
     await saveFixedExpenses(); renderFixedExpenses();
+  }));
+  wrap.querySelectorAll('.xe-inst').forEach(cb => cb.addEventListener('change', () => {
+    const box = cb.closest('.goal-card').querySelector('.xe-inst-box'); if (box) box.style.display = cb.checked ? '' : 'none';
   }));
   wrap.querySelectorAll('button[data-x-edit]').forEach(btn => btn.addEventListener('click', () => {
     editingFixedId = btn.dataset.xEdit; renderFixedExpenses();
@@ -2615,6 +2656,16 @@ function renderFixedExpenses() {
     x.category = card.querySelector('.xe-category').value;
     x.member = card.querySelector('.xe-member').value;
     x.dueDate = card.querySelector('.xe-due').value || '';
+    if (card.querySelector('.xe-inst').checked) {
+      const tot = parseInt(card.querySelector('.xe-inst-total').value, 10);
+      const pd = parseInt(card.querySelector('.xe-inst-paid').value, 10);
+      if (tot > 0) {
+        const prev = x.installment;
+        const paidNow = isNaN(pd) ? 0 : Math.min(Math.max(pd, 0), tot);
+        if (prev && paidNow === instPaid(x) && tot === prev.total) { /* ไม่เปลี่ยนจุดตั้งต้น */ }
+        else x.installment = { total: tot, baseline: paidNow, baselineDate: toISO(new Date()) };
+      }
+    } else { x.installment = null; }
     editingFixedId = null;
     await saveFixedExpenses(); renderFixedExpenses();
   }));
@@ -4205,6 +4256,11 @@ async function load() {
     if (r && JSON.parse(r.value).length) { fixedExpenses = JSON.parse(r.value); }
     else { fixedExpenses = defaultFixedExpenses(); await saveFixedExpenses(); }
   } catch (e) { fixedExpenses = defaultFixedExpenses(); }
+  // ตั้งค่าผ่อนรถครั้งเดียว: 48 งวด จ่ายแล้ว 9 งวด ณ 30 ต.ค. 2026 (ไม่ทับถ้าเคยตั้งค่า/ปิดไว้เอง)
+  try {
+    const car = fixedExpenses.find(x => x.name === 'ผ่อนรถ' && x.installment === undefined);
+    if (car) { car.installment = { total: 48, baseline: 9, baselineDate: '2026-10-30' }; await saveFixedExpenses(); }
+  } catch (e) {}
   try { const r = await window.storage.get(WALLET_TX_KEY, true); walletTransactions = r ? JSON.parse(r.value) : []; } catch (e) { walletTransactions = []; walletTxLoadOk = false; }
   try { const r = await window.storage.get(GOAL_TRANSFERS_KEY, true); goalTransfers = r ? JSON.parse(r.value) : []; } catch (e) { goalTransfers = []; }
   try { const r = await window.storage.get(WALLETS_KEY, true); wallets = r ? JSON.parse(r.value) : []; } catch (e) { wallets = []; walletsLoadOk = false; }
@@ -4503,6 +4559,9 @@ document.getElementById('c-add').addEventListener('click', async () => {
   await saveCards(); refreshPaymentSelect(); render();
 });
 
+document.getElementById('x-inst').addEventListener('change', (e) => {
+  document.getElementById('x-inst-box').style.display = e.target.checked ? '' : 'none';
+});
 document.getElementById('x-add').addEventListener('click', async () => {
   const name = document.getElementById('x-name').value.trim();
   const amount = parseFloat(document.getElementById('x-amount').value);
@@ -4514,8 +4573,13 @@ document.getElementById('x-add').addEventListener('click', async () => {
     category: xCategorySelect.value,
     member: xMemberSelect.value,
     dueDate: document.getElementById('x-due').value || '',
-    history: []
+    history: [],
+    installment: (document.getElementById('x-inst').checked && parseInt(document.getElementById('x-inst-total').value, 10) > 0)
+      ? { total: parseInt(document.getElementById('x-inst-total').value, 10), baseline: Math.max(0, parseInt(document.getElementById('x-inst-paid').value, 10) || 0), baselineDate: toISO(new Date()) }
+      : null
   });
+  document.getElementById('x-inst').checked = false; document.getElementById('x-inst-box').style.display = 'none';
+  document.getElementById('x-inst-total').value = ''; document.getElementById('x-inst-paid').value = '';
   document.getElementById('x-name').value = ''; document.getElementById('x-amount').value = ''; document.getElementById('x-due').value = '';
   await saveFixedExpenses(); renderFixedExpenses();
 });
