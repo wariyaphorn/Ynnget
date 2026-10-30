@@ -444,7 +444,7 @@
           <div id="care-med-checks" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>
         <div style="margin-bottom:12px;">
-          <label class="field-label">อาหารที่ให้เพิ่มวันนี้ (นอกเหนือจากแผนอาหาร)</label>
+          <label class="field-label">อาหารที่ให้วันนี้ (แสดงตามแผนอาหารของแมวตัวนี้)</label>
           <p id="care-food-plan-hint" class="muted" style="margin:0 0 6px;font-size:12.5px;display:none;"></p>
           <div id="care-food-checks" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>
@@ -585,6 +585,16 @@
           <div>
             <label class="field-label" for="med-dosage">ขนาด/วิธีให้</label>
             <input type="text" id="med-dosage" placeholder="ไม่บังคับ เช่น 1/2 เม็ด เช้า-เย็น">
+          </div>
+        </div>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="med-start">วันที่เริ่มให้ยา (ไม่บังคับ)</label>
+            <input type="date" id="med-start">
+          </div>
+          <div>
+            <label class="field-label" for="med-end">วันที่หยุดให้ยา (เว้นว่างถ้ายังให้อยู่)</label>
+            <input type="date" id="med-end">
           </div>
         </div>
         <div style="display:flex;gap:8px;">
@@ -2078,6 +2088,14 @@ document.getElementById('fr-add').addEventListener('click', async () => {
 });
 
 /* ---- คลังยา ---- */
+function medDateLabel(m) {
+  const today = toISO(new Date());
+  const parts = [];
+  if (m.startDate) parts.push('เริ่ม ' + fmtDateStr(m.startDate));
+  if (m.endDate) parts.push((m.endDate < today ? 'หยุด ' : 'หยุดให้วันที่ ') + fmtDateStr(m.endDate));
+  const stopped = m.endDate && m.endDate < today;
+  return parts.length ? ` · <span class="muted" style="${stopped ? 'color:var(--rust);' : ''}">${parts.join(' → ')}${stopped ? ' (หยุดแล้ว)' : ''}</span>` : '';
+}
 function renderMedCatalog() {
   const wrap = document.getElementById('med-catalog-list');
   if (!wrap) return;
@@ -2085,11 +2103,20 @@ function renderMedCatalog() {
   wrap.innerHTML = meds.length ? meds.map(m => `
     <div class="visit-card" style="padding:0.6rem 0.9rem;">
       <div class="row-between">
-        <span style="font-size:12.5px;"><strong>${m.name}</strong> <span class="chip" style="background:${m.type === 'continuous' ? '#E4F6EE' : '#FDEEDC'};color:${m.type === 'continuous' ? '#1F7A4E' : '#8A4E1D'};">${m.type === 'continuous' ? 'ให้ต่อเนื่อง' : 'ตามอาการ'}</span>${m.dosage ? ' · ' + m.dosage : ''}</span>
-        <span><button class="del-btn" data-editmed="${m.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button><button class="del-btn" data-delmed="${m.id}" aria-label="ลบ">✕</button></span>
+        <span style="font-size:12.5px;"><strong>${m.name}</strong> <span class="chip" style="background:${m.type === 'continuous' ? '#E4F6EE' : '#FDEEDC'};color:${m.type === 'continuous' ? '#1F7A4E' : '#8A4E1D'};">${m.type === 'continuous' ? 'ให้ต่อเนื่อง' : 'ตามอาการ'}</span>${m.dosage ? ' · ' + m.dosage : ''}${medDateLabel(m)}</span>
+        <span>${(!m.endDate) ? `<button class="btn" data-stopmed="${m.id}" style="padding:1px 8px;font-size:11.5px;margin-right:4px;">หยุดให้ยา</button>` : ""}<button class="del-btn" data-editmed="${m.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button><button class="del-btn" data-delmed="${m.id}" aria-label="ลบ">✕</button></span>
       </div>
     </div>
   `).join('') : '<p class="empty">ยังไม่มียาในคลัง</p>';
+  wrap.querySelectorAll('[data-stopmed]').forEach(btn => btn.addEventListener('click', async () => {
+    const m = medications.find(x => x.id === btn.dataset.stopmed);
+    if (!m) return;
+    const d = prompt('หยุดให้ยา "' + m.name + '" ตั้งแต่วันที่ (YYYY-MM-DD) — ใส่วันสุดท้ายที่ให้ยา', toISO(new Date()));
+    if (!d) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { alert('รูปแบบวันที่ไม่ถูกต้อง ใช้ปี-เดือน-วัน เช่น 2026-10-30'); return; }
+    m.endDate = d;
+    await saveMedications(); render();
+  }));
   wrap.querySelectorAll('[data-editmed]').forEach(btn => btn.addEventListener('click', () => startMedEdit(btn.dataset.editmed)));
   wrap.querySelectorAll('[data-delmed]').forEach(btn => btn.addEventListener('click', async () => {
     if (!confirm('ลบยานี้ออกจากคลัง? (ประวัติการให้ยาเดิมจะยังอยู่)')) return;
@@ -2104,6 +2131,8 @@ function startMedEdit(id) {
   document.getElementById('med-name').value = m.name || '';
   document.getElementById('med-type').value = m.type || 'continuous';
   document.getElementById('med-dosage').value = m.dosage || '';
+  document.getElementById('med-start').value = m.startDate || '';
+  document.getElementById('med-end').value = m.endDate || '';
   document.getElementById('med-add').textContent = '💾 บันทึกการแก้ไข';
   document.getElementById('med-cancel-edit').style.display = 'inline-block';
 }
@@ -2112,6 +2141,8 @@ function cancelMedEdit() {
   document.getElementById('med-name').value = '';
   document.getElementById('med-type').value = 'continuous';
   document.getElementById('med-dosage').value = '';
+  document.getElementById('med-start').value = '';
+  document.getElementById('med-end').value = '';
   document.getElementById('med-add').textContent = '+ เพิ่มยา';
   document.getElementById('med-cancel-edit').style.display = 'none';
 }
@@ -2124,8 +2155,11 @@ document.getElementById('med-add').addEventListener('click', async () => {
     catId: selectedCareCat,
     name,
     type: document.getElementById('med-type').value,
-    dosage: document.getElementById('med-dosage').value.trim()
+    dosage: document.getElementById('med-dosage').value.trim(),
+    startDate: document.getElementById('med-start').value || '',
+    endDate: document.getElementById('med-end').value || ''
   };
+  if (data.startDate && data.endDate && data.endDate < data.startDate) { alert('วันที่หยุดต้องไม่ก่อนวันที่เริ่ม'); return; }
   if (editingMedId) {
     const idx = medications.findIndex(m => m.id === editingMedId);
     if (idx > -1) medications[idx] = Object.assign({}, medications[idx], data);
@@ -2273,34 +2307,68 @@ document.getElementById('fp-add').addEventListener('click', async () => {
 });
 
 /* ---- บันทึกประจำวัน + ปฏิทิน ---- */
-function renderCareChecklists() {
+let careFoodShowAll = false;
+let careChecklistCat = null;
+let careMedShowAll = false;
+function renderCareChecklists(opts) {
   const medWrap = document.getElementById('care-med-checks');
   const foodWrap = document.getElementById('care-food-checks');
+  const o = Object.assign({}, opts || {});
+  if (selectedCareCat !== careChecklistCat) { o.clear = true; careChecklistCat = selectedCareCat; careFoodShowAll = false; careMedShowAll = false; }
+  const dateVal = (document.getElementById('care-date') && document.getElementById('care-date').value) || toISO(new Date());
   if (medWrap) {
-    const prevChecked = new Set(Array.from(document.querySelectorAll('.care-med-check:checked')).map(cb => cb.value));
+    const prevChecked = o.clear ? new Set() : new Set(Array.from(document.querySelectorAll('.care-med-check:checked')).map(cb => cb.value));
     const prevTimes = {};
-    document.querySelectorAll('.care-med-time').forEach(inp => { if (inp.value) prevTimes[inp.dataset.medid] = inp.value; });
-    const meds = medications.filter(m => m.catId === selectedCareCat);
-    medWrap.innerHTML = meds.length ? meds.map(m => `
+    if (!o.clear) document.querySelectorAll('.care-med-time').forEach(inp => { if (inp.value) prevTimes[inp.dataset.medid] = inp.value; });
+    const allMeds = medications.filter(m => m.catId === selectedCareCat);
+    const isActive = m => (!m.startDate || m.startDate <= dateVal) && (!m.endDate || m.endDate >= dateVal);
+    const must = new Set([...prevChecked, ...Object.keys(prevTimes), ...(o.forceMed || [])]);
+    const inactiveCount = allMeds.filter(m => !isActive(m) && !must.has(m.id)).length;
+    const meds = careMedShowAll ? allMeds : allMeds.filter(m => isActive(m) || must.has(m.id));
+    medWrap.innerHTML = allMeds.length ? meds.map(m => `
       <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;flex-wrap:wrap;">
         <input type="checkbox" class="care-med-check" value="${m.id}" ${prevChecked.has(m.id) ? 'checked' : ''} style="width:auto;">
-        ${m.name} <span class="muted">(${m.type === 'continuous' ? 'ต่อเนื่อง' : 'ตามอาการ'})</span>
+        ${m.name} <span class="muted">(${m.type === 'continuous' ? 'ต่อเนื่อง' : 'ตามอาการ'})</span>${isActive(m) ? '' : ' <span class="muted" style="font-size:11px;">(หยุดแล้ว/ยังไม่เริ่ม)</span>'}
         <input type="time" class="care-med-time" data-medid="${m.id}" value="${prevTimes[m.id] || ''}" style="width:auto;max-width:110px;margin-left:auto;">
       </label>
     `).join('') : '<p class="empty">ยังไม่มียาในคลัง — เพิ่มได้จากด้านบน</p>';
+    if (!meds.length && allMeds.length) medWrap.innerHTML = '<p class="empty">ไม่มียาที่ใช้อยู่ในวันที่เลือก</p>';
+    if (inactiveCount > 0 || (careMedShowAll && allMeds.some(m => !isActive(m)))) {
+      const t = document.createElement('button');
+      t.type = 'button'; t.className = 'btn'; t.style.cssText = 'align-self:flex-start;font-size:12px;padding:3px 10px;';
+      t.textContent = careMedShowAll ? 'ซ่อนยาที่หยุดแล้ว' : `แสดงยาที่หยุดแล้ว/ยังไม่เริ่ม (${inactiveCount})`;
+      t.addEventListener('click', () => { careMedShowAll = !careMedShowAll; renderCareChecklists(); });
+      medWrap.appendChild(t);
+    }
   }
   if (foodWrap) {
-    const prevChecked = new Set(Array.from(document.querySelectorAll('.care-food-check:checked')).map(cb => cb.value));
+    const prevChecked = o.clear ? new Set() : new Set(Array.from(document.querySelectorAll('.care-food-check:checked')).map(cb => cb.value));
     const prevG = {};
-    document.querySelectorAll('.care-food-g').forEach(inp => { if (inp.value) prevG[inp.dataset.foodid] = inp.value; });
-    const foods = foodCatalog;
-    foodWrap.innerHTML = foods.length ? foods.map(f => `
+    if (!o.clear) document.querySelectorAll('.care-food-g').forEach(inp => { if (inp.value) prevG[inp.dataset.foodid] = inp.value; });
+    const plan = selectedCareCat ? activeFoodPlan(selectedCareCat, dateVal) : null;
+    const planIds = plan ? (plan.foodIds || []).filter(id => foodCatalog.some(f => f.id === id)) : [];
+    const must = new Set([...planIds, ...prevChecked, ...Object.keys(prevG), ...(o.forceFood || [])]);
+    const filtered = planIds.length > 0 && !careFoodShowAll;
+    const foods = filtered ? foodCatalog.filter(f => must.has(f.id)) : foodCatalog;
+    const rowHtml = f => `
       <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;flex-wrap:wrap;">
         <input type="checkbox" class="care-food-check" value="${f.id}" ${prevChecked.has(f.id) ? 'checked' : ''} style="width:auto;">
-        ${f.name}
+        ${f.name}${planIds.includes(f.id) ? ' <span class="muted" style="font-size:11px;">(ตามแผน)</span>' : ''}
         <input type="number" step="any" min="0" class="care-food-g" data-foodid="${f.id}" value="${prevG[f.id] || ''}" placeholder="g/วัน" style="width:90px;margin-left:auto;">
-      </label>
-    `).join('') : '<p class="empty">ยังไม่มีอาหารในคลัง — เพิ่มได้ที่หน้า ตั้งค่า / คลังกลาง</p>';
+      </label>`;
+    foodWrap.innerHTML = foodCatalog.length ? foods.map(rowHtml).join('') : '<p class="empty">ยังไม่มีอาหารในคลัง — เพิ่มได้ที่หน้า ตั้งค่า / คลังกลาง</p>';
+    if (planIds.length && foodCatalog.length > planIds.length) {
+      const tgl = document.createElement('button');
+      tgl.type = 'button'; tgl.className = 'btn'; tgl.style.cssText = 'align-self:flex-start;font-size:12px;padding:3px 10px;';
+      tgl.textContent = careFoodShowAll ? 'แสดงเฉพาะอาหารตามแผน' : 'แสดงอาหารอื่นๆ ในคลัง';
+      tgl.addEventListener('click', () => { careFoodShowAll = !careFoodShowAll; renderCareChecklists(); });
+      foodWrap.appendChild(tgl);
+    } else if (!planIds.length && foodCatalog.length) {
+      const note = document.createElement('p');
+      note.className = 'muted'; note.style.cssText = 'margin:4px 0 0;font-size:12px;';
+      note.textContent = 'ยังไม่มีแผนอาหารของแมวตัวนี้ในวันที่เลือก จึงแสดงอาหารทั้งหมด (ตั้งแผนได้ที่แท็บอาหาร)';
+      foodWrap.appendChild(note);
+    }
   }
   updateFoodPlanHint(document.getElementById('care-date') ? document.getElementById('care-date').value : null);
 }
@@ -2328,6 +2396,7 @@ function startCareLogEdit(id) {
   document.getElementById('care-fluid-amount-wrap').style.display = (l.fluid && l.fluid.given) ? '' : 'none';
   document.getElementById('care-fluid-amount').value = (l.fluid && l.fluid.amount != null) ? l.fluid.amount : '';
   document.getElementById('care-fluid-time').value = (l.fluid && l.fluid.time) ? l.fluid.time : '';
+  renderCareChecklists({ clear: true, forceFood: (l.foodIds || []).concat(Object.keys(l.foodGrams || {})), forceMed: (l.medIds || []).concat(Object.keys(l.medTimes || {})) });
   document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = (l.medIds || []).includes(cb.value); });
   document.querySelectorAll('.care-med-time').forEach(inp => { inp.value = (l.medTimes && l.medTimes[inp.dataset.medid]) || ''; });
   document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = (l.foodIds || []).includes(cb.value); });
@@ -2350,6 +2419,7 @@ function cancelCareLogEdit() {
   document.querySelectorAll('.care-med-time').forEach(inp => { inp.value = ''; });
   document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = false; });
   document.querySelectorAll('.care-food-g').forEach(inp => { inp.value = ''; });
+  renderCareChecklists({ clear: true });
   updateFoodPlanHint(d);
   document.getElementById('care-note').value = '';
   document.getElementById('care-log-form-title').textContent = '+ บันทึกวันนี้';
@@ -2371,6 +2441,7 @@ document.getElementById('care-date').addEventListener('change', () => {
   document.querySelectorAll('.care-med-time').forEach(inp => { inp.value = ''; });
   document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = false; });
   document.querySelectorAll('.care-food-g').forEach(inp => { inp.value = ''; });
+  renderCareChecklists({ clear: true });
   updateFoodPlanHint(dateVal);
 });
 document.getElementById('care-log-save').addEventListener('click', async () => {
@@ -2758,7 +2829,15 @@ function updateExKindUI() {
   document.getElementById('ex-feed-wrap').style.display = exKind === 'feed' ? '' : 'none';
   if (exKind === 'feed') {
     const fs = document.getElementById('ex-food'), prev = fs.value;
-    fs.innerHTML = foodCatalog.length ? foodCatalog.map(f => `<option value="${f.id}">${symEsc(f.name)}</option>`).join('') : '<option value="">(ยังไม่มีอาหารในคลัง)</option>';
+    const exPlan = selectedCareCat ? activeFoodPlan(selectedCareCat, document.getElementById('ex-date').value || toISO(new Date())) : null;
+    const exPlanIds = exPlan ? (exPlan.foodIds || []).filter(id => foodCatalog.some(f => f.id === id)) : [];
+    const opt = f => `<option value="${f.id}">${symEsc(f.name)}</option>`;
+    if (!foodCatalog.length) fs.innerHTML = '<option value="">(ยังไม่มีอาหารในคลัง)</option>';
+    else if (!exPlanIds.length) fs.innerHTML = foodCatalog.map(opt).join('');
+    else {
+      const inPlan = foodCatalog.filter(f => exPlanIds.includes(f.id)), others = foodCatalog.filter(f => !exPlanIds.includes(f.id));
+      fs.innerHTML = `<optgroup label="ตามแผนของแมวตัวนี้">${inPlan.map(opt).join('')}</optgroup>` + (others.length ? `<optgroup label="อาหารอื่นๆ ในคลัง">${others.map(opt).join('')}</optgroup>` : '');
+    }
     if (prev && foodCatalog.some(f => f.id === prev)) fs.value = prev;
   }
   const hasForm = exKind === 'poop' || exKind === 'pee';
@@ -2851,6 +2930,7 @@ function renderExcretionSection() {
   if (!document.getElementById('ex-date').value) { document.getElementById('ex-date').value = toISO(new Date()); document.getElementById('ex-time').value = nowHHMM(); }
   const mine = excretionLogs.filter(x => x.catId === selectedCareCat);
   const photoCount = mine.reduce((t, x) => t + ((x.photos || []).length), 0);
+  if (exKind === 'feed' && !editingExId) updateExKindUI();
   document.getElementById('ex-photo-note').textContent = photoCount ? `รูปแนบทั้งหมด ${photoCount} รูป (ใช้พื้นที่ประมาณ ${(photoCount * 0.15).toFixed(1)} MB จากพื้นที่ฟรี 1 GB ใช้ร่วมกับทั้งแอพ) ลบรายการเก่าเพื่อคืนพื้นที่ได้` : '';
   if (!mine.length) { list.innerHTML = '<p class="empty">ยังไม่มีบันทึก</p>'; return; }
   const byDate = {};
@@ -2942,6 +3022,7 @@ document.getElementById('ex-photo').addEventListener('change', async (e) => {
   statusEl.textContent = exPendingPhotos.length ? `✅ เตรียมรูป ${exPendingPhotos.length} รูป (บันทึกตอนกด "บันทึก")` : statusEl.textContent;
 });
 document.getElementById('ex-cancel-edit').addEventListener('click', () => resetExForm());
+document.getElementById('ex-date').addEventListener('change', () => { if (exKind === 'feed') updateExKindUI(); });
 document.getElementById('ex-save').addEventListener('click', async () => {
   if (!selectedCareCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
   if (!exKind) { alert('กรุณาเลือกประเภท (ป้อนน้ำ / ป้อนอาหาร / อึ / ฉี่)'); return; }
