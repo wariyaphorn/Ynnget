@@ -597,6 +597,10 @@
             <input type="date" id="med-end">
           </div>
         </div>
+        <div id="med-copy-wrap" style="display:none;margin:4px 0 10px;padding:8px 10px;border-radius:8px;background:var(--paper);">
+          <div style="font-size:13px;margin-bottom:4px;">📋 คัดลอกจาก <strong id="med-copy-name"></strong> — แก้เฉพาะที่เปลี่ยน แล้วกด "+ เพิ่มยา" (ยาตัวเดิมไม่ถูกแก้)</div>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;"><input type="checkbox" id="med-copy-stop" style="width:auto;"> หยุดยาตัวเดิมด้วย (วันสุดท้ายของยาเดิม = วันก่อนวันที่เริ่มของยาใหม่)</label>
+        </div>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-primary" id="med-add" style="flex:1;">+ เพิ่มยา</button>
           <button class="btn" id="med-cancel-edit" style="display:none;">ยกเลิก</button>
@@ -707,6 +711,12 @@
           <button type="button" class="btn ex-kind-btn" data-kind="poop">💩 อึ</button>
           <button type="button" class="btn ex-kind-btn" data-kind="pee">🚽 ฉี่</button>
         </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 10px;">
+          <span class="muted" style="font-size:12.5px;align-self:center;">แมวไปเอง (ดูจากกล้อง):</span>
+          <button type="button" class="btn ex-kind-btn" data-kind="selffeed">🐾 กินข้าวเอง</button>
+          <button type="button" class="btn ex-kind-btn" data-kind="selfwater">💧 กินน้ำเอง</button>
+          <button type="button" class="btn ex-kind-btn" data-kind="bowl">🥣 ระดับชาม (ทั้งห้อง)</button>
+        </div>
         <div class="form-grid g2">
           <div>
             <label class="field-label" for="ex-date">วันที่</label>
@@ -718,7 +728,7 @@
           </div>
         </div>
         <div id="ex-water-wrap" style="display:none;margin-bottom:10px;">
-          <label class="field-label" for="ex-amount">ป้อนด้วยไซริงค์ (มล.)</label>
+          <label class="field-label" for="ex-amount" id="ex-amount-label">ป้อนด้วยไซริงค์ (มล.)</label>
           <input type="number" step="any" min="0" id="ex-amount" placeholder="เช่น 10">
         </div>
         <div id="ex-feed-wrap" style="display:none;margin-bottom:10px;">
@@ -728,9 +738,20 @@
               <select id="ex-food"></select>
             </div>
             <div>
-              <label class="field-label" for="ex-grams">ปริมาณ (g)</label>
+              <label class="field-label" for="ex-grams" id="ex-grams-label">ปริมาณ (g)</label>
               <input type="number" step="any" min="0" id="ex-grams" placeholder="เช่น 40">
             </div>
+          </div>
+        </div>
+        <div id="ex-level-wrap" style="display:none;margin-bottom:10px;">
+          <label class="field-label" for="ex-level">ระดับการกิน (ไม่บังคับ)</label>
+          <select id="ex-level"></select>
+        </div>
+        <div id="ex-bowl-wrap" style="display:none;margin-bottom:10px;">
+          <p class="muted" style="margin:0 0 6px;font-size:12.5px;">เป็นของทั้งห้อง ไม่ผูกกับแมวตัวใดตัวหนึ่ง จะแสดงในรายการของแมวทุกตัว</p>
+          <div class="form-grid g2">
+            <div><label class="field-label" for="ex-bowl-when">ตอน</label><select id="ex-bowl-when"></select></div>
+            <div><label class="field-label" for="ex-bowl-level">ระดับอาหารในชาม</label><select id="ex-bowl-level"></select></div>
           </div>
         </div>
         <div id="ex-form-wrap" style="display:none;margin-bottom:10px;">
@@ -2104,7 +2125,7 @@ function renderMedCatalog() {
     <div class="visit-card" style="padding:0.6rem 0.9rem;">
       <div class="row-between">
         <span style="font-size:12.5px;"><strong>${m.name}</strong> <span class="chip" style="background:${m.type === 'continuous' ? '#E4F6EE' : '#FDEEDC'};color:${m.type === 'continuous' ? '#1F7A4E' : '#8A4E1D'};">${m.type === 'continuous' ? 'ให้ต่อเนื่อง' : 'ตามอาการ'}</span>${m.dosage ? ' · ' + m.dosage : ''}${medDateLabel(m)}</span>
-        <span>${(!m.endDate) ? `<button class="btn" data-stopmed="${m.id}" style="padding:1px 8px;font-size:11.5px;margin-right:4px;">หยุดให้ยา</button>` : ""}<button class="del-btn" data-editmed="${m.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button><button class="del-btn" data-delmed="${m.id}" aria-label="ลบ">✕</button></span>
+        <span>${(!m.endDate) ? `<button class="btn" data-stopmed="${m.id}" style="padding:1px 8px;font-size:11.5px;margin-right:4px;">หยุดให้ยา</button>` : ""}<button class="del-btn" data-copymed="${m.id}" aria-label="คัดลอกเป็นยาใหม่" title="คัดลอกเป็นยาใหม่ (เช่น ปรับโดส)" style="margin-right:4px;">📋</button><button class="del-btn" data-editmed="${m.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button><button class="del-btn" data-delmed="${m.id}" aria-label="ลบ">✕</button></span>
       </div>
     </div>
   `).join('') : '<p class="empty">ยังไม่มียาในคลัง</p>';
@@ -2118,6 +2139,7 @@ function renderMedCatalog() {
     await saveMedications(); render();
   }));
   wrap.querySelectorAll('[data-editmed]').forEach(btn => btn.addEventListener('click', () => startMedEdit(btn.dataset.editmed)));
+  wrap.querySelectorAll('[data-copymed]').forEach(btn => btn.addEventListener('click', () => startMedCopy(btn.dataset.copymed)));
   wrap.querySelectorAll('[data-delmed]').forEach(btn => btn.addEventListener('click', async () => {
     if (!confirm('ลบยานี้ออกจากคลัง? (ประวัติการให้ยาเดิมจะยังอยู่)')) return;
     medications = medications.filter(m => m.id !== btn.dataset.delmed);
@@ -2136,8 +2158,27 @@ function startMedEdit(id) {
   document.getElementById('med-add').textContent = '💾 บันทึกการแก้ไข';
   document.getElementById('med-cancel-edit').style.display = 'inline-block';
 }
+let copyFromMedId = null;
+function startMedCopy(id) {
+  const m = medications.find(x => x.id === id);
+  if (!m) return;
+  editingMedId = null; copyFromMedId = id;
+  document.getElementById('med-name').value = m.name || '';
+  document.getElementById('med-type').value = m.type || 'continuous';
+  document.getElementById('med-dosage').value = m.dosage || '';
+  document.getElementById('med-start').value = toISO(new Date());
+  document.getElementById('med-end').value = '';
+  document.getElementById('med-copy-name').textContent = (m.name || '') + (m.dosage ? ' (' + m.dosage + ')' : '');
+  document.getElementById('med-copy-stop').checked = false;
+  document.getElementById('med-copy-wrap').style.display = '';
+  document.getElementById('med-add').textContent = '+ เพิ่มยา';
+  document.getElementById('med-cancel-edit').style.display = 'inline-block';
+  document.getElementById('med-dosage').focus();
+  document.getElementById('med-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 function cancelMedEdit() {
-  editingMedId = null;
+  editingMedId = null; copyFromMedId = null;
+  document.getElementById('med-copy-wrap').style.display = 'none';
   document.getElementById('med-name').value = '';
   document.getElementById('med-type').value = 'continuous';
   document.getElementById('med-dosage').value = '';
@@ -2165,6 +2206,16 @@ document.getElementById('med-add').addEventListener('click', async () => {
     if (idx > -1) medications[idx] = Object.assign({}, medications[idx], data);
   } else {
     medications.push(Object.assign({ id: genId() }, data));
+    if (copyFromMedId && document.getElementById('med-copy-stop').checked) {
+      const old = medications.find(x => x.id === copyFromMedId);
+      if (old) {
+        const base = new Date((data.startDate || toISO(new Date())) + 'T00:00:00');
+        base.setDate(base.getDate() - 1);
+        let stop = toISO(base);
+        if (old.startDate && stop < old.startDate) stop = old.startDate;
+        if (!old.endDate || old.endDate > stop) old.endDate = stop;
+      }
+    }
   }
   cancelMedEdit();
   await saveMedications();
@@ -2310,6 +2361,19 @@ document.getElementById('fp-add').addEventListener('click', async () => {
 let careFoodShowAll = false;
 let careChecklistCat = null;
 let careMedShowAll = false;
+const medTimesArr = v => Array.isArray(v) ? v.filter(Boolean) : (v ? [v] : []);
+function medTimeInputHtml(medId, val) { return `<input type="time" class="care-med-time" data-medid="${medId}" value="${val || ''}" style="width:auto;max-width:110px;">`; }
+function medTimesBoxHtml(medId, arr) {
+  const vals = arr && arr.length ? arr : [''];
+  return `<span class="care-med-times" data-medid="${medId}" style="display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap;margin-left:auto;">${vals.map(v => medTimeInputHtml(medId, v)).join('')}<button type="button" class="btn care-med-addtime" data-medid="${medId}" style="padding:1px 8px;font-size:11.5px;">+ เวลา</button></span>`;
+}
+function setMedTimeInputs(medId, arr) {
+  const box = document.querySelector(`.care-med-times[data-medid="${medId}"]`);
+  if (box) box.outerHTML = medTimesBoxHtml(medId, arr);
+}
+function collectMedTimes(medId) {
+  return Array.from(document.querySelectorAll(`.care-med-time[data-medid="${medId}"]`)).map(i => i.value).filter(Boolean).sort();
+}
 function renderCareChecklists(opts) {
   const medWrap = document.getElementById('care-med-checks');
   const foodWrap = document.getElementById('care-food-checks');
@@ -2319,7 +2383,7 @@ function renderCareChecklists(opts) {
   if (medWrap) {
     const prevChecked = o.clear ? new Set() : new Set(Array.from(document.querySelectorAll('.care-med-check:checked')).map(cb => cb.value));
     const prevTimes = {};
-    if (!o.clear) document.querySelectorAll('.care-med-time').forEach(inp => { if (inp.value) prevTimes[inp.dataset.medid] = inp.value; });
+    if (!o.clear) document.querySelectorAll('.care-med-time').forEach(inp => { if (inp.value) (prevTimes[inp.dataset.medid] = prevTimes[inp.dataset.medid] || []).push(inp.value); });
     const allMeds = medications.filter(m => m.catId === selectedCareCat);
     const isActive = m => (!m.startDate || m.startDate <= dateVal) && (!m.endDate || m.endDate >= dateVal);
     const must = new Set([...prevChecked, ...Object.keys(prevTimes), ...(o.forceMed || [])]);
@@ -2329,9 +2393,18 @@ function renderCareChecklists(opts) {
       <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;flex-wrap:wrap;">
         <input type="checkbox" class="care-med-check" value="${m.id}" ${prevChecked.has(m.id) ? 'checked' : ''} style="width:auto;">
         ${m.name} <span class="muted">(${m.type === 'continuous' ? 'ต่อเนื่อง' : 'ตามอาการ'})</span>${isActive(m) ? '' : ' <span class="muted" style="font-size:11px;">(หยุดแล้ว/ยังไม่เริ่ม)</span>'}
-        <input type="time" class="care-med-time" data-medid="${m.id}" value="${prevTimes[m.id] || ''}" style="width:auto;max-width:110px;margin-left:auto;">
+        ${medTimesBoxHtml(m.id, prevTimes[m.id])}
       </label>
     `).join('') : '<p class="empty">ยังไม่มียาในคลัง — เพิ่มได้จากด้านบน</p>';
+    medWrap.querySelectorAll('.care-med-addtime').forEach(btn => btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const id = btn.dataset.medid;
+      const cur = Array.from(document.querySelectorAll(`.care-med-time[data-medid="${id}"]`)).map(i => i.value);
+      cur.push('');
+      setMedTimeInputs(id, cur);
+      const cb = document.querySelector(`.care-med-check[value="${id}"]`); if (cb) cb.checked = true;
+      renderCareChecklistsHook(id);
+    }));
     if (!meds.length && allMeds.length) medWrap.innerHTML = '<p class="empty">ไม่มียาที่ใช้อยู่ในวันที่เลือก</p>';
     if (inactiveCount > 0 || (careMedShowAll && allMeds.some(m => !isActive(m)))) {
       const t = document.createElement('button');
@@ -2387,6 +2460,21 @@ document.getElementById('care-fluid-given').addEventListener('change', (e) => {
 function findCareLog(catId, date) {
   return careLogs.find(l => l.catId === catId && l.date === date);
 }
+function renderCareChecklistsHook(medId) {
+  // หลังเพิ่มช่องเวลา ผูกปุ่ม "+ เวลา" ใหม่ (ถูกสร้างใหม่ด้วย outerHTML) และโฟกัสช่องเวลาล่าสุด
+  const box = document.querySelector(`.care-med-times[data-medid="${medId}"]`);
+  if (!box) return;
+  const btn = box.querySelector('.care-med-addtime');
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    const cur = Array.from(document.querySelectorAll(`.care-med-time[data-medid="${medId}"]`)).map(i => i.value);
+    cur.push('');
+    setMedTimeInputs(medId, cur);
+    const cb = document.querySelector(`.care-med-check[value="${medId}"]`); if (cb) cb.checked = true;
+    renderCareChecklistsHook(medId);
+  });
+  const ins = box.querySelectorAll('.care-med-time'); if (ins.length) ins[ins.length - 1].focus();
+}
 function startCareLogEdit(id) {
   const l = careLogs.find(x => x.id === id);
   if (!l) return;
@@ -2398,7 +2486,11 @@ function startCareLogEdit(id) {
   document.getElementById('care-fluid-time').value = (l.fluid && l.fluid.time) ? l.fluid.time : '';
   renderCareChecklists({ clear: true, forceFood: (l.foodIds || []).concat(Object.keys(l.foodGrams || {})), forceMed: (l.medIds || []).concat(Object.keys(l.medTimes || {})) });
   document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = (l.medIds || []).includes(cb.value); });
-  document.querySelectorAll('.care-med-time').forEach(inp => { inp.value = (l.medTimes && l.medTimes[inp.dataset.medid]) || ''; });
+  document.querySelectorAll('.care-med-times').forEach(box => {
+    const id = box.dataset.medid;
+    setMedTimeInputs(id, medTimesArr(l.medTimes && l.medTimes[id]));
+    renderCareChecklistsHook(id);
+  });
   document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = (l.foodIds || []).includes(cb.value); });
   document.querySelectorAll('.care-food-g').forEach(inp => { const g = l.foodGrams && l.foodGrams[inp.dataset.foodid]; inp.value = g != null ? g : ''; });
   document.getElementById('care-note').value = l.note || '';
@@ -2454,8 +2546,8 @@ document.getElementById('care-log-save').addEventListener('click', async () => {
   const medIds = Array.from(document.querySelectorAll('.care-med-check:checked')).map(cb => cb.value);
   const medTimes = {};
   medIds.forEach(id => {
-    const inp = document.querySelector(`.care-med-time[data-medid="${id}"]`);
-    if (inp && inp.value) medTimes[id] = inp.value;
+    const ts = collectMedTimes(id);
+    if (ts.length === 1) medTimes[id] = ts[0]; else if (ts.length > 1) medTimes[id] = ts;
   });
   const foodIds = Array.from(document.querySelectorAll('.care-food-check:checked')).map(cb => cb.value);
   const foodGrams = {};
@@ -2804,7 +2896,14 @@ document.getElementById('datainfo-backup-text').addEventListener('click', () => 
 document.getElementById('datainfo-backup-all').addEventListener('click', () => petBackup(true));
 
 /* ---------------- ขับถ่าย / ป้อนน้ำ ---------------- */
-const EX_KINDS = { water: '🚰 ป้อนน้ำ', feed: '🍽 ป้อนอาหาร', poop: '💩 อึ', pee: '🚽 ฉี่' };
+const EX_KINDS = { water: '🚰 ป้อนน้ำ', feed: '🍽 ป้อนอาหาร', poop: '💩 อึ', pee: '🚽 ฉี่', selffeed: '🐾 กินข้าวเอง', selfwater: '💧 กินน้ำเอง', bowl: '🥣 ระดับชาม' };
+const EX_LEVELS = { none: 'ไม่กิน', little: 'น้อย', mid: 'ปานกลาง', good: 'กินดี' };
+const BOWL_LEVELS = { full: 'เต็ม', most: 'ค่อนข้างเต็ม', half: 'ครึ่ง', low: 'เหลือน้อย', empty: 'หมด' };
+const BOWL_WHEN = { out: 'ออกจากบ้าน', back: 'กลับถึงบ้าน' };
+const EX_ROOM = '__room__';
+const exIsWater = k => k === 'water' || k === 'selfwater';
+const exIsFeed = k => k === 'feed' || k === 'selffeed';
+const exMine = () => excretionLogs.filter(x => x.catId === selectedCareCat || x.catId === EX_ROOM);
 const EX_FORMS = {
   poop: { label: 'ลักษณะอึ', opts: { normal: 'ปกติ', hard: 'แข็ง/เม็ดเล็ก', soft: 'นิ่ม', loose: 'เหลว', bloody: 'มีเลือด/มูก' } },
   pee: { label: 'ปริมาณฉี่', opts: { none: 'ไม่ออก', little: 'น้อย', normal: 'ปกติ', much: 'มาก' } }
@@ -2818,16 +2917,27 @@ let exOpenInit = false;
 function exPhotoKey(logId, photoId) { return 'pet-excretion-photo-' + logId + '-' + photoId; }
 function nowHHMM() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
 function exLabel(x) {
-  const f = x.kind !== 'water' && EX_FORMS[x.kind] ? EX_FORMS[x.kind].opts[x.form] : '';
+  const f = EX_FORMS[x.kind] ? EX_FORMS[x.kind].opts[x.form] : '';
+  if (x.kind === 'bowl') return (BOWL_WHEN[x.bowlWhen] || '') + ' · ' + (BOWL_LEVELS[x.bowlLevel] || '');
+  if (x.kind === 'selfwater') return x.amount !== '' && x.amount != null ? x.amount + ' มล.' : 'ดื่มน้ำเอง';
   if (x.kind === 'water') return x.amount !== '' && x.amount != null ? x.amount + ' มล.' : 'ป้อนน้ำ';
-  if (x.kind === 'feed') { const f = foodCatalog.find(c => c.id === x.foodId); const nm = f ? f.name : (x.foodName || 'อาหาร'); return nm + (x.amount != null && x.amount !== '' ? ' ' + x.amount + ' g' : ''); }
+  if (exIsFeed(x.kind)) { const f = foodCatalog.find(c => c.id === x.foodId); const nm = f ? f.name : (x.foodName || 'อาหาร'); return nm + (x.amount != null && x.amount !== '' ? ' ' + x.amount + ' g' : '') + (x.kind === 'selffeed' && x.level && EX_LEVELS[x.level] ? ' · ' + EX_LEVELS[x.level] : ''); }
   return [f, x.color].filter(Boolean).join(' · ');
 }
 function updateExKindUI() {
   document.querySelectorAll('.ex-kind-btn').forEach(b => b.classList.toggle('btn-primary', b.dataset.kind === exKind));
-  document.getElementById('ex-water-wrap').style.display = exKind === 'water' ? '' : 'none';
-  document.getElementById('ex-feed-wrap').style.display = exKind === 'feed' ? '' : 'none';
-  if (exKind === 'feed') {
+  document.getElementById('ex-water-wrap').style.display = exIsWater(exKind) ? '' : 'none';
+  document.getElementById('ex-feed-wrap').style.display = exIsFeed(exKind) ? '' : 'none';
+  document.getElementById('ex-level-wrap').style.display = exKind === 'selffeed' ? '' : 'none';
+  document.getElementById('ex-bowl-wrap').style.display = exKind === 'bowl' ? '' : 'none';
+  document.getElementById('ex-amount-label').textContent = exKind === 'selfwater' ? 'ปริมาณที่ดื่ม (มล.) — ไม่บังคับ' : 'ป้อนด้วยไซริงค์ (มล.)';
+  document.getElementById('ex-grams-label').textContent = exKind === 'selffeed' ? 'ปริมาณ (g) — ไม่บังคับ' : 'ปริมาณ (g)';
+  const lvSel = document.getElementById('ex-level');
+  if (!lvSel.options.length) lvSel.innerHTML = '<option value="">ไม่ระบุ</option>' + Object.keys(EX_LEVELS).map(k => `<option value="${k}">${EX_LEVELS[k]}</option>`).join('');
+  const bw = document.getElementById('ex-bowl-when'), bl = document.getElementById('ex-bowl-level');
+  if (!bw.options.length) bw.innerHTML = Object.keys(BOWL_WHEN).map(k => `<option value="${k}">${BOWL_WHEN[k]}</option>`).join('');
+  if (!bl.options.length) bl.innerHTML = Object.keys(BOWL_LEVELS).map(k => `<option value="${k}">${BOWL_LEVELS[k]}</option>`).join('');
+  if (exIsFeed(exKind)) {
     const fs = document.getElementById('ex-food'), prev = fs.value;
     const exPlan = selectedCareCat ? activeFoodPlan(selectedCareCat, document.getElementById('ex-date').value || toISO(new Date())) : null;
     const exPlanIds = exPlan ? (exPlan.foodIds || []).filter(id => foodCatalog.some(f => f.id === id)) : [];
@@ -2890,9 +3000,11 @@ function resetExForm(keepKind) {
   document.getElementById('ex-color').value = '';
   document.getElementById('ex-grams').value = '';
   document.getElementById('ex-note').value = '';
+  document.getElementById('ex-amount').value = '';
+  document.getElementById('ex-level').value = '';
   document.getElementById('ex-photo').value = '';
   document.getElementById('ex-photo-status').textContent = '';
-  document.getElementById('ex-form-title').textContent = '🚰 บันทึกป้อนน้ำ / ป้อนอาหาร / อึ / ฉี่';
+  document.getElementById('ex-form-title').textContent = '🚰 บันทึกป้อนน้ำ / ป้อนอาหาร / อึ / ฉี่ / กินเอง';
   document.getElementById('ex-save').textContent = '+ บันทึก';
   document.getElementById('ex-cancel-edit').style.display = 'none';
   updateExKindUI(); renderExPhotoLists();
@@ -2906,8 +3018,10 @@ function startExEdit(id) {
   document.getElementById('ex-date').value = x.date;
   document.getElementById('ex-time').value = x.time || '';
   updateExKindUI();
-  document.getElementById('ex-amount').value = (x.kind === 'water' && x.amount != null) ? x.amount : '';
-  if (x.kind === 'feed') {
+  document.getElementById('ex-amount').value = (exIsWater(x.kind) && x.amount != null) ? x.amount : '';
+  document.getElementById('ex-level').value = x.level || '';
+  if (x.kind === 'bowl') { document.getElementById('ex-bowl-when').value = x.bowlWhen || 'out'; document.getElementById('ex-bowl-level').value = x.bowlLevel || 'full'; }
+  if (exIsFeed(x.kind)) {
     const fs = document.getElementById('ex-food');
     if (x.foodId && !foodCatalog.some(f => f.id === x.foodId)) fs.insertAdjacentHTML('beforeend', `<option value="${x.foodId}">${symEsc(x.foodName || 'อาหารที่ลบแล้ว')}</option>`);
     fs.value = x.foodId || '';
@@ -2928,9 +3042,9 @@ function renderExcretionSection() {
   const list = document.getElementById('ex-list');
   if (!list) return;
   if (!document.getElementById('ex-date').value) { document.getElementById('ex-date').value = toISO(new Date()); document.getElementById('ex-time').value = nowHHMM(); }
-  const mine = excretionLogs.filter(x => x.catId === selectedCareCat);
+  const mine = exMine();
   const photoCount = mine.reduce((t, x) => t + ((x.photos || []).length), 0);
-  if (exKind === 'feed' && !editingExId) updateExKindUI();
+  if (exIsFeed(exKind) && !editingExId) updateExKindUI();
   document.getElementById('ex-photo-note').textContent = photoCount ? `รูปแนบทั้งหมด ${photoCount} รูป (ใช้พื้นที่ประมาณ ${(photoCount * 0.15).toFixed(1)} MB จากพื้นที่ฟรี 1 GB ใช้ร่วมกับทั้งแอพ) ลบรายการเก่าเพื่อคืนพื้นที่ได้` : '';
   if (!mine.length) { list.innerHTML = '<p class="empty">ยังไม่มีบันทึก</p>'; return; }
   const byDate = {};
@@ -2940,7 +3054,7 @@ function renderExcretionSection() {
   const todayIso = toISO(new Date());
   if (!exOpenInit) { exOpenDays.add(todayIso); exOpenInit = true; }
   if (!exShowAll) dates = dates.slice(0, 7);
-  const KIND_COLOR = { water: '#4A90C2', feed: '#E0883A', poop: '#8B5E3C', pee: '#E0B93A' };
+  const KIND_COLOR = { water: '#4A90C2', feed: '#E0883A', poop: '#8B5E3C', pee: '#E0B93A', selffeed: '#7BAE5A', selfwater: '#7FC4D9', bowl: '#B5A58A' };
   list.innerHTML = dates.map(d => {
     const rows = byDate[d].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
     const w = rows.filter(r => r.kind === 'water');
@@ -2948,7 +3062,9 @@ function renderExcretionSection() {
     const fd = rows.filter(r => r.kind === 'feed');
     const fg = fd.reduce((t, r) => t + (Number(r.amount) || 0), 0);
     const pn = rows.filter(r => r.kind === 'poop').length, un = rows.filter(r => r.kind === 'pee').length;
-    const sum = [w.length ? `🚰 ${w.length}${ml ? ' · ' + ml + ' มล.' : ''}` : '', fd.length ? `🍽 ${fd.length}${fg ? ' · ' + fg + ' g' : ''}` : '', pn ? `💩 ${pn}` : '', un ? `🚽 ${un}` : ''].filter(Boolean).join('  ');
+    const sf = rows.filter(r => r.kind === 'selffeed'), sfg = sf.reduce((t, r) => t + (Number(r.amount) || 0), 0);
+    const sw = rows.filter(r => r.kind === 'selfwater'), swml = sw.reduce((t, r) => t + (Number(r.amount) || 0), 0);
+    const sum = [sf.length ? `🐾 ${sf.length}${sfg ? ' · ' + sfg + ' g' : ''}` : '', sw.length ? `💧 ${sw.length}${swml ? ' · ' + swml + ' มล.' : ''}` : '', w.length ? `🚰 ${w.length}${ml ? ' · ' + ml + ' มล.' : ''}` : '', fd.length ? `🍽 ${fd.length}${fg ? ' · ' + fg + ' g' : ''}` : '', pn ? `💩 ${pn}` : '', un ? `🚽 ${un}` : ''].filter(Boolean).join('  ');
     const isToday = d === todayIso;
     const open = exOpenDays.has(d);
     const wd = new Date(d + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short' });
@@ -3022,10 +3138,10 @@ document.getElementById('ex-photo').addEventListener('change', async (e) => {
   statusEl.textContent = exPendingPhotos.length ? `✅ เตรียมรูป ${exPendingPhotos.length} รูป (บันทึกตอนกด "บันทึก")` : statusEl.textContent;
 });
 document.getElementById('ex-cancel-edit').addEventListener('click', () => resetExForm());
-document.getElementById('ex-date').addEventListener('change', () => { if (exKind === 'feed') updateExKindUI(); });
+document.getElementById('ex-date').addEventListener('change', () => { if (exIsFeed(exKind)) updateExKindUI(); });
 document.getElementById('ex-save').addEventListener('click', async () => {
   if (!selectedCareCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
-  if (!exKind) { alert('กรุณาเลือกประเภท (ป้อนน้ำ / ป้อนอาหาร / อึ / ฉี่)'); return; }
+  if (!exKind) { alert('กรุณาเลือกประเภท (ป้อนน้ำ / ป้อนอาหาร / อึ / ฉี่ / กินเอง)'); return; }
   const date = document.getElementById('ex-date').value;
   if (!date) { alert('กรุณาเลือกวันที่'); return; }
   const id = editingExId || genId();
@@ -3036,11 +3152,14 @@ document.getElementById('ex-save').addEventListener('click', async () => {
   } catch (err) { console.error(err); alert('บันทึกรูปไม่สำเร็จ ลองใหม่อีกครั้ง'); return; }
   const amt = document.getElementById('ex-amount').value;
   const data = {
-    id, catId: selectedCareCat, kind: exKind, date,
+    id, catId: exKind === 'bowl' ? EX_ROOM : selectedCareCat, kind: exKind, date,
     time: document.getElementById('ex-time').value || '',
-    amount: exKind === 'water' && amt !== '' ? Number(amt) : (exKind === 'feed' && document.getElementById('ex-grams').value !== '' ? Number(document.getElementById('ex-grams').value) : null),
-    foodId: exKind === 'feed' ? (document.getElementById('ex-food').value || '') : '',
-    foodName: exKind === 'feed' ? ((foodCatalog.find(f => f.id === document.getElementById('ex-food').value) || {}).name || '') : '',
+    amount: exIsWater(exKind) && amt !== '' ? Number(amt) : (exIsFeed(exKind) && document.getElementById('ex-grams').value !== '' ? Number(document.getElementById('ex-grams').value) : null),
+    foodId: exIsFeed(exKind) ? (document.getElementById('ex-food').value || '') : '',
+    foodName: exIsFeed(exKind) ? ((foodCatalog.find(f => f.id === document.getElementById('ex-food').value) || {}).name || '') : '',
+    level: exKind === 'selffeed' ? document.getElementById('ex-level').value : '',
+    bowlWhen: exKind === 'bowl' ? document.getElementById('ex-bowl-when').value : '',
+    bowlLevel: exKind === 'bowl' ? document.getElementById('ex-bowl-level').value : '',
     form: (exKind === 'poop' || exKind === 'pee') ? document.getElementById('ex-form').value : '',
     color: exKind === 'pee' ? document.getElementById('ex-color').value.trim() : '',
     note: document.getElementById('ex-note').value.trim(),
@@ -3058,11 +3177,11 @@ document.getElementById('ex-save').addEventListener('click', async () => {
   render();
 });
 document.getElementById('ex-export-csv').addEventListener('click', () => {
-  const mine = excretionLogs.filter(x => x.catId === selectedCareCat).sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
+  const mine = exMine().sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
   if (!mine.length) { alert('ยังไม่มีบันทึกให้ Export'); return; }
   const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-  const lines = [['วันที่', 'เวลา', 'ประเภท', 'ปริมาณน้ำ (มล.)', 'อาหาร', 'ปริมาณอาหาร (g)', 'ลักษณะ/ปริมาณ', 'สี/อื่นๆ', 'หมายเหตุ', 'จำนวนรูป'].map(q).join(',')];
-  mine.forEach(x => lines.push([x.date, x.time || '', EX_KINDS[x.kind] || x.kind, x.kind === 'water' && x.amount != null ? x.amount : '', x.kind === 'feed' ? ((foodCatalog.find(f => f.id === x.foodId) || {}).name || x.foodName || '') : '', x.kind === 'feed' && x.amount != null ? x.amount : '', (EX_FORMS[x.kind] && EX_FORMS[x.kind].opts[x.form]) || '', x.color || '', x.note || '', (x.photos || []).length].map(q).join(',')));
+  const lines = [['วันที่', 'เวลา', 'ประเภท', 'ปริมาณน้ำ (มล.)', 'อาหาร', 'ปริมาณอาหาร (g)', 'ลักษณะ/ปริมาณ', 'สี/อื่นๆ', 'หมายเหตุ', 'จำนวนรูป', 'ระดับการกิน/ชาม'].map(q).join(',')];
+  mine.forEach(x => lines.push([x.date, x.time || '', EX_KINDS[x.kind] || x.kind, exIsWater(x.kind) && x.amount != null ? x.amount : '', exIsFeed(x.kind) ? ((foodCatalog.find(f => f.id === x.foodId) || {}).name || x.foodName || '') : '', exIsFeed(x.kind) && x.amount != null ? x.amount : '', (EX_FORMS[x.kind] && EX_FORMS[x.kind].opts[x.form]) || '', x.color || '', x.note || '', (x.photos || []).length, x.kind === 'bowl' ? ((BOWL_WHEN[x.bowlWhen] || '') + ' ' + (BOWL_LEVELS[x.bowlLevel] || '')).trim() : (EX_LEVELS[x.level] || '')].map(q).join(',')));
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -3200,7 +3319,7 @@ function renderCareCalendar() {
     if (log) {
       if (log.fluid && log.fluid.given) marks.push(`💧${log.fluid.amount != null ? log.fluid.amount : ''}${log.fluid.time ? ' ' + log.fluid.time : ''}`);
       if (log.medIds && log.medIds.length) {
-        const medTimesList = log.medIds.map(id => (log.medTimes && log.medTimes[id]) ? log.medTimes[id] : null).filter(Boolean);
+        const medTimesList = log.medIds.reduce((a, id) => a.concat(medTimesArr(log.medTimes && log.medTimes[id])), []).sort();
         marks.push(`💊${log.medIds.length}${medTimesList.length ? ' ' + medTimesList.join(',') : ''}`);
       }
       if (log.foodIds && log.foodIds.length) { const tg = Object.values(log.foodGrams || {}).reduce((t, v) => t + (Number(v) || 0), 0); marks.push(tg ? `🍽${tg}g` : `🍽${log.foodIds.length}`); }
@@ -3213,6 +3332,9 @@ function renderCareCalendar() {
       if (wn) marks.push('🚰' + (wml ? wml : wn + 'ครั้ง'));
       const fdr = exDay.filter(x => x.kind === 'feed'), fdg = fdr.reduce((t, x) => t + (Number(x.amount) || 0), 0);
       if (fdr.length) marks.push('🥣' + (fdg ? fdg + 'g' : fdr.length + 'ครั้ง'));
+      const sfn = exDay.filter(x => x.kind === 'selffeed').length, swn = exDay.filter(x => x.kind === 'selfwater').length;
+      if (sfn) marks.push('🐾' + sfn);
+      if (swn) marks.push('💧' + swn);
       if (pn) marks.push('💩' + pn);
       if (un) marks.push('🚽' + un);
     }
