@@ -1501,6 +1501,40 @@ function renderCardsSummary() {
   }
 }
 
+let expandedCardHistory = new Set();
+let cardHistoryCount = {};
+function shiftISOMonths(iso, n) { const d = new Date(iso + 'T00:00:00'); d.setMonth(d.getMonth() + n); return toISO(d); }
+function cardPastCycles(c, count) {
+  // ย้อนรอบบิลทีละเดือนจากรอบปัจจุบัน (สมมติรอบเลื่อนทีละเดือน)
+  const rows = [];
+  for (let k = 1; k <= count; k++) {
+    const close = shiftISOMonths(c.closeDate, -k);
+    const prevClose = shiftISOMonths(c.closeDate, -(k + 1));
+    const sd = new Date(prevClose + 'T00:00:00'); sd.setDate(sd.getDate() + 1);
+    const start = toISO(sd);
+    const total = entries.filter(e => e.payment === c.id && e.date >= start && e.date <= close).reduce((s, e) => s + e.amount, 0);
+    let pay = (c.payments || []).find(p => p.closeDate === close) || null;
+    if (!pay) {
+      const tx = walletTransactions.find(t => t.cycleTo === close && (t.note || '').includes(c.name));
+      if (tx) pay = { payDate: tx.date, amount: -tx.amount };
+    }
+    rows.push({ start, close, total, pay });
+  }
+  return rows;
+}
+function cardHistoryHtml(c) {
+  const n = cardHistoryCount[c.id] || 6;
+  const rows = cardPastCycles(c, n);
+  const earliest = entries.filter(e => e.payment === c.id).reduce((m, e) => (!m || e.date < m) ? e.date : m, '');
+  const body = rows.map(r => {
+    const empty = r.total === 0 && !r.pay;
+    return `<div class="row-between" style="padding:5px 0;border-bottom:1px solid var(--border,#e5e5e5);font-size:13px;${empty ? 'opacity:.55;' : ''}">
+      <span>${fmtDateStr(r.start)} – ${fmtDateStr(r.close)}<br><span class="muted" style="font-size:12px;">${r.pay ? 'จ่ายเมื่อ ' + fmtDateStr(r.pay.payDate) + (r.pay.amount != null ? ' · ' + fmt(r.pay.amount) : '') : (r.total > 0 ? 'ไม่มีบันทึกวันที่จ่าย' : '')}</span></span>
+      <span style="font-weight:600;">${fmt(r.total)}</span></div>`;
+  }).join('');
+  const more = (!earliest || shiftISOMonths(c.closeDate, -n) > earliest) && n < 36 ? `<button class="btn" data-c-history-more="${c.id}" style="margin-top:6px;font-size:12px;padding:4px 10px;">ดูรอบเก่ากว่านี้</button>` : '';
+  return `<div style="margin-bottom:10px;"><p class="secondary-text" style="margin:6px 0 4px;">ประวัติรอบบิลย้อนหลัง (ยอดคำนวณจากรายการที่เลือกจ่ายด้วยบัตรนี้)</p>${body}${more}</div>`;
+}
 function renderCards() {
   const wrap = document.getElementById('cards');
   wrap.innerHTML = '';
@@ -1579,7 +1613,9 @@ function renderCards() {
           <p class="secondary-text" style="margin:10px 0 4px;">ตามคน</p>
           <div id="card-member-legend-${c.id}"></div>
         </div>` : ''}
+      ${expandedCardHistory.has(c.id) ? cardHistoryHtml(c) : ''}
       <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+        <button class="btn" data-c-history="${c.id}">${expandedCardHistory.has(c.id) ? 'ซ่อนประวัติรอบบิล' : 'ประวัติรอบบิล'}</button>
         <button class="btn" data-c-edit="${c.id}">แก้ไข</button>
         <button class="btn" data-c-del="${c.id}" style="color:var(--rust);border-color:var(--rust);">ลบ</button>
         <button class="btn" data-card="${c.id}" style="${paid ? 'color:var(--sage);border-color:var(--sage);' : ''}">${paid ? '✓ ชำระรอบนี้แล้ว' : 'ทำเครื่องหมายว่าชำระแล้ว'}</button>
@@ -1617,6 +1653,16 @@ function renderCards() {
   wrap.querySelectorAll('button[data-c-breakdown-toggle]').forEach(btn => btn.addEventListener('click', () => {
     const id = btn.dataset.cBreakdownToggle;
     if (expandedCardBreakdown.has(id)) expandedCardBreakdown.delete(id); else expandedCardBreakdown.add(id);
+    renderCards();
+  }));
+  wrap.querySelectorAll('button[data-c-history]').forEach(btn => btn.addEventListener('click', () => {
+    const id = btn.dataset.cHistory;
+    if (expandedCardHistory.has(id)) expandedCardHistory.delete(id); else expandedCardHistory.add(id);
+    renderCards();
+  }));
+  wrap.querySelectorAll('button[data-c-history-more]').forEach(btn => btn.addEventListener('click', () => {
+    const id = btn.dataset.cHistoryMore;
+    cardHistoryCount[id] = (cardHistoryCount[id] || 6) + 6;
     renderCards();
   }));
   wrap.querySelectorAll('button[data-c-edit]').forEach(btn => btn.addEventListener('click', () => {
@@ -1670,6 +1716,11 @@ function renderCards() {
   }));
   wrap.querySelectorAll('button[data-pay-skip]').forEach(btn => btn.addEventListener('click', async () => {
     const card = cards.find(c => c.id === btn.dataset.paySkip);
+    const sdiv = btn.closest('.card-card');
+    const sDate = (sdiv && sdiv.querySelector('.pay-date') && sdiv.querySelector('.pay-date').value) || toISO(new Date());
+    const sAmt = sdiv && sdiv.querySelector('.pay-amount') ? parseFloat(sdiv.querySelector('.pay-amount').value) : NaN;
+    if (!card.payments) card.payments = [];
+    card.payments.push({ closeDate: card.closeDate, cycleStart: card.cycleStart, payDate: sDate, amount: isNaN(sAmt) ? null : sAmt });
     card.lastPaidClose = card.closeDate;
     advanceCardCycle(card);
     payingCardId = null;
@@ -1689,6 +1740,8 @@ function renderCards() {
       });
       await saveWalletTransactions(); refreshAccountList();
     }
+    if (!card.payments) card.payments = [];
+    card.payments.push({ closeDate: card.closeDate, cycleStart: card.cycleStart, payDate: payDate, amount: payAmount || null });
     card.lastPaidClose = card.closeDate;
     advanceCardCycle(card);
     payingCardId = null;
@@ -2914,6 +2967,7 @@ function renderGoals() {
           <input type="date" class="log-date" value="${toISO(new Date())}">
         </div>
         <select class="log-payment" style="margin-bottom:8px;">${paymentOptions}</select>
+        <input type="text" class="log-remark" placeholder="Remark (ไม่บังคับ)" style="margin-bottom:8px;">
         ${kind === 'debt' ? `<p class="muted" style="margin:4px 0 8px;">โอนเข้ากระเป๋าปลายทาง (ไม่บังคับ)</p>
         <select class="log-destination">${walletOptions()}</select>` : ''}
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
@@ -2933,6 +2987,7 @@ function renderGoals() {
       div.innerHTML = `<div class="row-between"><span>${g.name}</span></div>
         <p class="muted" style="margin:4px 0 8px;">${kind === 'debt' ? 'คืนครบแล้ว' : 'จ่ายแล้ว'} เท่าไหร่ (แก้ได้ถ้าไม่ครบเต็มยอดสะสม ส่วนที่เหลือจะยกยอดไปต่อ)</p>
         <input type="number" class="reset-amount" value="${saved.toFixed(2)}" min="0" step="0.01" style="margin-bottom:8px;">
+        <input type="text" class="reset-remark" placeholder="Remark (ไม่บังคับ)" style="margin-bottom:8px;">
         <div style="display:flex;gap:8px;justify-content:flex-end;">
           <button class="btn" data-reset-cancel="${g.id}">ยกเลิก</button>
           <button class="btn btn-primary" data-reset-confirm="${g.id}">ยืนยันรีเซ็ต</button>
@@ -2966,9 +3021,9 @@ function renderGoals() {
       ${g.monthly ? `<p class="muted" style="margin:0 0 4px;">${monthlyVerb} ${fmt(g.monthly)}${monthsLeft !== null ? (monthsLeft > 0 ? ' · ' + completionVerb + ' ' + completionLabel + ' (อีก ' + monthsLeft + ' เดือน)' : ' · ' + doneVerb) : ''}</p>` : ''}
       ${goalProjectionHtml(g)}
       ${g.dueDate ? `<p class="secondary-text" style="color:${overdue ? 'var(--rust)' : 'var(--text-secondary)'};margin:0 0 4px;">กำหนดชำระ ${fmtDateStr(g.dueDate)}${overdue ? ' (เลยกำหนด)' : ''}</p>` : ''}
-      ${lastPaid ? `<p class="muted" style="margin:0 0 4px;">${kind === 'debt' ? 'คืนล่าสุด' : 'จ่ายล่าสุด'} ${fmtDateStr(lastPaid.date)} · ${fmt(lastPaid.amount)}</p>` : ''}
+      ${lastPaid ? `<p class="muted" style="margin:0 0 4px;">${kind === 'debt' ? 'คืนล่าสุด' : 'จ่ายล่าสุด'} ${fmtDateStr(lastPaid.date)} · ${fmt(lastPaid.amount)}${lastPaid.remark ? ' · ' + String(lastPaid.remark).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''}</p>` : ''}
       ${g.history && g.history.length > 1 ? `<button class="btn" data-goal-history-toggle="${g.id}" style="margin-bottom:8px;font-size:12px;padding:4px 10px;">${expandedGoalHistory.has(g.id) ? 'ซ่อนประวัติ ▲' : 'ดูประวัติทั้งหมด (' + g.history.length + ' ครั้ง) ▼'}</button>` : ''}
-      ${expandedGoalHistory.has(g.id) ? `<div style="margin:0 0 8px;">${[...g.history].map((h, idx) => ({ h, idx })).reverse().map(({ h, idx }) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12px;padding:2px 0;"><span class="muted">${fmtDateStr(h.date)} · ${fmt(h.amount)}</span><button class="del-btn" data-del-goal-history="${g.id}" data-history-idx="${idx}" aria-label="ลบประวัตินี้">✕</button></div>`).join('')}</div>` : ''}
+      ${expandedGoalHistory.has(g.id) ? `<div style="margin:0 0 8px;">${[...g.history].map((h, idx) => ({ h, idx })).reverse().map(({ h, idx }) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12px;padding:2px 0;"><span class="muted">${fmtDateStr(h.date)} · ${fmt(h.amount)}${h.remark ? ' · ' + String(h.remark).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''}</span><button class="del-btn" data-del-goal-history="${g.id}" data-history-idx="${idx}" aria-label="ลบประวัตินี้">✕</button></div>`).join('')}</div>` : ''}
       ${lastTransferOut ? `<p class="muted" style="margin:0 0 8px;">โอนออกล่าสุด ${fmtDateStr(lastTransferOut.date)} · -${fmt(lastTransferOut.amount)} → ${goals.find(og => og.id === lastTransferOut.toGoalId)?.name || ''}</p>` : ''}
       ${loggedThisMonthAmount > 0 ? `<p class="muted" style="margin:0 0 8px;">เดือนนี้บันทึกไปแล้ว ${fmt(loggedThisMonthAmount)}${lastLoggedEntry ? ' · ล่าสุด ' + fmtDateStr(lastLoggedEntry.date) + ' (' + fmt(lastLoggedEntry.amount) + ')' : ''}</p>` : ''}
       <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
@@ -3031,6 +3086,7 @@ function renderGoals() {
     if (!amount || amount <= 0) return;
     const logDate = div.querySelector('.log-date').value || toISO(new Date());
     const payment = div.querySelector('.log-payment').value;
+    const logRemark = (div.querySelector('.log-remark').value || '').trim();
     const isGoalTransfer = payment.startsWith('goal:');
     const isWalletSource = payment.startsWith('wallet:');
     const sourceGoalId = isGoalTransfer ? payment.slice(5) : null;
@@ -3046,7 +3102,7 @@ function renderGoals() {
       payment: (isGoalTransfer || isWalletSource) ? 'cash' : payment,
       account: '',
       amount: amount,
-      note: (kind === 'debt' ? 'ผ่อนคืนตามแผนรายเดือน' : 'เก็บตามแผนรายเดือน') + (isGoalTransfer ? ' (โอนจาก ' + (sourceGoal?.name || '') + ')' : '') + (isWalletSource ? ' (หักจากกระเป๋า ' + (sourceWallet?.name || '') + ')' : '')
+      note: (kind === 'debt' ? 'ผ่อนคืนตามแผนรายเดือน' : 'เก็บตามแผนรายเดือน') + (isGoalTransfer ? ' (โอนจาก ' + (sourceGoal?.name || '') + ')' : '') + (isWalletSource ? ' (หักจากกระเป๋า ' + (sourceWallet?.name || '') + ')' : '') + (logRemark ? ' — ' + logRemark : '')
     });
     if (isGoalTransfer && sourceGoal) {
       goalTransfers.push({
@@ -3126,7 +3182,8 @@ function renderGoals() {
     if (isNaN(resetAmount) || resetAmount < 0) return;
     if (!goal.history) goal.history = [];
     const today = toISO(new Date());
-    goal.history.push({ date: today, amount: resetAmount });
+    const resetRemark = (div.querySelector('.reset-remark').value || '').trim();
+    goal.history.push(resetRemark ? { date: today, amount: resetAmount, remark: resetRemark } : { date: today, amount: resetAmount });
     goal.initial = saved - resetAmount;
     goal.lastResetDate = today;
     resettingGoalId = null;
