@@ -710,8 +710,14 @@
           <button type="button" class="btn ex-kind-btn" data-kind="feed">🍽 ป้อนอาหาร</button>
           <button type="button" class="btn ex-kind-btn" data-kind="poop">💩 อึ</button>
           <button type="button" class="btn ex-kind-btn" data-kind="pee">🚽 ฉี่</button>
+          <button type="button" class="btn ex-kind-btn" data-kind="toilet">🚪 เข้ากระบะ (ยังไม่รู้)</button>
         </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 10px;">
+        <p class="muted" id="ex-multi-hint" style="margin:-4px 0 8px;font-size:12.5px;">เลือกได้หลายปุ่มพร้อมกัน เช่น ป้อนน้ำ + ป้อนอาหาร หรือ อึ + ฉี่ ระบบจะสร้างเป็นรายการแยกที่เวลาเดียวกัน</p>
+        <div id="ex-resolve-wrap" style="display:none;margin:0 0 10px;padding:8px 10px;border-radius:8px;background:var(--paper);">
+          <div style="font-size:13px;margin-bottom:6px;">🔎 เช็คผลที่เข้ากระบะ: เลือก 💩 อึ / 🚽 ฉี่ (เลือกทั้งสองได้) แล้วกดบันทึก หรือกด "ไม่พบอะไร"</div>
+          <button type="button" class="btn" id="ex-resolve-none">ไม่พบอะไร</button>
+        </div>
+        <div id="ex-kind-row2" style="display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 10px;">
           <span class="muted" style="font-size:12.5px;align-self:center;">แมวไปเอง (ดูจากกล้อง):</span>
           <button type="button" class="btn ex-kind-btn" data-kind="selffeed">🐾 กินข้าวเอง</button>
           <button type="button" class="btn ex-kind-btn" data-kind="selfwater">💧 กินน้ำเอง</button>
@@ -754,11 +760,14 @@
             <div><label class="field-label" for="ex-bowl-level">ระดับอาหารในชาม</label><select id="ex-bowl-level"></select></div>
           </div>
         </div>
-        <div id="ex-form-wrap" style="display:none;margin-bottom:10px;">
-          <label class="field-label" for="ex-form" id="ex-form-label">ลักษณะ</label>
-          <select id="ex-form"></select>
+        <div id="ex-toilet-wrap" class="muted" style="display:none;margin-bottom:10px;font-size:12.5px;">🚪 จะบันทึกเป็น ⏳ รอเช็ค ไม่นับเป็นอึหรือฉี่ กลับมากด "เช็คผล" ที่รายการนี้เมื่อรู้ผลแล้ว</div>
+        <div id="ex-poop-wrap" style="display:none;margin-bottom:10px;">
+          <label class="field-label" for="ex-poop-form">💩 ลักษณะอึ</label>
+          <select id="ex-poop-form"></select>
         </div>
-        <div id="ex-color-wrap" style="display:none;margin-bottom:10px;">
+        <div id="ex-pee-wrap" style="display:none;margin-bottom:10px;">
+          <label class="field-label" for="ex-pee-form">🚽 ปริมาณฉี่</label>
+          <select id="ex-pee-form" style="margin-bottom:8px;"></select>
           <label class="field-label" for="ex-color">สี / ลักษณะอื่น (ไม่บังคับ)</label>
           <input type="text" id="ex-color" placeholder="เช่น เหลืองใส, เข้ม, มีเลือด">
         </div>
@@ -2896,7 +2905,7 @@ document.getElementById('datainfo-backup-text').addEventListener('click', () => 
 document.getElementById('datainfo-backup-all').addEventListener('click', () => petBackup(true));
 
 /* ---------------- ขับถ่าย / ป้อนน้ำ ---------------- */
-const EX_KINDS = { water: '🚰 ป้อนน้ำ', feed: '🍽 ป้อนอาหาร', poop: '💩 อึ', pee: '🚽 ฉี่', selffeed: '🐾 กินข้าวเอง', selfwater: '💧 กินน้ำเอง', bowl: '🥣 ระดับชาม' };
+const EX_KINDS = { water: '🚰 ป้อนน้ำ', feed: '🍽 ป้อนอาหาร', poop: '💩 อึ', pee: '🚽 ฉี่', toilet: '🚪 เข้ากระบะ', selffeed: '🐾 กินข้าวเอง', selfwater: '💧 กินน้ำเอง', bowl: '🥣 ระดับชาม' };
 const EX_LEVELS = { none: 'ไม่กิน', little: 'น้อย', mid: 'ปานกลาง', good: 'กินดี' };
 const BOWL_LEVELS = { full: 'เต็ม', most: 'ค่อนข้างเต็ม', half: 'ครึ่ง', low: 'เหลือน้อย', empty: 'หมด' };
 const BOWL_WHEN = { out: 'ออกจากบ้าน', back: 'กลับถึงบ้าน' };
@@ -2909,6 +2918,8 @@ const EX_FORMS = {
   pee: { label: 'ปริมาณฉี่', opts: { none: 'ไม่ออก', little: 'น้อย', normal: 'ปกติ', much: 'มาก' } }
 };
 let exKind = null;
+let exSel = new Set();
+let exResolving = false;
 let editingExId = null;
 let exPendingPhotos = [], exExistingPhotos = [], exRemovedPhotoIds = [];
 let exShowAll = false;
@@ -2918,26 +2929,42 @@ function exPhotoKey(logId, photoId) { return 'pet-excretion-photo-' + logId + '-
 function nowHHMM() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
 function exLabel(x) {
   const f = EX_FORMS[x.kind] ? EX_FORMS[x.kind].opts[x.form] : '';
+  if (x.kind === 'toilet') return x.pending ? '⏳ รอเช็ค' : 'ไม่พบอะไร';
   if (x.kind === 'bowl') return (BOWL_WHEN[x.bowlWhen] || '') + ' · ' + (BOWL_LEVELS[x.bowlLevel] || '');
   if (x.kind === 'selfwater') return x.amount !== '' && x.amount != null ? x.amount + ' มล.' : 'ดื่มน้ำเอง';
   if (x.kind === 'water') return x.amount !== '' && x.amount != null ? x.amount + ' มล.' : 'ป้อนน้ำ';
   if (exIsFeed(x.kind)) { const f = foodCatalog.find(c => c.id === x.foodId); const nm = f ? f.name : (x.foodName || 'อาหาร'); return nm + (x.amount != null && x.amount !== '' ? ' ' + x.amount + ' g' : '') + (x.kind === 'selffeed' && x.level && EX_LEVELS[x.level] ? ' · ' + EX_LEVELS[x.level] : ''); }
   return [f, x.color].filter(Boolean).join(' · ');
 }
+function exKs() { return (editingExId && !exResolving) ? (exKind ? [exKind] : []) : Array.from(exSel); }
 function updateExKindUI() {
-  document.querySelectorAll('.ex-kind-btn').forEach(b => b.classList.toggle('btn-primary', b.dataset.kind === exKind));
-  document.getElementById('ex-water-wrap').style.display = exIsWater(exKind) ? '' : 'none';
-  document.getElementById('ex-feed-wrap').style.display = exIsFeed(exKind) ? '' : 'none';
-  document.getElementById('ex-level-wrap').style.display = exKind === 'selffeed' ? '' : 'none';
-  document.getElementById('ex-bowl-wrap').style.display = exKind === 'bowl' ? '' : 'none';
-  document.getElementById('ex-amount-label').textContent = exKind === 'selfwater' ? 'ปริมาณที่ดื่ม (มล.) — ไม่บังคับ' : 'ป้อนด้วยไซริงค์ (มล.)';
-  document.getElementById('ex-grams-label').textContent = exKind === 'selffeed' ? 'ปริมาณ (g) — ไม่บังคับ' : 'ปริมาณ (g)';
+  const ks = exKs();
+  const has = k => ks.includes(k);
+  document.querySelectorAll('.ex-kind-btn').forEach(b => {
+    b.classList.toggle('btn-primary', has(b.dataset.kind));
+    b.style.display = (exResolving && b.dataset.kind !== 'poop' && b.dataset.kind !== 'pee') ? 'none' : '';
+  });
+  document.getElementById('ex-kind-row2').style.display = exResolving ? 'none' : 'flex';
+  document.getElementById('ex-multi-hint').style.display = (editingExId || exResolving) ? 'none' : '';
+  document.getElementById('ex-resolve-wrap').style.display = exResolving ? '' : 'none';
+  document.getElementById('ex-water-wrap').style.display = ks.some(exIsWater) ? '' : 'none';
+  document.getElementById('ex-feed-wrap').style.display = ks.some(exIsFeed) ? '' : 'none';
+  document.getElementById('ex-level-wrap').style.display = has('selffeed') ? '' : 'none';
+  document.getElementById('ex-bowl-wrap').style.display = has('bowl') ? '' : 'none';
+  document.getElementById('ex-toilet-wrap').style.display = has('toilet') ? '' : 'none';
+  document.getElementById('ex-poop-wrap').style.display = has('poop') ? '' : 'none';
+  document.getElementById('ex-pee-wrap').style.display = has('pee') ? '' : 'none';
+  document.getElementById('ex-amount-label').textContent = (has('selfwater') && !has('water')) ? 'ปริมาณที่ดื่ม (มล.) — ไม่บังคับ' : 'ป้อนด้วยไซริงค์ (มล.)';
+  document.getElementById('ex-grams-label').textContent = (has('selffeed') && !has('feed')) ? 'ปริมาณ (g) — ไม่บังคับ' : 'ปริมาณ (g)';
   const lvSel = document.getElementById('ex-level');
   if (!lvSel.options.length) lvSel.innerHTML = '<option value="">ไม่ระบุ</option>' + Object.keys(EX_LEVELS).map(k => `<option value="${k}">${EX_LEVELS[k]}</option>`).join('');
   const bw = document.getElementById('ex-bowl-when'), bl = document.getElementById('ex-bowl-level');
   if (!bw.options.length) bw.innerHTML = Object.keys(BOWL_WHEN).map(k => `<option value="${k}">${BOWL_WHEN[k]}</option>`).join('');
   if (!bl.options.length) bl.innerHTML = Object.keys(BOWL_LEVELS).map(k => `<option value="${k}">${BOWL_LEVELS[k]}</option>`).join('');
-  if (exIsFeed(exKind)) {
+  const pf = document.getElementById('ex-poop-form'), pe = document.getElementById('ex-pee-form');
+  if (!pf.options.length) { pf.innerHTML = Object.keys(EX_FORMS.poop.opts).map(k => `<option value="${k}">${EX_FORMS.poop.opts[k]}</option>`).join(''); pf.value = 'normal'; }
+  if (!pe.options.length) { pe.innerHTML = Object.keys(EX_FORMS.pee.opts).map(k => `<option value="${k}">${EX_FORMS.pee.opts[k]}</option>`).join(''); pe.value = 'normal'; }
+  if (ks.some(exIsFeed)) {
     const fs = document.getElementById('ex-food'), prev = fs.value;
     const exPlan = selectedCareCat ? activeFoodPlan(selectedCareCat, document.getElementById('ex-date').value || toISO(new Date())) : null;
     const exPlanIds = exPlan ? (exPlan.foodIds || []).filter(id => foodCatalog.some(f => f.id === id)) : [];
@@ -2950,19 +2977,8 @@ function updateExKindUI() {
     }
     if (prev && foodCatalog.some(f => f.id === prev)) fs.value = prev;
   }
-  const hasForm = exKind === 'poop' || exKind === 'pee';
-  document.getElementById('ex-form-wrap').style.display = hasForm ? '' : 'none';
-  document.getElementById('ex-color-wrap').style.display = exKind === 'pee' ? '' : 'none';
-  if (hasForm) {
-    const cfg = EX_FORMS[exKind];
-    document.getElementById('ex-form-label').textContent = cfg.label;
-    const sel = document.getElementById('ex-form');
-    const cur = sel.dataset.kind === exKind ? sel.value : (exKind === 'poop' ? 'normal' : 'normal');
-    sel.innerHTML = Object.keys(cfg.opts).map(k => `<option value="${k}">${cfg.opts[k]}</option>`).join('');
-    sel.value = cfg.opts[cur] ? cur : 'normal';
-    sel.dataset.kind = exKind;
-  }
 }
+function exPhotoOwner(x, ph) { return ph.owner || x.id; }
 function renderExPhotoLists() {
   const pend = document.getElementById('ex-photo-pending');
   const exist = document.getElementById('ex-photo-existing');
@@ -2982,7 +2998,8 @@ function renderExPhotoLists() {
     </span>`).join('') : '';
   exist.querySelectorAll('[data-ex-viewexisting]').forEach(b => b.addEventListener('click', async () => {
     try {
-      const r = await window.storage.get(exPhotoKey(editingExId, b.dataset.exViewexisting));
+      const eph = exExistingPhotos.find(p => p.id === b.dataset.exViewexisting) || {};
+      const r = await window.storage.get(exPhotoKey(eph.owner || editingExId, b.dataset.exViewexisting));
       if (!r || !r.value) { alert('ไม่พบรูปนี้'); return; }
       openPhotoModal([r.value]);
     } catch (e) { alert('โหลดรูปไม่สำเร็จ'); }
@@ -2992,8 +3009,9 @@ function renderExPhotoLists() {
   }));
 }
 function resetExForm(keepKind) {
-  editingExId = null;
-  if (!keepKind) exKind = null;
+  editingExId = null; exResolving = false;
+  if (!keepKind) { exKind = null; exSel = new Set(); }
+  if (!keepKind) { const pf0 = document.getElementById('ex-poop-form'), pe0 = document.getElementById('ex-pee-form'); if (pf0.options.length) pf0.value = 'normal'; if (pe0.options.length) pe0.value = 'normal'; }
   exPendingPhotos = []; exExistingPhotos = []; exRemovedPhotoIds = [];
   document.getElementById('ex-date').value = toISO(new Date());
   document.getElementById('ex-time').value = nowHHMM();
@@ -3014,6 +3032,7 @@ function startExEdit(id) {
   if (!x) return;
   showSubTab('care', 'excr');
   editingExId = id; exKind = x.kind;
+  exResolving = x.kind === 'toilet'; exSel = new Set();
   exPendingPhotos = []; exRemovedPhotoIds = []; exExistingPhotos = (x.photos || []).slice();
   document.getElementById('ex-date').value = x.date;
   document.getElementById('ex-time').value = x.time || '';
@@ -3027,13 +3046,14 @@ function startExEdit(id) {
     fs.value = x.foodId || '';
     document.getElementById('ex-grams').value = x.amount != null ? x.amount : '';
   }
-  if (x.form && document.getElementById('ex-form').querySelector(`option[value="${x.form}"]`)) document.getElementById('ex-form').value = x.form;
+  const fsel = document.getElementById(x.kind === 'pee' ? 'ex-pee-form' : 'ex-poop-form');
+  if (x.form && fsel.querySelector(`option[value="${x.form}"]`)) fsel.value = x.form;
   document.getElementById('ex-color').value = x.color || '';
   document.getElementById('ex-note').value = x.note || '';
   document.getElementById('ex-photo').value = '';
   document.getElementById('ex-photo-status').textContent = '';
-  document.getElementById('ex-form-title').textContent = '✏️ แก้ไข ' + EX_KINDS[x.kind] + ' วันที่ ' + fmtDateStr(x.date);
-  document.getElementById('ex-save').textContent = '💾 บันทึกการแก้ไข';
+  document.getElementById('ex-form-title').textContent = exResolving ? ('🔎 เช็คผลเข้ากระบะ ' + fmtDateStr(x.date) + (x.time ? ' ' + x.time : '')) : ('✏️ แก้ไข ' + EX_KINDS[x.kind] + ' วันที่ ' + fmtDateStr(x.date));
+  document.getElementById('ex-save').textContent = exResolving ? '💾 บันทึกผล' : '💾 บันทึกการแก้ไข';
   document.getElementById('ex-cancel-edit').style.display = 'inline-block';
   renderExPhotoLists();
   document.getElementById('ex-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -3043,8 +3063,9 @@ function renderExcretionSection() {
   if (!list) return;
   if (!document.getElementById('ex-date').value) { document.getElementById('ex-date').value = toISO(new Date()); document.getElementById('ex-time').value = nowHHMM(); }
   const mine = exMine();
-  const photoCount = mine.reduce((t, x) => t + ((x.photos || []).length), 0);
-  if (exIsFeed(exKind) && !editingExId) updateExKindUI();
+  const photoIdSet = new Set(); mine.forEach(x => (x.photos || []).forEach(p => photoIdSet.add(p.id)));
+  const photoCount = photoIdSet.size;
+  if (!editingExId && exKs().some(exIsFeed)) updateExKindUI();
   document.getElementById('ex-photo-note').textContent = photoCount ? `รูปแนบทั้งหมด ${photoCount} รูป (ใช้พื้นที่ประมาณ ${(photoCount * 0.15).toFixed(1)} MB จากพื้นที่ฟรี 1 GB ใช้ร่วมกับทั้งแอพ) ลบรายการเก่าเพื่อคืนพื้นที่ได้` : '';
   if (!mine.length) { list.innerHTML = '<p class="empty">ยังไม่มีบันทึก</p>'; return; }
   const byDate = {};
@@ -3054,7 +3075,7 @@ function renderExcretionSection() {
   const todayIso = toISO(new Date());
   if (!exOpenInit) { exOpenDays.add(todayIso); exOpenInit = true; }
   if (!exShowAll) dates = dates.slice(0, 7);
-  const KIND_COLOR = { water: '#4A90C2', feed: '#E0883A', poop: '#8B5E3C', pee: '#E0B93A', selffeed: '#7BAE5A', selfwater: '#7FC4D9', bowl: '#B5A58A' };
+  const KIND_COLOR = { water: '#4A90C2', feed: '#E0883A', poop: '#8B5E3C', pee: '#E0B93A', selffeed: '#7BAE5A', selfwater: '#7FC4D9', bowl: '#B5A58A', toilet: '#9A9A9A' };
   list.innerHTML = dates.map(d => {
     const rows = byDate[d].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
     const w = rows.filter(r => r.kind === 'water');
@@ -3062,9 +3083,10 @@ function renderExcretionSection() {
     const fd = rows.filter(r => r.kind === 'feed');
     const fg = fd.reduce((t, r) => t + (Number(r.amount) || 0), 0);
     const pn = rows.filter(r => r.kind === 'poop').length, un = rows.filter(r => r.kind === 'pee').length;
+    const tp = rows.filter(r => r.kind === 'toilet' && r.pending).length;
     const sf = rows.filter(r => r.kind === 'selffeed'), sfg = sf.reduce((t, r) => t + (Number(r.amount) || 0), 0);
     const sw = rows.filter(r => r.kind === 'selfwater'), swml = sw.reduce((t, r) => t + (Number(r.amount) || 0), 0);
-    const sum = [sf.length ? `🐾 ${sf.length}${sfg ? ' · ' + sfg + ' g' : ''}` : '', sw.length ? `💧 ${sw.length}${swml ? ' · ' + swml + ' มล.' : ''}` : '', w.length ? `🚰 ${w.length}${ml ? ' · ' + ml + ' มล.' : ''}` : '', fd.length ? `🍽 ${fd.length}${fg ? ' · ' + fg + ' g' : ''}` : '', pn ? `💩 ${pn}` : '', un ? `🚽 ${un}` : ''].filter(Boolean).join('  ');
+    const sum = [tp ? `⏳ ${tp}` : '', sf.length ? `🐾 ${sf.length}${sfg ? ' · ' + sfg + ' g' : ''}` : '', sw.length ? `💧 ${sw.length}${swml ? ' · ' + swml + ' มล.' : ''}` : '', w.length ? `🚰 ${w.length}${ml ? ' · ' + ml + ' มล.' : ''}` : '', fd.length ? `🍽 ${fd.length}${fg ? ' · ' + fg + ' g' : ''}` : '', pn ? `💩 ${pn}` : '', un ? `🚽 ${un}` : ''].filter(Boolean).join('  ');
     const isToday = d === todayIso;
     const open = exOpenDays.has(d);
     const wd = new Date(d + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short' });
@@ -3076,7 +3098,7 @@ function renderExcretionSection() {
         <div class="row-between" style="gap:6px;">
           <span style="font-size:13.5px;">${x.time ? '<strong>' + symEsc(x.time) + '</strong> ' : ''}${EX_KINDS[x.kind] || x.kind} <span class="muted">${symEsc(exLabel(x))}</span>${(x.photos && x.photos.length) ? ` <button class="btn" data-ex-photos="${x.id}" style="padding:0 7px;font-size:12px;">🖼 ${x.photos.length}</button>` : ''}</span>
           <span style="white-space:nowrap;">
-            <button class="del-btn" data-ex-edit="${x.id}" aria-label="แก้ไข" style="margin-right:2px;">✏️</button>
+            ${(x.kind === 'toilet' && x.pending) ? `<button class="btn" data-ex-edit="${x.id}" style="padding:1px 8px;font-size:11.5px;margin-right:4px;">เช็คผล</button>` : ''}<button class="del-btn" data-ex-edit="${x.id}" aria-label="แก้ไข" style="margin-right:2px;">✏️</button>
             <button class="del-btn" data-ex-del="${x.id}" aria-label="ลบ">✕</button>
           </span>
         </div>
@@ -3098,7 +3120,7 @@ function renderExcretionSection() {
     excretionLogs = excretionLogs.filter(l => l.id !== b.dataset.exDel);
     if (editingExId === b.dataset.exDel) resetExForm();
     await saveExcretionLogs();
-    if (x && x.photos) for (const ph of x.photos) { try { await window.storage.set(exPhotoKey(x.id, ph.id), ''); } catch (e) {} }
+    if (x && x.photos) for (const ph of x.photos) { if (excretionLogs.some(l => (l.photos || []).some(p => p.id === ph.id))) continue; try { await window.storage.set(exPhotoKey(ph.owner || x.id, ph.id), ''); } catch (e) {} }
     render();
   }));
   list.querySelectorAll('[data-ex-photos]').forEach(b => b.addEventListener('click', async () => {
@@ -3106,24 +3128,39 @@ function renderExcretionSection() {
     if (!x) return;
     const pages = [];
     for (const ph of (x.photos || [])) {
-      try { const r = await window.storage.get(exPhotoKey(x.id, ph.id)); pages.push(r && r.value ? r.value : ''); } catch (e) { pages.push(''); }
+      try { const r = await window.storage.get(exPhotoKey(ph.owner || x.id, ph.id)); pages.push(r && r.value ? r.value : ''); } catch (e) { pages.push(''); }
     }
     if (!pages.filter(Boolean).length) { alert('ไม่พบรูป'); return; }
     openPhotoModal(pages);
   }));
 }
-document.querySelectorAll('.ex-kind-btn').forEach(b => b.addEventListener('click', () => {
-  exKind = exKind === b.dataset.kind && !editingExId ? null : b.dataset.kind;
+function exToggleKind(k) {
+  if (exResolving) {
+    if (k !== 'poop' && k !== 'pee') return;
+    if (exSel.has(k)) exSel.delete(k); else exSel.add(k);
+  } else if (editingExId) {
+    exKind = k;
+  } else if (exSel.has(k)) {
+    exSel.delete(k);
+  } else {
+    const grp = x => ['poop', 'pee', 'toilet'].includes(x) ? 'ex' : (x === 'bowl' ? 'bowl' : 'feed');
+    Array.from(exSel).forEach(o => { if (grp(o) !== grp(k)) exSel.delete(o); });
+    if (k === 'water' || k === 'feed') { exSel.delete('selffeed'); exSel.delete('selfwater'); }
+    if (k === 'selffeed' || k === 'selfwater') { exSel.delete('water'); exSel.delete('feed'); }
+    exSel.add(k);
+  }
   updateExKindUI();
-  if (exKind === 'water' && !document.getElementById('ex-amount').value) {
+  const ks = exKs();
+  if (ks.includes('water') && !document.getElementById('ex-amount').value) {
     const last = excretionLogs.filter(x => x.catId === selectedCareCat && x.kind === 'water' && x.amount != null && x.amount !== '').sort((a, c) => ((c.date || '') + (c.time || '')).localeCompare((a.date || '') + (a.time || '')))[0];
     if (last) document.getElementById('ex-amount').value = last.amount;
   }
-  if (exKind === 'feed' && !editingExId && !document.getElementById('ex-grams').value) {
+  if (ks.includes('feed') && !editingExId && !document.getElementById('ex-grams').value) {
     const lf = excretionLogs.filter(x => x.catId === selectedCareCat && x.kind === 'feed').sort((a, c) => ((c.date || '') + (c.time || '')).localeCompare((a.date || '') + (a.time || '')))[0];
     if (lf) { if (lf.amount != null) document.getElementById('ex-grams').value = lf.amount; if (lf.foodId && foodCatalog.some(f => f.id === lf.foodId)) document.getElementById('ex-food').value = lf.foodId; }
   }
-}));
+}
+document.querySelectorAll('.ex-kind-btn').forEach(b => b.addEventListener('click', () => exToggleKind(b.dataset.kind)));
 document.getElementById('ex-photo').addEventListener('change', async (e) => {
   const files = Array.from(e.target.files || []);
   const statusEl = document.getElementById('ex-photo-status');
@@ -3138,50 +3175,73 @@ document.getElementById('ex-photo').addEventListener('change', async (e) => {
   statusEl.textContent = exPendingPhotos.length ? `✅ เตรียมรูป ${exPendingPhotos.length} รูป (บันทึกตอนกด "บันทึก")` : statusEl.textContent;
 });
 document.getElementById('ex-cancel-edit').addEventListener('click', () => resetExForm());
-document.getElementById('ex-date').addEventListener('change', () => { if (exIsFeed(exKind)) updateExKindUI(); });
-document.getElementById('ex-save').addEventListener('click', async () => {
+document.getElementById('ex-date').addEventListener('change', () => { if (exKs().some(exIsFeed)) updateExKindUI(); });
+async function exSaveRows(noneMode) {
   if (!selectedCareCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
-  if (!exKind) { alert('กรุณาเลือกประเภท (ป้อนน้ำ / ป้อนอาหาร / อึ / ฉี่ / กินเอง)'); return; }
+  const ks = noneMode ? ['toilet'] : exKs();
+  if (!ks.length) { alert(exResolving ? 'เลือก อึ / ฉี่ หรือกด "ไม่พบอะไร"' : 'กรุณาเลือกประเภท (ป้อนน้ำ / ป้อนอาหาร / อึ / ฉี่ / กินเอง)'); return; }
   const date = document.getElementById('ex-date').value;
   if (!date) { alert('กรุณาเลือกวันที่'); return; }
-  const id = editingExId || genId();
+  const editedId = editingExId;
+  const wasResolving = exResolving;
+  const firstId = editedId || genId();
   const keptPhotos = exExistingPhotos.filter(ph => !exRemovedPhotoIds.includes(ph.id));
   try {
-    for (const ph of exPendingPhotos) await window.storage.set(exPhotoKey(id, ph.id), ph.dataUrl);
-    for (const rid of exRemovedPhotoIds) { try { await window.storage.set(exPhotoKey(id, rid), ''); } catch (e) {} }
+    for (const ph of exPendingPhotos) await window.storage.set(exPhotoKey(firstId, ph.id), ph.dataUrl);
   } catch (err) { console.error(err); alert('บันทึกรูปไม่สำเร็จ ลองใหม่อีกครั้ง'); return; }
+  const firstPhotos = keptPhotos.concat(exPendingPhotos.map(ph => ({ id: ph.id })));
+  const refPhotos = () => firstPhotos.map(ph => ({ id: ph.id, owner: ph.owner || firstId }));
   const amt = document.getElementById('ex-amount').value;
-  const data = {
-    id, catId: exKind === 'bowl' ? EX_ROOM : selectedCareCat, kind: exKind, date,
-    time: document.getElementById('ex-time').value || '',
-    amount: exIsWater(exKind) && amt !== '' ? Number(amt) : (exIsFeed(exKind) && document.getElementById('ex-grams').value !== '' ? Number(document.getElementById('ex-grams').value) : null),
-    foodId: exIsFeed(exKind) ? (document.getElementById('ex-food').value || '') : '',
-    foodName: exIsFeed(exKind) ? ((foodCatalog.find(f => f.id === document.getElementById('ex-food').value) || {}).name || '') : '',
-    level: exKind === 'selffeed' ? document.getElementById('ex-level').value : '',
-    bowlWhen: exKind === 'bowl' ? document.getElementById('ex-bowl-when').value : '',
-    bowlLevel: exKind === 'bowl' ? document.getElementById('ex-bowl-level').value : '',
-    form: (exKind === 'poop' || exKind === 'pee') ? document.getElementById('ex-form').value : '',
-    color: exKind === 'pee' ? document.getElementById('ex-color').value.trim() : '',
-    note: document.getElementById('ex-note').value.trim(),
-    photos: keptPhotos.concat(exPendingPhotos.map(ph => ({ id: ph.id })))
-  };
-  const idx = excretionLogs.findIndex(l => l.id === id);
-  if (idx > -1) excretionLogs[idx] = data; else excretionLogs.push(data);
+  const grams = document.getElementById('ex-grams').value;
+  const time = document.getElementById('ex-time').value || '';
+  const note = document.getElementById('ex-note').value.trim();
+  const rows = ks.map((k, i) => {
+    const r = {
+      id: i === 0 ? firstId : genId(), catId: k === 'bowl' ? EX_ROOM : selectedCareCat, kind: k, date, time,
+      amount: exIsWater(k) && amt !== '' ? Number(amt) : (exIsFeed(k) && grams !== '' ? Number(grams) : null),
+      foodId: exIsFeed(k) ? (document.getElementById('ex-food').value || '') : '',
+      foodName: exIsFeed(k) ? ((foodCatalog.find(f => f.id === document.getElementById('ex-food').value) || {}).name || '') : '',
+      level: k === 'selffeed' ? document.getElementById('ex-level').value : '',
+      bowlWhen: k === 'bowl' ? document.getElementById('ex-bowl-when').value : '',
+      bowlLevel: k === 'bowl' ? document.getElementById('ex-bowl-level').value : '',
+      form: k === 'poop' ? document.getElementById('ex-poop-form').value : (k === 'pee' ? document.getElementById('ex-pee-form').value : ''),
+      color: k === 'pee' ? document.getElementById('ex-color').value.trim() : '',
+      note,
+      photos: i === 0 ? firstPhotos : refPhotos()
+    };
+    if (k === 'toilet') r.pending = !noneMode;
+    return r;
+  });
+  rows.forEach((r, i) => {
+    const idx = i === 0 ? excretionLogs.findIndex(l => l.id === firstId) : -1;
+    if (idx > -1) excretionLogs[idx] = r; else excretionLogs.push(r);
+  });
   exOpenDays.add(date);
   await saveExcretionLogs();
-  const keep = exKind;
+  for (const rid of exRemovedPhotoIds) {
+    const ph = exExistingPhotos.find(p => p.id === rid);
+    if (!ph || excretionLogs.some(l => (l.photos || []).some(p => p.id === rid))) continue;
+    try { await window.storage.set(exPhotoKey(ph.owner || editedId, rid), ''); } catch (e) {}
+  }
+  const keepSel = (editedId && !wasResolving) ? new Set(ks) : (editedId ? new Set() : new Set(ks));
   resetExForm(true);
-  exKind = keep; updateExKindUI();
-  if (exKind === 'water') document.getElementById('ex-amount').value = data.amount != null ? data.amount : '';
-  if (exKind === 'feed') { document.getElementById('ex-grams').value = data.amount != null ? data.amount : ''; if (data.foodId) document.getElementById('ex-food').value = data.foodId; }
+  exSel = keepSel; exKind = (editedId && !wasResolving) ? ks[0] : null;
+  if (editedId) { document.getElementById('ex-poop-form').value = 'normal'; document.getElementById('ex-pee-form').value = 'normal'; }
+  if (editedId && !wasResolving) { editingExId = null; }
+  updateExKindUI();
+  const wr = rows.find(r => r.kind === 'water'), fr = rows.find(r => r.kind === 'feed');
+  if (wr) document.getElementById('ex-amount').value = wr.amount != null ? wr.amount : '';
+  if (fr) { document.getElementById('ex-grams').value = fr.amount != null ? fr.amount : ''; if (fr.foodId) document.getElementById('ex-food').value = fr.foodId; }
   render();
-});
+}
+document.getElementById('ex-save').addEventListener('click', () => exSaveRows(false));
+document.getElementById('ex-resolve-none').addEventListener('click', () => exSaveRows(true));
 document.getElementById('ex-export-csv').addEventListener('click', () => {
   const mine = exMine().sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
   if (!mine.length) { alert('ยังไม่มีบันทึกให้ Export'); return; }
   const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
   const lines = [['วันที่', 'เวลา', 'ประเภท', 'ปริมาณน้ำ (มล.)', 'อาหาร', 'ปริมาณอาหาร (g)', 'ลักษณะ/ปริมาณ', 'สี/อื่นๆ', 'หมายเหตุ', 'จำนวนรูป', 'ระดับการกิน/ชาม'].map(q).join(',')];
-  mine.forEach(x => lines.push([x.date, x.time || '', EX_KINDS[x.kind] || x.kind, exIsWater(x.kind) && x.amount != null ? x.amount : '', exIsFeed(x.kind) ? ((foodCatalog.find(f => f.id === x.foodId) || {}).name || x.foodName || '') : '', exIsFeed(x.kind) && x.amount != null ? x.amount : '', (EX_FORMS[x.kind] && EX_FORMS[x.kind].opts[x.form]) || '', x.color || '', x.note || '', (x.photos || []).length, x.kind === 'bowl' ? ((BOWL_WHEN[x.bowlWhen] || '') + ' ' + (BOWL_LEVELS[x.bowlLevel] || '')).trim() : (EX_LEVELS[x.level] || '')].map(q).join(',')));
+  mine.forEach(x => lines.push([x.date, x.time || '', EX_KINDS[x.kind] || x.kind, exIsWater(x.kind) && x.amount != null ? x.amount : '', exIsFeed(x.kind) ? ((foodCatalog.find(f => f.id === x.foodId) || {}).name || x.foodName || '') : '', exIsFeed(x.kind) && x.amount != null ? x.amount : '', (EX_FORMS[x.kind] && EX_FORMS[x.kind].opts[x.form]) || '', x.color || '', x.note || '', (x.photos || []).length, x.kind === 'toilet' ? (x.pending ? 'รอเช็ค' : 'ไม่พบอะไร') : x.kind === 'bowl' ? ((BOWL_WHEN[x.bowlWhen] || '') + ' ' + (BOWL_LEVELS[x.bowlLevel] || '')).trim() : (EX_LEVELS[x.level] || '')].map(q).join(',')));
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -3334,6 +3394,8 @@ function renderCareCalendar() {
       const sfn = exDay.filter(x => x.kind === 'selffeed').length, swn = exDay.filter(x => x.kind === 'selfwater').length;
       if (sfn) marks.push('🐾' + sfn);
       if (swn) marks.push('💧' + swn);
+      const tpn = exDay.filter(x => x.kind === 'toilet' && x.pending).length;
+      if (tpn) marks.push('⏳' + tpn);
       if (pn) marks.push('💩' + pn);
       if (un) marks.push('🚽' + un);
     }
