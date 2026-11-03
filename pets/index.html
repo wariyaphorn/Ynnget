@@ -3319,8 +3319,7 @@ function renderCareCalendar() {
     if (log) {
       if (log.fluid && log.fluid.given) marks.push(`💧${log.fluid.amount != null ? log.fluid.amount : ''}${log.fluid.time ? ' ' + log.fluid.time : ''}`);
       if (log.medIds && log.medIds.length) {
-        const medTimesList = log.medIds.reduce((a, id) => a.concat(medTimesArr(log.medTimes && log.medTimes[id])), []).sort();
-        marks.push(`💊${log.medIds.length}${medTimesList.length ? ' ' + medTimesList.join(',') : ''}`);
+        marks.push(`💊${log.medIds.length}`);
       }
       if (log.foodIds && log.foodIds.length) { const tg = Object.values(log.foodGrams || {}).reduce((t, v) => t + (Number(v) || 0), 0); marks.push(tg ? `🍽${tg}g` : `🍽${log.foodIds.length}`); }
     }
