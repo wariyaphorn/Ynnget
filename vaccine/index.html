@@ -2344,7 +2344,7 @@ document.getElementById('ill-add').addEventListener('click', async () => {
 const LAB_RECORDS_KEY = 'child-lab-records';
 const LAB_CUSTOM_KEY = 'child-lab-custom-tests';
 const labPhotoKey = (recId, phId) => 'child-lab-photo-' + recId + '-' + phId;
-const LAB_GROUPS = { cbc: 'CBC', chem: 'เคมีเลือด / เกลือแร่', coag: 'การแข็งตัวของเลือด', ua: 'ปัสสาวะ', inf: 'ตรวจเชื้อ / ไวรัส', other: 'อื่นๆ' };
+const LAB_GROUPS = { cbc: 'CBC', chem: 'เคมีเลือด / เกลือแร่', coag: 'การแข็งตัวของเลือด', ua: 'ปัสสาวะ', inf: 'ตรวจเชื้อ / ไวรัส / เพาะเชื้อ', stool: 'อุจจาระ', other: 'อื่นๆ' };
 const LAB_CATALOG = [
   { k: 'RBC', g: 'cbc', l: 'RBC', u: 'x10⁶/µL', a: ['redcellcount', 'redbloodcell'] },
   { k: 'HB', g: 'cbc', l: 'Hemoglobin (Hb)', u: 'g/dL', a: ['hb', 'hgb', 'hemoglobin'] },
@@ -2398,6 +2398,8 @@ const LAB_CATALOG = [
   { k: 'INR', g: 'coag', l: 'INR', u: '' },
   { k: 'APTT', g: 'coag', l: 'APTT', u: 'sec' },
   { k: 'APTTR', g: 'coag', l: 'aPTT ratio', u: '', a: ['apttratio'] },
+  { k: 'TT', g: 'coag', l: 'Thrombin time', u: 'sec', a: ['thrombintime'] },
+  { k: 'F13', g: 'coag', l: 'Factor XIII activity', u: '%', a: ['factorxiii', 'factorxiiiassay', 'factor13'] },
   { k: 'FIB', g: 'coag', l: 'Fibrinogen', u: 'mg/dL', a: ['fibrinogen'] },
   { k: 'V_FLUA', g: 'inf', l: 'Influenza A Ag', t: 'text', a: ['fluaag', 'flua', 'influenzaa'] },
   { k: 'V_FLUB', g: 'inf', l: 'Influenza B Ag', t: 'text', a: ['flubag', 'flub', 'influenzab'] },
@@ -2408,6 +2410,11 @@ const LAB_CATALOG = [
   { k: 'V_RHINO', g: 'inf', l: 'Human Rhinovirus Ag', t: 'text', a: ['rhinovirus', 'humanrhinovirusag', 'rhino'] },
   { k: 'V_BOCA', g: 'inf', l: 'Human Bocavirus Ag', t: 'text', a: ['bocavirus', 'humanbocavirusag', 'boca'] },
   { k: 'V_COVID', g: 'inf', l: 'COVID-19 Ag (ATK)', t: 'text', a: ['covid19', 'covid', 'rapidtestforcovid19ag', 'covid19ag'] },
+  { k: 'CULT_BLOOD', g: 'inf', l: 'เพาะเชื้อในเลือด (Hemoculture)', t: 'text', a: ['hemoculture', 'bloodculture'] },
+  { k: 'ST_WBC', g: 'stool', l: 'WBC (อุจจาระ)', t: 'text', u: '/HPF' },
+  { k: 'ST_RBC', g: 'stool', l: 'RBC (อุจจาระ)', t: 'text', u: '/HPF' },
+  { k: 'ST_PARA', g: 'stool', l: 'ไข่/ปรสิต (Ova & Parasite)', t: 'text', a: ['parasite', 'ovaandparasite'] },
+  { k: 'CULT_STOOL', g: 'stool', l: 'เพาะเชื้ออุจจาระ (Stool culture)', t: 'text', a: ['stoolculture'] },
   { k: 'U_COLOR', g: 'ua', l: 'สี (Color)', t: 'text', a: ['urinecolor'] },
   { k: 'U_APP', g: 'ua', l: 'ความใส (Appearance)', t: 'text', a: ['urineappearance'] },
   { k: 'U_SG', g: 'ua', l: 'Sp.gr.', u: '', a: ['spgr', 'sg'] },
