@@ -2455,14 +2455,20 @@ function labSortKey(r) { return (r.date || '') + 'T' + (r.time || '00:00'); }
 function labTimeStr(r) { return r.time ? ' ' + escAttr(r.time) : ''; }
 function labFlag(cell) {
   if (!cell || typeof cell.v !== 'number') return '';
+  if (cell.cmp) {
+    if (cell.cmp[0] === '<' && cell.lo != null && cell.v <= cell.lo) return 'L';
+    if (cell.cmp[0] === '>' && cell.hi != null && cell.v >= cell.hi) return 'H';
+    return '';
+  }
   if (cell.lo != null && cell.v < cell.lo) return 'L';
   if (cell.hi != null && cell.v > cell.hi) return 'H';
   return '';
 }
 function labIsPos(t, c) { return !!(t && t.t === 'text' && c && typeof c.v === 'string' && /^\s*(positive|detected|reactive|pos\b|\+)/i.test(c.v)); }
 function labPosHtml(t, c) { return labIsPos(t, c) ? ' <span style="color:#B14A34;font-weight:700;">●</span>' : ''; }
+function labVal(c) { return (c && c.cmp ? c.cmp : '') + (c ? c.v : ''); }
 function labDev(c) {
-  if (!c || typeof c.v !== 'number') return null;
+  if (!c || typeof c.v !== 'number' || c.cmp) return null;
   let d = null, base = null;
   if (c.lo != null && c.v < c.lo) { d = c.lo - c.v; base = c.lo; }
   else if (c.hi != null && c.v > c.hi) { d = c.v - c.hi; base = c.hi; }
@@ -2517,7 +2523,7 @@ function buildLabForm(prefill) {
     return `<details ${g === 'cbc' ? 'open' : ''} style="margin-bottom:8px;"><summary style="cursor:pointer;font-weight:600;font-size:13.5px;padding:4px 0;">${LAB_GROUPS[g]}</summary>
       ${items.map(t => `<div class="lab-row" data-k="${t.k}" style="display:flex;gap:6px;align-items:center;margin:4px 0;flex-wrap:wrap;">
         <span style="flex:1 1 140px;font-size:13px;">${escAttr(t.l)}${t.u ? ' <span class="muted" style="font-size:11.5px;">(' + escAttr(t.u) + ')</span>' : ''}</span>
-        <input class="lab-v" ${t.t === 'text' ? 'type="text"' : 'type="number" step="any"'} style="width:96px;" value="${escAttr(keep[t.k] && keep[t.k].v != null ? keep[t.k].v : '')}">
+        <input class="lab-v" ${t.t === 'text' ? 'type="text"' : 'type="text" inputmode="decimal" placeholder="เช่น 3.5 หรือ <3"'} style="width:96px;" value="${escAttr(keep[t.k] && keep[t.k].v != null ? (keep[t.k].cmp || '') + keep[t.k].v : '')}">
         <span class="lab-ref" style="display:${document.getElementById('lab-show-ref').checked && t.t !== 'text' ? 'inline-flex' : 'none'};gap:4px;align-items:center;">
           <input class="lab-lo" type="number" step="any" placeholder="ต่ำ" style="width:62px;" value="${keep[t.k] && keep[t.k].lo != null ? keep[t.k].lo : ''}">
           <input class="lab-hi" type="number" step="any" placeholder="สูง" style="width:62px;" value="${keep[t.k] && keep[t.k].hi != null ? keep[t.k].hi : ''}">
@@ -2535,9 +2541,11 @@ function labReadForm(allowEmpty) {
     const hi = row.querySelector('.lab-hi') && row.querySelector('.lab-hi').value !== '' ? Number(row.querySelector('.lab-hi').value) : null;
     if (raw === '' && !(allowEmpty && (lo != null || hi != null))) return;
     const isText = t && t.t === 'text';
-    const v = raw === '' ? null : (isText ? raw : Number(raw));
+    let cmp = null, num = raw;
+    if (!isText) { const m = raw.match(/^([<>]=?|≤|≥)\s*(.+)$/); if (m) { cmp = m[1] === '≤' ? '<=' : (m[1] === '≥' ? '>=' : m[1]); num = m[2].trim(); } }
+    const v = raw === '' ? null : (isText ? raw : Number(num.replace(/,/g, '')));
     if (!isText && raw !== '' && isNaN(v)) return;
-    out[k] = { v, lo, hi };
+    out[k] = cmp ? { v, lo, hi, cmp } : { v, lo, hi };
   });
   return out;
 }
@@ -2597,7 +2605,7 @@ function labRenderRecords(list) {
       return `<div style="margin:6px 0 2px;font-weight:600;font-size:12.5px;">${LAB_GROUPS[g]}</div>` + rows.map(x => {
         const f = labFlag(x.c);
         const ref = (x.c.lo != null || x.c.hi != null) ? ` <span class="muted" style="font-size:11.5px;">(${x.c.lo != null ? x.c.lo : ''}–${x.c.hi != null ? x.c.hi : ''})</span>` : '';
-        return `<div class="row-between" style="font-size:13px;padding:1px 0;"><span>${escAttr(x.t.l)}</span><span><strong>${escAttr(x.c.v)}</strong> <span class="muted">${escAttr(x.t.u || '')}</span>${labFlagHtml(f)}${labDevHtml(x.c)}${labPosHtml(x.t, x.c)}${ref}</span></div>`;
+        return `<div class="row-between" style="font-size:13px;padding:1px 0;"><span>${escAttr(x.t.l)}</span><span><strong>${escAttr(labVal(x.c))}</strong> <span class="muted">${escAttr(x.t.u || '')}</span>${labFlagHtml(f)}${labDevHtml(x.c)}${labPosHtml(x.t, x.c)}${ref}</span></div>`;
       }).join('');
     }).join('') : '';
     return `<div class="visit-card" style="margin-bottom:8px;">
@@ -2628,7 +2636,7 @@ function labRenderTable(list) {
     const c = r.values && r.values[t.k]; if (!c || c.v == null) return '<td style="padding:4px 8px;border-top:1px solid var(--border);text-align:center;color:#aaa;">–</td>';
     const f = labFlag(c);
     const rs = labRefStr(c);
-    return `<td title="${rs ? 'ช่วงอ้างอิง ' + escAttr(rs) : ''}" style="padding:4px 8px;border-top:1px solid var(--border);text-align:center;white-space:nowrap;${f ? 'background:' + (f === 'H' ? '#FBE9E5' : '#E5F0F8') + ';' : (labIsPos(t, c) ? 'background:#FBE9E5;' : '')}">${escAttr(c.v)}${labFlagHtml(f)}${labDevHtml(c)}${labPosHtml(t, c)}</td>`;
+    return `<td title="${rs ? 'ช่วงอ้างอิง ' + escAttr(rs) : ''}" style="padding:4px 8px;border-top:1px solid var(--border);text-align:center;white-space:nowrap;${f ? 'background:' + (f === 'H' ? '#FBE9E5' : '#E5F0F8') + ';' : (labIsPos(t, c) ? 'background:#FBE9E5;' : '')}">${escAttr(labVal(c))}${labFlagHtml(f)}${labDevHtml(c)}${labPosHtml(t, c)}</td>`;
   }).join('')}</tr>`;}).join('');
   return `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">${groupBtns}</div>${rows.length ? `<div style="overflow-x:auto;"><table style="border-collapse:collapse;font-size:13px;">${head}${body}</table></div>` : '<p class="empty">ยังไม่มีค่าในกลุ่มนี้</p>'}`;
 }
@@ -2650,7 +2658,7 @@ function labChartSvg(points, ref) {
   }
   for (let i = 0; i <= 3; i++) { const v = min + (max - min) * i / 3, y = Y(v); g += `<line x1="${pl}" x2="${W - pr}" y1="${y}" y2="${y}" stroke="#ddd" stroke-width="1"></line><text x="${pl - 4}" y="${y + 4}" font-size="10" text-anchor="end" fill="#777">${fmtN(v)}</text>`; }
   g += `<polyline fill="none" stroke="#2A9D8F" stroke-width="2" points="${points.map(p => X(p.ts) + ',' + Y(p.v)).join(' ')}"></polyline>`;
-  g += points.map(p => `<circle cx="${X(p.ts)}" cy="${Y(p.v)}" r="3.5" fill="${p.f === 'H' ? '#B14A34' : (p.f === 'L' ? '#3B7EA6' : '#2A9D8F')}"></circle><text x="${X(p.ts)}" y="${Y(p.v) - 7}" font-size="10" text-anchor="middle" fill="#333">${fmtN(p.v)}</text>`).join('');
+  g += points.map(p => `<circle cx="${X(p.ts)}" cy="${Y(p.v)}" r="3.5" fill="${p.c ? '#fff' : (p.f === 'H' ? '#B14A34' : (p.f === 'L' ? '#3B7EA6' : '#2A9D8F'))}" stroke="${p.f === 'H' ? '#B14A34' : (p.f === 'L' ? '#3B7EA6' : '#2A9D8F')}" stroke-width="${p.c ? 2 : 0}"></circle><text x="${X(p.ts)}" y="${Y(p.v) - 7}" font-size="10" text-anchor="middle" fill="#333">${p.c || ''}${fmtN(p.v)}</text>`).join('');
   const sd = d => { const x = new Date(d + 'T00:00:00'); return x.getDate() + '/' + (x.getMonth() + 1); };
   g += `<text x="${X(points[0].ts)}" y="${H - 12}" font-size="10" text-anchor="${points.length === 1 ? 'middle' : 'start'}" fill="#555">${sd(points[0].date)}</text>`;
   if (points.length > 1) g += `<text x="${X(points[points.length - 1].ts)}" y="${H - 12}" font-size="10" text-anchor="end" fill="#555">${sd(points[points.length - 1].date)}</text>`;
@@ -2663,10 +2671,10 @@ function labRenderChart(list) {
   if (!withData.some(t => t.k === labChartKey)) labChartKey = withData[0].k;
   const t = withData.find(x => x.k === labChartKey);
   const recs = list.slice().sort((a, b) => labSortKey(a).localeCompare(labSortKey(b))).filter(r => r.values && r.values[t.k] && typeof r.values[t.k].v === 'number');
-  const points = recs.map(r => ({ date: r.date, ts: new Date(r.date + 'T' + (r.time || '00:00')).getTime(), v: r.values[t.k].v, f: labFlag(r.values[t.k]) }));
+  const points = recs.map(r => ({ date: r.date, ts: new Date(r.date + 'T' + (r.time || '00:00')).getTime(), c: r.values[t.k].cmp || '', v: r.values[t.k].v, f: labFlag(r.values[t.k]) }));
   const last = recs[recs.length - 1].values[t.k];
   const ref = (last.lo != null || last.hi != null) ? { lo: last.lo, hi: last.hi } : null;
-  return `<div style="margin-bottom:8px;"><select id="lab-chart-select">${withData.map(x => `<option value="${x.k}" ${x.k === labChartKey ? 'selected' : ''}>${escAttr(x.l)}${x.u ? ' (' + escAttr(x.u) + ')' : ''}</option>`).join('')}</select></div>${labChartSvg(points, ref)}<p class="muted" style="font-size:12px;margin:4px 0 0;">${ref ? 'แถบสีเขียวอ่อน = ช่วงอ้างอิงของครั้งล่าสุดในใบผล' : 'ไม่มีช่วงอ้างอิง (กรอกช่วงอ้างอิงตอนบันทึกเพื่อให้แสดงแถบ)'} · จุดสีแดง = สูง, น้ำเงิน = ต่ำ</p>`;
+  return `<div style="margin-bottom:8px;"><select id="lab-chart-select">${withData.map(x => `<option value="${x.k}" ${x.k === labChartKey ? 'selected' : ''}>${escAttr(x.l)}${x.u ? ' (' + escAttr(x.u) + ')' : ''}</option>`).join('')}</select></div>${labChartSvg(points, ref)}<p class="muted" style="font-size:12px;margin:4px 0 0;">${ref ? 'แถบสีเขียวอ่อน = ช่วงอ้างอิงของครั้งล่าสุดในใบผล' : 'ไม่มีช่วงอ้างอิง (กรอกช่วงอ้างอิงตอนบันทึกเพื่อให้แสดงแถบ)'} · จุดสีแดง = สูง, น้ำเงิน = ต่ำ · จุดโปร่ง = ค่าแบบ &lt; หรือ &gt; (ไม่ทราบค่าจริง)</p>`;
 }
 function renderLabsTab() {
   const tabsWrap = document.getElementById('lab-child-tabs'); if (!tabsWrap) return;
