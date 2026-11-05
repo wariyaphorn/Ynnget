@@ -466,6 +466,7 @@
           <button type="button" class="btn lab-view-btn" data-view="records">รายครั้ง</button>
           <button type="button" class="btn lab-view-btn" data-view="table">ตารางเทียบ</button>
           <button type="button" class="btn lab-view-btn" data-view="chart">กราฟ</button>
+          <button type="button" class="btn" id="lab-export-btn" style="margin-left:6px;">⬇️ ส่งออก CSV</button>
         </div>
         <div id="lab-view"></div>
       </div>
@@ -2726,6 +2727,42 @@ function renderLabsTab() {
     await saveLabCustom(); buildLabForm(); renderLabsTab();
   }));
 }
+function labExportCsv() {
+  const sel = labSelectedMember(); if (!sel) { alert('ยังไม่มีสมาชิก'); return; }
+  const recs = labRecords.filter(r => r.member === sel).sort((a, b) => labSortKey(b).localeCompare(labSortKey(a)));
+  if (!recs.length) { alert('ยังไม่มีผลตรวจให้ส่งออก'); return; }
+  const tests = labAllTests();
+  const hasV = (r, t) => !!(r.values && r.values[t.k] && r.values[t.k].v != null);
+  const q = v => { const x = String(v == null ? '' : v); return /[",\n\r]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+  const lines = [];
+  const fmtD = r => fmtDateStr(r.date);
+  lines.push(['', '', '', 'วันที่'].concat(recs.map(fmtD)).map(q).join(','));
+  lines.push(['', '', '', 'เวลา'].concat(recs.map(r => r.time || '')).map(q).join(','));
+  lines.push(['', '', '', 'โรงพยาบาล'].concat(recs.map(r => r.hospital || '')).map(q).join(','));
+  lines.push(['หมวด', 'ค่า', 'หน่วย', 'ช่วงอ้างอิง (ล่าสุด)'].concat(recs.map(() => '')).map(q).join(','));
+  Object.keys(LAB_GROUPS).forEach(g => {
+    tests.filter(t => t.g === g && recs.some(r => hasV(r, t))).forEach(t => {
+      const refs = recs.filter(r => hasV(r, t) && labRefStr(r.values[t.k])).map(r => labRefStr(r.values[t.k]));
+      const ref = refs.length ? refs[0] + (new Set(refs).size > 1 ? ' *' : '') : '';
+      const cells = recs.map(r => {
+        if (!hasV(r, t)) return '';
+        const c = r.values[t.k]; const f = labFlag(c);
+        return labVal(c) + (f === 'H' ? ' ▲' : (f === 'L' ? ' ▼' : '')) + (labIsPos(t, c) ? ' ●' : '');
+      });
+      lines.push([LAB_GROUPS[g], t.l, t.u || '', ref].concat(cells).map(q).join(','));
+    });
+  });
+  lines.push(['', '', '', 'หมายเหตุ'].concat(recs.map(r => r.note || '')).map(q).join(','));
+  lines.push('');
+  lines.push(q('* = ช่วงอ้างอิงไม่เท่ากันทุกครั้ง · ▲ สูงกว่าช่วงอ้างอิง · ▼ ต่ำกว่าช่วงอ้างอิง · ● ผลเป็นบวก'));
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  const nm = String(sel).replace(/[^A-Za-z0-9_-]/g, '');
+  a.href = URL.createObjectURL(blob); a.download = 'lab-results' + (nm ? '_' + nm : '') + '_' + toISO(new Date()) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+document.getElementById('lab-export-btn').addEventListener('click', labExportCsv);
 document.querySelectorAll('.lab-view-btn').forEach(b => b.addEventListener('click', () => { labView = b.dataset.view; renderLabsTab(); }));
 document.getElementById('lab-show-ref').addEventListener('change', () => {
   document.querySelectorAll('#lab-form-groups .lab-row').forEach(row => {
