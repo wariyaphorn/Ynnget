@@ -519,6 +519,7 @@
           <input type="text" id="lab-custom-name" placeholder="ชื่อ เช่น Fibrinogen">
           <input type="text" id="lab-custom-unit" placeholder="หน่วย (ไม่บังคับ)">
           <select id="lab-custom-group"></select>
+          <select id="lab-custom-type"><option value="num">ค่าตัวเลข</option><option value="text">ข้อความ (เช่น Negative / Positive)</option></select>
         </div>
         <button class="btn" id="lab-custom-add" style="margin-top:6px;">+ เพิ่มรายการ</button>
         <div id="lab-custom-list" style="margin-top:8px;"></div>
@@ -2334,7 +2335,7 @@ document.getElementById('ill-add').addEventListener('click', async () => {
 const LAB_RECORDS_KEY = 'child-lab-records';
 const LAB_CUSTOM_KEY = 'child-lab-custom-tests';
 const labPhotoKey = (recId, phId) => 'child-lab-photo-' + recId + '-' + phId;
-const LAB_GROUPS = { cbc: 'CBC', chem: 'เคมีเลือด / เกลือแร่', coag: 'การแข็งตัวของเลือด', ua: 'ปัสสาวะ', other: 'อื่นๆ' };
+const LAB_GROUPS = { cbc: 'CBC', chem: 'เคมีเลือด / เกลือแร่', coag: 'การแข็งตัวของเลือด', ua: 'ปัสสาวะ', inf: 'ตรวจเชื้อ / ไวรัส', other: 'อื่นๆ' };
 const LAB_CATALOG = [
   { k: 'RBC', g: 'cbc', l: 'RBC', u: 'x10⁶/µL', a: ['redcellcount', 'redbloodcell'] },
   { k: 'HB', g: 'cbc', l: 'Hemoglobin (Hb)', u: 'g/dL', a: ['hb', 'hgb', 'hemoglobin'] },
@@ -2357,6 +2358,9 @@ const LAB_CATALOG = [
   { k: 'BASOP', g: 'cbc', l: 'Basophil %', u: '%', a: ['basophilspct', 'basophilpct', 'basopct', 'baspct'] },
   { k: 'BASOA', g: 'cbc', l: 'Basophil #', u: 'x10³/µL', a: ['basophilsabs', 'basophilabs', 'basoabs', 'basabs'] },
   { k: 'NRBCP', g: 'cbc', l: 'nRBC %', u: '/100 WBC', a: ['nucleatedredcellpct', 'nrbcpct'] },
+  { k: 'PLTSMEAR', g: 'cbc', l: 'PLT smear', t: 'text', a: ['pltsmear', 'plateletsmear'] },
+  { k: 'RBCMORPH', g: 'cbc', l: 'RBC morphology', t: 'text', a: ['rbcmorphology'] },
+  { k: 'MICROCYTE', g: 'cbc', l: 'Microcyte', t: 'text' },
   { k: 'NRBCA', g: 'cbc', l: 'nRBC #', u: 'x10³/µL', a: ['nucleatedredcellabs', 'nrbcabs'] },
   { k: 'BUN', g: 'chem', l: 'BUN', u: 'mg/dL' },
   { k: 'CREA', g: 'chem', l: 'Creatinine', u: 'mg/dL', a: ['creatinine', 'crea', 'cre'] },
@@ -2376,6 +2380,7 @@ const LAB_CATALOG = [
   { k: 'PHOS', g: 'chem', l: 'Phosphorus', u: 'mg/dL', a: ['phosphorus', 'phos', 'po4'] },
   { k: 'DBIL', g: 'chem', l: 'Direct bilirubin', u: 'mg/dL', a: ['dbil', 'directbilirubin'] },
   { k: 'TBIL', g: 'chem', l: 'Total bilirubin', u: 'mg/dL', a: ['tbil', 'totalbilirubin'] },
+  { k: 'DTX', g: 'chem', l: 'Sugar (DTX) ปลายนิ้ว', u: 'mg/dL', a: ['sugardtx', 'sugar', 'dtx'] },
   { k: 'CRP', g: 'chem', l: 'CRP', u: 'mg/L' },
   { k: 'MG', g: 'chem', l: 'Magnesium', u: 'mg/dL', a: ['magnesium', 'mg'] },
   { k: 'EGFR', g: 'chem', l: 'eGFR', u: 'mL/min/1.73m²', a: ['egfr'] },
@@ -2383,7 +2388,17 @@ const LAB_CATALOG = [
   { k: 'PT', g: 'coag', l: 'Prothrombin time (PT)', u: 'sec', a: ['prothrombintime'] },
   { k: 'INR', g: 'coag', l: 'INR', u: '' },
   { k: 'APTT', g: 'coag', l: 'APTT', u: 'sec' },
+  { k: 'APTTR', g: 'coag', l: 'aPTT ratio', u: '', a: ['apttratio'] },
   { k: 'FIB', g: 'coag', l: 'Fibrinogen', u: 'mg/dL', a: ['fibrinogen'] },
+  { k: 'V_FLUA', g: 'inf', l: 'Influenza A Ag', t: 'text', a: ['fluaag', 'flua', 'influenzaa'] },
+  { k: 'V_FLUB', g: 'inf', l: 'Influenza B Ag', t: 'text', a: ['flubag', 'flub', 'influenzab'] },
+  { k: 'V_RSV', g: 'inf', l: 'RSV Ag', t: 'text', a: ['rsv', 'rsvag'] },
+  { k: 'V_ADENO', g: 'inf', l: 'Adenovirus Ag', t: 'text', a: ['adenovirus', 'adeno'] },
+  { k: 'V_HMPV', g: 'inf', l: 'Human Metapneumovirus Ag', t: 'text', a: ['hmpv', 'humanmetapneumovirusag', 'metapneumovirus'] },
+  { k: 'V_PARA', g: 'inf', l: 'Parainfluenza virus Ag', t: 'text', a: ['parainfluenza', 'parainfluenzavirus'] },
+  { k: 'V_RHINO', g: 'inf', l: 'Human Rhinovirus Ag', t: 'text', a: ['rhinovirus', 'humanrhinovirusag', 'rhino'] },
+  { k: 'V_BOCA', g: 'inf', l: 'Human Bocavirus Ag', t: 'text', a: ['bocavirus', 'humanbocavirusag', 'boca'] },
+  { k: 'V_COVID', g: 'inf', l: 'COVID-19 Ag (ATK)', t: 'text', a: ['covid19', 'covid', 'rapidtestforcovid19ag', 'covid19ag'] },
   { k: 'U_COLOR', g: 'ua', l: 'สี (Color)', t: 'text', a: ['urinecolor'] },
   { k: 'U_APP', g: 'ua', l: 'ความใส (Appearance)', t: 'text', a: ['urineappearance'] },
   { k: 'U_SG', g: 'ua', l: 'Sp.gr.', u: '', a: ['spgr', 'sg'] },
@@ -2413,7 +2428,7 @@ let labPendingPhotos = [], labExistingPhotos = [], labRemovedPhotoIds = [];
 const labExpanded = new Set();
 async function saveLabRecords() { try { await window.storage.set(LAB_RECORDS_KEY, JSON.stringify(labRecords)); } catch (e) { console.error(e); } }
 async function saveLabCustom() { try { await window.storage.set(LAB_CUSTOM_KEY, JSON.stringify(labCustom)); } catch (e) { console.error(e); } }
-function labAllTests() { return LAB_CATALOG.concat(labCustom.map(c => ({ k: c.k, g: c.g || 'other', l: c.l, u: c.u || '', custom: true }))); }
+function labAllTests() { return LAB_CATALOG.concat(labCustom.map(c => ({ k: c.k, g: c.g || 'other', l: c.l, u: c.u || '', custom: true, t: c.t === 'text' ? 'text' : undefined }))); }
 function labNorm(s) { return String(s || '').toLowerCase().replace(/%/g, 'pct').replace(/#/g, 'abs').replace(/[^a-z0-9ก-๙]/g, ''); }
 function labFindTest(name) {
   const n = labNorm(name); if (!n) return null;
@@ -2426,6 +2441,8 @@ function labFlag(cell) {
   if (cell.hi != null && cell.v > cell.hi) return 'H';
   return '';
 }
+function labIsPos(t, c) { return !!(t && t.t === 'text' && c && typeof c.v === 'string' && /^\s*(positive|detected|reactive|pos\b|\+)/i.test(c.v)); }
+function labPosHtml(t, c) { return labIsPos(t, c) ? ' <span style="color:#B14A34;font-weight:700;">●</span>' : ''; }
 function labFlagHtml(f) { return f === 'H' ? ' <span style="color:#B14A34;font-weight:700;">▲</span>' : (f === 'L' ? ' <span style="color:#3B7EA6;font-weight:700;">▼</span>' : ''); }
 function labCompressImage(file) {
   return new Promise((resolve, reject) => {
@@ -2541,14 +2558,14 @@ function labRenderRecords(list) {
   const tests = labAllTests();
   return list.map(r => {
     const cells = Object.keys(r.values || {}).map(k => ({ k, c: r.values[k], t: tests.find(t => t.k === k) })).filter(x => x.t && x.c.v != null);
-    const abn = cells.filter(x => labFlag(x.c)).length;
+    const abn = cells.filter(x => labFlag(x.c) || labIsPos(x.t, x.c)).length;
     const open = labExpanded.has(r.id);
     const body = open ? Object.keys(LAB_GROUPS).map(g => {
       const rows = cells.filter(x => x.t.g === g); if (!rows.length) return '';
       return `<div style="margin:6px 0 2px;font-weight:600;font-size:12.5px;">${LAB_GROUPS[g]}</div>` + rows.map(x => {
         const f = labFlag(x.c);
         const ref = (x.c.lo != null || x.c.hi != null) ? ` <span class="muted" style="font-size:11.5px;">(${x.c.lo != null ? x.c.lo : ''}–${x.c.hi != null ? x.c.hi : ''})</span>` : '';
-        return `<div class="row-between" style="font-size:13px;padding:1px 0;"><span>${escAttr(x.t.l)}</span><span><strong>${escAttr(x.c.v)}</strong> <span class="muted">${escAttr(x.t.u || '')}</span>${labFlagHtml(f)}${ref}</span></div>`;
+        return `<div class="row-between" style="font-size:13px;padding:1px 0;"><span>${escAttr(x.t.l)}</span><span><strong>${escAttr(x.c.v)}</strong> <span class="muted">${escAttr(x.t.u || '')}</span>${labFlagHtml(f)}${labPosHtml(x.t, x.c)}${ref}</span></div>`;
       }).join('');
     }).join('') : '';
     return `<div class="visit-card" style="margin-bottom:8px;">
@@ -2573,7 +2590,7 @@ function labRenderTable(list) {
   const body = rows.map(t => `<tr><td style="position:sticky;left:0;background:var(--card);padding:4px 6px;white-space:nowrap;border-top:1px solid var(--border);">${escAttr(t.l)}${t.u ? ' <span class="muted" style="font-size:11px;">' + escAttr(t.u) + '</span>' : ''}</td>${recs.map(r => {
     const c = r.values && r.values[t.k]; if (!c || c.v == null) return '<td style="padding:4px 8px;border-top:1px solid var(--border);text-align:center;color:#aaa;">–</td>';
     const f = labFlag(c);
-    return `<td style="padding:4px 8px;border-top:1px solid var(--border);text-align:center;white-space:nowrap;${f ? 'background:' + (f === 'H' ? '#FBE9E5' : '#E5F0F8') + ';' : ''}">${escAttr(c.v)}${labFlagHtml(f)}</td>`;
+    return `<td style="padding:4px 8px;border-top:1px solid var(--border);text-align:center;white-space:nowrap;${f ? 'background:' + (f === 'H' ? '#FBE9E5' : '#E5F0F8') + ';' : (labIsPos(t, c) ? 'background:#FBE9E5;' : '')}">${escAttr(c.v)}${labFlagHtml(f)}${labPosHtml(t, c)}</td>`;
   }).join('')}</tr>`).join('');
   return `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">${groupBtns}</div>${rows.length ? `<div style="overflow-x:auto;"><table style="border-collapse:collapse;font-size:13px;">${head}${body}</table></div>` : '<p class="empty">ยังไม่มีค่าในกลุ่มนี้</p>'}`;
 }
@@ -2700,7 +2717,7 @@ document.getElementById('lab-custom-add').addEventListener('click', async () => 
   if (!name) { alert('กรุณากรอกชื่อรายการ'); return; }
   if (labAllTests().some(t => labNorm(t.l) === labNorm(name))) { alert('มีรายการนี้อยู่แล้ว'); return; }
   const keep = labReadForm(true);
-  labCustom.push({ k: 'C_' + genId(), l: name, u: document.getElementById('lab-custom-unit').value.trim(), g: document.getElementById('lab-custom-group').value });
+  labCustom.push({ k: 'C_' + genId(), l: name, u: document.getElementById('lab-custom-unit').value.trim(), g: document.getElementById('lab-custom-group').value, t: document.getElementById('lab-custom-type').value === 'text' ? 'text' : undefined });
   document.getElementById('lab-custom-name').value = ''; document.getElementById('lab-custom-unit').value = '';
   await saveLabCustom(); buildLabForm(keep); renderLabsTab();
 });
