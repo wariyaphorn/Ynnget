@@ -490,7 +490,7 @@
         <div class="form-grid">
           <div>
             <label class="field-label" for="lab-note">หมายเหตุ / คำถามถึงหมอ</label>
-            <input type="text" id="lab-note" placeholder="ไม่บังคับ">
+            <textarea id="lab-note" rows="3" placeholder="ไม่บังคับ (ขึ้นบรรทัดใหม่ได้)" style="width:100%;resize:vertical;"></textarea>
           </div>
         </div>
         <div style="background:var(--paper);border-radius:10px;padding:8px 10px;margin:10px 0;">
@@ -2617,7 +2617,7 @@ function labRenderRecords(list) {
         <span>${(r.photos && r.photos.length) ? `<button class="btn" data-lab-photos="${r.id}" style="padding:2px 8px;font-size:12px;margin-right:4px;">🖼 ${r.photos.length}</button>` : ''}
           <button class="del-btn" data-lab-edit="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button><button class="del-btn" data-lab-del="${r.id}" aria-label="ลบ">✕</button></span>
       </div>
-      ${r.note ? `<div class="muted" style="font-size:12.5px;">${escAttr(r.note)}</div>` : ''}
+      ${r.note ? `<div class="muted" style="font-size:12.5px;white-space:pre-wrap;">${escAttr(r.note)}</div>` : ''}
       <button class="btn" data-lab-toggle="${r.id}" style="margin-top:6px;font-size:12px;padding:3px 10px;">${open ? 'ซ่อนค่า ▲' : 'ดูค่า ▼'}</button>
       ${body}
     </div>`;
@@ -2626,9 +2626,11 @@ function labRenderRecords(list) {
 function labRenderTable(list) {
   const tests = labAllTests();
   const groupBtns = Object.keys(LAB_GROUPS).map(g => `<button type="button" class="btn lab-group-btn ${g === labTableGroup ? 'btn-primary' : ''}" data-g="${g}" style="padding:3px 10px;font-size:12px;">${LAB_GROUPS[g]}</button>`).join(' ');
-  const recs = list.slice().sort((a, b) => labSortKey(b).localeCompare(labSortKey(a)));
-  const rows = tests.filter(t => t.g === labTableGroup && recs.some(r => r.values && r.values[t.k] && r.values[t.k].v != null));
-  if (!recs.length) return '<p class="empty">ยังไม่มีผลตรวจ</p>';
+  const recsAll = list.slice().sort((a, b) => labSortKey(b).localeCompare(labSortKey(a)));
+  const hasV = (r, t) => !!(r.values && r.values[t.k] && r.values[t.k].v != null);
+  const rows = tests.filter(t => t.g === labTableGroup && recsAll.some(r => hasV(r, t)));
+  const recs = recsAll.filter(r => rows.some(t => hasV(r, t)));
+  if (!recsAll.length) return '<p class="empty">ยังไม่มีผลตรวจ</p>';
   const head = `<tr><th style="position:sticky;left:0;background:var(--card);text-align:left;padding:4px 6px;">ค่า</th>${recs.map(r => `<th style="padding:4px 8px;white-space:nowrap;font-weight:600;">${fmtDateStr(r.date)}${labTimeStr(r)}${r.hospital ? '<div class="muted" style="font-size:11px;font-weight:400;">' + escAttr(r.hospital) + '</div>' : ''}</th>`).join('')}</tr>`;
   const body = rows.map(t => {
     const withRef = recs.filter(r => r.values && r.values[t.k] && labRefStr(r.values[t.k]));
