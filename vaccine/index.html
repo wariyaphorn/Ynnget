@@ -479,6 +479,10 @@
             <input type="date" id="lab-date">
           </div>
           <div>
+            <label class="field-label" for="lab-time">เวลาเจาะ (ไม่บังคับ)</label>
+            <input type="time" id="lab-time">
+          </div>
+          <div>
             <label class="field-label" for="lab-hospital">โรงพยาบาล/ที่ตรวจ</label>
             <input type="text" id="lab-hospital" list="chk-hospital-list" placeholder="ไม่บังคับ">
           </div>
@@ -1516,9 +1520,14 @@ function refreshCheckupDatalists() {
   const hospitalList = document.getElementById('chk-hospital-list');
   const departmentList = document.getElementById('chk-department-list');
   if (!hospitalList || !departmentList) return;
-  const hospitals = [...new Set(checkupRecords.map(r => r.hospital).filter(Boolean))];
+  const seenH = new Set(), hospitals = [];
+  const addH = (name) => { const n = String(name || '').trim(); const key = n.toLowerCase(); if (n && !seenH.has(key)) { seenH.add(key); hospitals.push(n); } };
+  [...children, ...adults].forEach(m => (Array.isArray(m.hn) ? m.hn : []).forEach(e => addH(e && e.hospital)));
+  checkupRecords.forEach(r => addH(r.hospital));
+  illnessRecords.forEach(r => addH(r.hospital));
+  labRecords.forEach(r => addH(r.hospital));
   const departments = [...new Set(checkupRecords.map(r => r.department).filter(Boolean))];
-  hospitalList.innerHTML = hospitals.map(h => `<option value="${h}"></option>`).join('');
+  hospitalList.innerHTML = hospitals.map(h => `<option value="${escAttr(h)}"></option>`).join('');
   departmentList.innerHTML = departments.map(d => `<option value="${d}"></option>`).join('');
 }
 
@@ -2435,6 +2444,8 @@ function labFindTest(name) {
   const all = labAllTests();
   return all.find(t => labNorm(t.k) === n) || all.find(t => labNorm(t.l) === n) || all.find(t => (t.a || []).includes(n)) || null;
 }
+function labSortKey(r) { return (r.date || '') + 'T' + (r.time || '00:00'); }
+function labTimeStr(r) { return r.time ? ' ' + escAttr(r.time) : ''; }
 function labFlag(cell) {
   if (!cell || typeof cell.v !== 'number') return '';
   if (cell.lo != null && cell.v < cell.lo) return 'L';
@@ -2538,6 +2549,7 @@ function renderLabPhotoLists() {
 function resetLabForm() {
   editingLabId = null; labPendingPhotos = []; labExistingPhotos = []; labRemovedPhotoIds = [];
   document.getElementById('lab-date').value = toISO(new Date());
+  document.getElementById('lab-time').value = '';
   document.getElementById('lab-hospital').value = '';
   document.getElementById('lab-note').value = '';
   document.getElementById('lab-import-text').value = '';
@@ -2554,12 +2566,13 @@ function startLabEdit(id) {
   document.querySelector('.page-tab[data-page="labs"]').click();
   editingLabId = id; labPendingPhotos = []; labRemovedPhotoIds = []; labExistingPhotos = (r.photos || []).slice();
   document.getElementById('lab-date').value = r.date || '';
+  document.getElementById('lab-time').value = r.time || '';
   document.getElementById('lab-hospital').value = r.hospital || '';
   document.getElementById('lab-note').value = r.note || '';
   const hasRef = Object.values(r.values || {}).some(c => c.lo != null || c.hi != null);
   document.getElementById('lab-show-ref').checked = hasRef;
   buildLabForm(r.values || {});
-  document.getElementById('lab-form-title').textContent = '✏️ แก้ไขผลตรวจวันที่ ' + fmtDateStr(r.date);
+  document.getElementById('lab-form-title').textContent = '✏️ แก้ไขผลตรวจวันที่ ' + fmtDateStr(r.date) + (r.time ? ' ' + r.time : '');
   document.getElementById('lab-save').textContent = '💾 บันทึกการแก้ไข';
   document.getElementById('lab-cancel-edit').style.display = 'inline-block';
   renderLabPhotoLists();
@@ -2582,7 +2595,7 @@ function labRenderRecords(list) {
     }).join('') : '';
     return `<div class="visit-card" style="margin-bottom:8px;">
       <div class="row-between">
-        <span><strong>${fmtDateStr(r.date)}</strong>${r.hospital ? ' · ' + escAttr(r.hospital) : ''} <span class="muted">· ${cells.length} ค่า${abn ? ' · นอกช่วง ' + abn : ''}</span></span>
+        <span><strong>${fmtDateStr(r.date)}${labTimeStr(r)}</strong>${r.hospital ? ' · ' + escAttr(r.hospital) : ''} <span class="muted">· ${cells.length} ค่า${abn ? ' · นอกช่วง ' + abn : ''}</span></span>
         <span>${(r.photos && r.photos.length) ? `<button class="btn" data-lab-photos="${r.id}" style="padding:2px 8px;font-size:12px;margin-right:4px;">🖼 ${r.photos.length}</button>` : ''}
           <button class="del-btn" data-lab-edit="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button><button class="del-btn" data-lab-del="${r.id}" aria-label="ลบ">✕</button></span>
       </div>
@@ -2595,10 +2608,10 @@ function labRenderRecords(list) {
 function labRenderTable(list) {
   const tests = labAllTests();
   const groupBtns = Object.keys(LAB_GROUPS).map(g => `<button type="button" class="btn lab-group-btn ${g === labTableGroup ? 'btn-primary' : ''}" data-g="${g}" style="padding:3px 10px;font-size:12px;">${LAB_GROUPS[g]}</button>`).join(' ');
-  const recs = list.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const recs = list.slice().sort((a, b) => labSortKey(a).localeCompare(labSortKey(b)));
   const rows = tests.filter(t => t.g === labTableGroup && recs.some(r => r.values && r.values[t.k] && r.values[t.k].v != null));
   if (!recs.length) return '<p class="empty">ยังไม่มีผลตรวจ</p>';
-  const head = `<tr><th style="position:sticky;left:0;background:var(--card);text-align:left;padding:4px 6px;">ค่า</th>${recs.map(r => `<th style="padding:4px 8px;white-space:nowrap;font-weight:600;">${fmtDateStr(r.date)}</th>`).join('')}</tr>`;
+  const head = `<tr><th style="position:sticky;left:0;background:var(--card);text-align:left;padding:4px 6px;">ค่า</th>${recs.map(r => `<th style="padding:4px 8px;white-space:nowrap;font-weight:600;">${fmtDateStr(r.date)}${labTimeStr(r)}${r.hospital ? '<div class="muted" style="font-size:11px;font-weight:400;">' + escAttr(r.hospital) + '</div>' : ''}</th>`).join('')}</tr>`;
   const body = rows.map(t => {
     const withRef = recs.filter(r => r.values && r.values[t.k] && labRefStr(r.values[t.k]));
     const refs = withRef.map(r => labRefStr(r.values[t.k]));
@@ -2619,8 +2632,8 @@ function labChartSvg(points, ref) {
   if (ref) { if (ref.lo != null) min = Math.min(min, ref.lo); if (ref.hi != null) max = Math.max(max, ref.hi); }
   if (min === max) { min -= 1; max += 1; }
   const pad = (max - min) * 0.12; min -= pad; max += pad;
-  const t0 = new Date(points[0].date).getTime(), t1 = new Date(points[points.length - 1].date).getTime();
-  const X = d => points.length === 1 || t1 === t0 ? pl + (W - pl - pr) / 2 : pl + (new Date(d).getTime() - t0) / (t1 - t0) * (W - pl - pr);
+  const t0 = points[0].ts, t1 = points[points.length - 1].ts;
+  const X = d => points.length === 1 || t1 === t0 ? pl + (W - pl - pr) / 2 : pl + (d - t0) / (t1 - t0) * (W - pl - pr);
   const Y = v => pt + (max - v) / (max - min) * (H - pt - pb);
   const fmtN = n => (Math.abs(n) >= 100 ? n.toFixed(0) : (Math.abs(n) >= 10 ? n.toFixed(1) : n.toFixed(2)));
   let g = '';
@@ -2629,11 +2642,11 @@ function labChartSvg(points, ref) {
     g += `<rect x="${pl}" y="${y1}" width="${W - pl - pr}" height="${Math.max(0, y2 - y1)}" fill="#2A9D8F" opacity=".12"></rect>`;
   }
   for (let i = 0; i <= 3; i++) { const v = min + (max - min) * i / 3, y = Y(v); g += `<line x1="${pl}" x2="${W - pr}" y1="${y}" y2="${y}" stroke="#ddd" stroke-width="1"></line><text x="${pl - 4}" y="${y + 4}" font-size="10" text-anchor="end" fill="#777">${fmtN(v)}</text>`; }
-  g += `<polyline fill="none" stroke="#2A9D8F" stroke-width="2" points="${points.map(p => X(p.date) + ',' + Y(p.v)).join(' ')}"></polyline>`;
-  g += points.map(p => `<circle cx="${X(p.date)}" cy="${Y(p.v)}" r="3.5" fill="${p.f === 'H' ? '#B14A34' : (p.f === 'L' ? '#3B7EA6' : '#2A9D8F')}"></circle><text x="${X(p.date)}" y="${Y(p.v) - 7}" font-size="10" text-anchor="middle" fill="#333">${fmtN(p.v)}</text>`).join('');
+  g += `<polyline fill="none" stroke="#2A9D8F" stroke-width="2" points="${points.map(p => X(p.ts) + ',' + Y(p.v)).join(' ')}"></polyline>`;
+  g += points.map(p => `<circle cx="${X(p.ts)}" cy="${Y(p.v)}" r="3.5" fill="${p.f === 'H' ? '#B14A34' : (p.f === 'L' ? '#3B7EA6' : '#2A9D8F')}"></circle><text x="${X(p.ts)}" y="${Y(p.v) - 7}" font-size="10" text-anchor="middle" fill="#333">${fmtN(p.v)}</text>`).join('');
   const sd = d => { const x = new Date(d + 'T00:00:00'); return x.getDate() + '/' + (x.getMonth() + 1); };
-  g += `<text x="${X(points[0].date)}" y="${H - 12}" font-size="10" text-anchor="${points.length === 1 ? 'middle' : 'start'}" fill="#555">${sd(points[0].date)}</text>`;
-  if (points.length > 1) g += `<text x="${X(points[points.length - 1].date)}" y="${H - 12}" font-size="10" text-anchor="end" fill="#555">${sd(points[points.length - 1].date)}</text>`;
+  g += `<text x="${X(points[0].ts)}" y="${H - 12}" font-size="10" text-anchor="${points.length === 1 ? 'middle' : 'start'}" fill="#555">${sd(points[0].date)}</text>`;
+  if (points.length > 1) g += `<text x="${X(points[points.length - 1].ts)}" y="${H - 12}" font-size="10" text-anchor="end" fill="#555">${sd(points[points.length - 1].date)}</text>`;
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:520px;height:auto;">${g}</svg>`;
 }
 function labRenderChart(list) {
@@ -2642,8 +2655,8 @@ function labRenderChart(list) {
   if (!withData.length) return '<p class="empty">ยังไม่มีค่าตัวเลขให้ทำกราฟ</p>';
   if (!withData.some(t => t.k === labChartKey)) labChartKey = withData[0].k;
   const t = withData.find(x => x.k === labChartKey);
-  const recs = list.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).filter(r => r.values && r.values[t.k] && typeof r.values[t.k].v === 'number');
-  const points = recs.map(r => ({ date: r.date, v: r.values[t.k].v, f: labFlag(r.values[t.k]) }));
+  const recs = list.slice().sort((a, b) => labSortKey(a).localeCompare(labSortKey(b))).filter(r => r.values && r.values[t.k] && typeof r.values[t.k].v === 'number');
+  const points = recs.map(r => ({ date: r.date, ts: new Date(r.date + 'T' + (r.time || '00:00')).getTime(), v: r.values[t.k].v, f: labFlag(r.values[t.k]) }));
   const last = recs[recs.length - 1].values[t.k];
   const ref = (last.lo != null || last.hi != null) ? { lo: last.lo, hi: last.hi } : null;
   return `<div style="margin-bottom:8px;"><select id="lab-chart-select">${withData.map(x => `<option value="${x.k}" ${x.k === labChartKey ? 'selected' : ''}>${escAttr(x.l)}${x.u ? ' (' + escAttr(x.u) + ')' : ''}</option>`).join('')}</select></div>${labChartSvg(points, ref)}<p class="muted" style="font-size:12px;margin:4px 0 0;">${ref ? 'แถบสีเขียวอ่อน = ช่วงอ้างอิงของครั้งล่าสุดในใบผล' : 'ไม่มีช่วงอ้างอิง (กรอกช่วงอ้างอิงตอนบันทึกเพื่อให้แสดงแถบ)'} · จุดสีแดง = สูง, น้ำเงิน = ต่ำ</p>`;
@@ -2663,7 +2676,7 @@ function renderLabsTab() {
     tabsWrap.appendChild(btn);
   });
   document.querySelectorAll('.lab-view-btn').forEach(b => b.classList.toggle('btn-primary', b.dataset.view === labView));
-  const list = labRecords.filter(r => r.member === sel).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const list = labRecords.filter(r => r.member === sel).sort((a, b) => labSortKey(b).localeCompare(labSortKey(a)));
   const wrap = document.getElementById('lab-view');
   wrap.innerHTML = labView === 'table' ? labRenderTable(list) : (labView === 'chart' ? labRenderChart(list) : labRenderRecords(list));
   wrap.querySelectorAll('.lab-group-btn').forEach(b => b.addEventListener('click', () => { labTableGroup = b.dataset.g; renderLabsTab(); }));
@@ -2748,7 +2761,7 @@ document.getElementById('lab-save').addEventListener('click', async () => {
   const kept = labExistingPhotos.filter(p => !labRemovedPhotoIds.includes(p.id));
   try { for (const ph of labPendingPhotos) await window.storage.set(labPhotoKey(id, ph.id), ph.dataUrl); }
   catch (err) { console.error(err); alert('บันทึกรูปไม่สำเร็จ ลองใหม่อีกครั้ง'); return; }
-  const data = { id, member, date, hospital: document.getElementById('lab-hospital').value.trim(), note: document.getElementById('lab-note').value.trim(), values, photos: kept.concat(labPendingPhotos.map(p => ({ id: p.id }))) };
+  const data = { id, member, date, time: document.getElementById('lab-time').value || '', hospital: document.getElementById('lab-hospital').value.trim(), note: document.getElementById('lab-note').value.trim(), values, photos: kept.concat(labPendingPhotos.map(p => ({ id: p.id }))) };
   const idx = labRecords.findIndex(r => r.id === id);
   if (idx > -1) labRecords[idx] = data; else labRecords.push(data);
   await saveLabRecords();
