@@ -2477,7 +2477,7 @@ function labDev(c) {
   return { txt: (Math.abs(r) >= 100 ? Math.round(r) : parseFloat(r.toPrecision(3))) + (pct != null ? ' (' + pct + '%)' : '') };
 }
 function labDevHtml(c) { const d = labDev(c); return d ? ` <span style="font-size:11px;color:${c.v < (c.lo != null ? c.lo : -Infinity) ? '#3B7EA6' : '#B14A34'};">${d.txt}</span>` : ''; }
-function labRefStr(c) { return c && (c.lo != null || c.hi != null) ? (c.lo != null ? c.lo : '') + '–' + (c.hi != null ? c.hi : '') : ''; }
+function labRefStr(c) { if (c && c.ref) return c.ref; return c && (c.lo != null || c.hi != null) ? (c.lo != null ? c.lo : '') + '–' + (c.hi != null ? c.hi : '') : ''; }
 function labFlagHtml(f) { return f === 'H' ? ' <span style="color:#B14A34;font-weight:700;">▲</span>' : (f === 'L' ? ' <span style="color:#3B7EA6;font-weight:700;">▼</span>' : ''); }
 function labCompressImage(file) {
   return new Promise((resolve, reject) => {
@@ -2523,9 +2523,11 @@ function buildLabForm(prefill) {
       ${items.map(t => `<div class="lab-row" data-k="${t.k}" style="display:flex;gap:6px;align-items:center;margin:4px 0;flex-wrap:wrap;">
         <span style="flex:1 1 140px;font-size:13px;">${escAttr(t.l)}${t.u ? ' <span class="muted" style="font-size:11.5px;">(' + escAttr(t.u) + ')</span>' : ''}</span>
         <input class="lab-v" ${t.t === 'text' ? 'type="text"' : 'type="text" inputmode="decimal" placeholder="เช่น 3.5 หรือ <3"'} style="width:96px;" value="${escAttr(keep[t.k] && keep[t.k].v != null ? (keep[t.k].cmp || '') + keep[t.k].v : '')}">
-        <span class="lab-ref" style="display:${document.getElementById('lab-show-ref').checked && t.t !== 'text' ? 'inline-flex' : 'none'};gap:4px;align-items:center;">
-          <input class="lab-lo" type="number" step="any" placeholder="ต่ำ" style="width:62px;" value="${keep[t.k] && keep[t.k].lo != null ? keep[t.k].lo : ''}">
-          <input class="lab-hi" type="number" step="any" placeholder="สูง" style="width:62px;" value="${keep[t.k] && keep[t.k].hi != null ? keep[t.k].hi : ''}">
+        <span class="lab-ref" style="display:${document.getElementById('lab-show-ref').checked ? 'inline-flex' : 'none'};gap:4px;align-items:center;">
+          ${t.t === 'text'
+            ? `<input class="lab-reftxt" type="text" placeholder="อ้างอิง" style="width:130px;" value="${escAttr(keep[t.k] && keep[t.k].ref ? keep[t.k].ref : '')}">`
+            : `<input class="lab-lo" type="number" step="any" placeholder="ต่ำ" style="width:62px;" value="${keep[t.k] && keep[t.k].lo != null ? keep[t.k].lo : ''}">
+          <input class="lab-hi" type="number" step="any" placeholder="สูง" style="width:62px;" value="${keep[t.k] && keep[t.k].hi != null ? keep[t.k].hi : ''}">`}
         </span></div>`).join('')}</details>`;
   }).join('');
   const gs = document.getElementById('lab-custom-group');
@@ -2538,13 +2540,15 @@ function labReadForm(allowEmpty) {
     const raw = row.querySelector('.lab-v').value.trim();
     const lo = row.querySelector('.lab-lo') && row.querySelector('.lab-lo').value !== '' ? Number(row.querySelector('.lab-lo').value) : null;
     const hi = row.querySelector('.lab-hi') && row.querySelector('.lab-hi').value !== '' ? Number(row.querySelector('.lab-hi').value) : null;
-    if (raw === '' && !(allowEmpty && (lo != null || hi != null))) return;
+    const refTxt = row.querySelector('.lab-reftxt') ? row.querySelector('.lab-reftxt').value.trim() : '';
+    if (raw === '' && !(allowEmpty && (lo != null || hi != null || refTxt))) return;
     const isText = t && t.t === 'text';
     let cmp = null, num = raw;
     if (!isText) { const m = raw.match(/^([<>]=?|≤|≥)\s*(.+)$/); if (m) { cmp = m[1] === '≤' ? '<=' : (m[1] === '≥' ? '>=' : m[1]); num = m[2].trim(); } }
     const v = raw === '' ? null : (isText ? raw : Number(num.replace(/,/g, '')));
     if (!isText && raw !== '' && isNaN(v)) return;
     out[k] = cmp ? { v, lo, hi, cmp } : { v, lo, hi };
+    if (refTxt) out[k].ref = refTxt;
   });
   return out;
 }
@@ -2583,7 +2587,7 @@ function startLabEdit(id) {
   document.getElementById('lab-time').value = r.time || '';
   document.getElementById('lab-hospital').value = r.hospital || '';
   document.getElementById('lab-note').value = r.note || '';
-  const hasRef = Object.values(r.values || {}).some(c => c.lo != null || c.hi != null);
+  const hasRef = Object.values(r.values || {}).some(c => c.lo != null || c.hi != null || c.ref);
   document.getElementById('lab-show-ref').checked = hasRef;
   buildLabForm(r.values || {});
   document.getElementById('lab-form-title').textContent = '✏️ แก้ไขผลตรวจวันที่ ' + fmtDateStr(r.date) + (r.time ? ' ' + r.time : '');
@@ -2603,7 +2607,7 @@ function labRenderRecords(list) {
       const rows = cells.filter(x => x.t.g === g); if (!rows.length) return '';
       return `<div style="margin:6px 0 2px;font-weight:600;font-size:12.5px;">${LAB_GROUPS[g]}</div>` + rows.map(x => {
         const f = labFlag(x.c);
-        const ref = (x.c.lo != null || x.c.hi != null) ? ` <span class="muted" style="font-size:11.5px;">(${x.c.lo != null ? x.c.lo : ''}–${x.c.hi != null ? x.c.hi : ''})</span>` : '';
+        const ref = x.c.ref ? ` <span class="muted" style="font-size:11.5px;">(อ้างอิง ${escAttr(x.c.ref)})</span>` : ((x.c.lo != null || x.c.hi != null) ? ` <span class="muted" style="font-size:11.5px;">(${x.c.lo != null ? x.c.lo : ''}–${x.c.hi != null ? x.c.hi : ''})</span>` : '');
         return `<div class="row-between" style="font-size:13px;padding:1px 0;"><span>${escAttr(x.t.l)}</span><span><strong>${escAttr(labVal(x.c))}</strong> <span class="muted">${escAttr(x.t.u || '')}</span>${labFlagHtml(f)}${labDevHtml(x.c)}${labPosHtml(x.t, x.c)}${ref}</span></div>`;
       }).join('');
     }).join('') : '';
@@ -2622,14 +2626,14 @@ function labRenderRecords(list) {
 function labRenderTable(list) {
   const tests = labAllTests();
   const groupBtns = Object.keys(LAB_GROUPS).map(g => `<button type="button" class="btn lab-group-btn ${g === labTableGroup ? 'btn-primary' : ''}" data-g="${g}" style="padding:3px 10px;font-size:12px;">${LAB_GROUPS[g]}</button>`).join(' ');
-  const recs = list.slice().sort((a, b) => labSortKey(a).localeCompare(labSortKey(b)));
+  const recs = list.slice().sort((a, b) => labSortKey(b).localeCompare(labSortKey(a)));
   const rows = tests.filter(t => t.g === labTableGroup && recs.some(r => r.values && r.values[t.k] && r.values[t.k].v != null));
   if (!recs.length) return '<p class="empty">ยังไม่มีผลตรวจ</p>';
   const head = `<tr><th style="position:sticky;left:0;background:var(--card);text-align:left;padding:4px 6px;">ค่า</th>${recs.map(r => `<th style="padding:4px 8px;white-space:nowrap;font-weight:600;">${fmtDateStr(r.date)}${labTimeStr(r)}${r.hospital ? '<div class="muted" style="font-size:11px;font-weight:400;">' + escAttr(r.hospital) + '</div>' : ''}</th>`).join('')}</tr>`;
   const body = rows.map(t => {
     const withRef = recs.filter(r => r.values && r.values[t.k] && labRefStr(r.values[t.k]));
     const refs = withRef.map(r => labRefStr(r.values[t.k]));
-    const latestRef = refs.length ? refs[refs.length - 1] : '';
+    const latestRef = refs.length ? refs[0] : '';
     const mixed = new Set(refs).size > 1;
     return `<tr><td style="position:sticky;left:0;background:var(--card);padding:4px 6px;white-space:nowrap;border-top:1px solid var(--border);">${escAttr(t.l)}${t.u ? ' <span class="muted" style="font-size:11px;">' + escAttr(t.u) + '</span>' : ''}${latestRef ? '<div class="muted" style="font-size:11px;">' + escAttr(latestRef) + (mixed ? ' *' : '') + '</div>' : ''}</td>${recs.map(r => {
     const c = r.values && r.values[t.k]; if (!c || c.v == null) return '<td style="padding:4px 8px;border-top:1px solid var(--border);text-align:center;color:#aaa;">–</td>';
@@ -2724,7 +2728,7 @@ document.querySelectorAll('.lab-view-btn').forEach(b => b.addEventListener('clic
 document.getElementById('lab-show-ref').addEventListener('change', () => {
   document.querySelectorAll('#lab-form-groups .lab-row').forEach(row => {
     const t = labAllTests().find(x => x.k === row.dataset.k);
-    const ref = row.querySelector('.lab-ref'); if (ref) ref.style.display = (document.getElementById('lab-show-ref').checked && !(t && t.t === 'text')) ? 'inline-flex' : 'none';
+    const ref = row.querySelector('.lab-ref'); if (ref) ref.style.display = document.getElementById('lab-show-ref').checked ? 'inline-flex' : 'none';
   });
 });
 document.getElementById('lab-import-btn').addEventListener('click', () => {
@@ -2741,6 +2745,7 @@ document.getElementById('lab-import-btn').addEventListener('click', () => {
     if (!row) { unmatched.push(parts[0]); return; }
     row.querySelector('.lab-v').value = parts[1];
     if (parts[2] !== undefined && parts[2] !== '' && row.querySelector('.lab-lo')) { row.querySelector('.lab-lo').value = parts[2]; anyRef = true; }
+    if (parts[2] !== undefined && parts[2] !== '' && row.querySelector('.lab-reftxt')) { row.querySelector('.lab-reftxt').value = parts.slice(2).join(', '); anyRef = true; }
     if (parts[3] !== undefined && parts[3] !== '' && row.querySelector('.lab-hi')) { row.querySelector('.lab-hi').value = parts[3]; anyRef = true; }
     matched.push(t.l);
   });
