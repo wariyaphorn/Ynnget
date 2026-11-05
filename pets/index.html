@@ -860,6 +860,10 @@
             <input type="date" id="lab-date">
           </div>
           <div>
+            <label class="field-label" for="lab-time">เวลาเจาะ (ไม่บังคับ)</label>
+            <input type="time" id="lab-time">
+          </div>
+          <div>
             <label class="field-label" for="lab-hospital">โรงพยาบาล/คลินิก</label>
             <input type="text" id="lab-hospital" list="lab-hospital-list" placeholder="เช่น รพ.สัตว์...">
             <datalist id="lab-hospital-list"></datalist>
@@ -4183,6 +4187,7 @@ function startLabEdit(id) {
   if (!t) return;
   editingLabId = id;
   document.getElementById('lab-date').value = t.date || '';
+  document.getElementById('lab-time').value = t.time || '';
   document.getElementById('lab-hospital').value = t.hospital || '';
   document.getElementById('lab-note').value = t.note || '';
   document.getElementById('lab-detail').value = t.detail || '';
@@ -4203,6 +4208,7 @@ function startLabEdit(id) {
 function cancelLabEdit() {
   editingLabId = null;
   document.getElementById('lab-date').value = '';
+  document.getElementById('lab-time').value = '';
   document.getElementById('lab-hospital').value = '';
   document.getElementById('lab-note').value = '';
   document.getElementById('lab-detail').value = '';
@@ -4239,6 +4245,7 @@ document.getElementById('lab-save').addEventListener('click', async () => {
   const data = {
     catId: selectedLabCat,
     date,
+    time: document.getElementById('lab-time').value || '',
     hospital: document.getElementById('lab-hospital').value.trim(),
     note: document.getElementById('lab-note').value.trim(),
     detail: document.getElementById('lab-detail').value.trim(),
@@ -4303,13 +4310,13 @@ const VITALS_KEYS = ['BP', 'HR', 'TEMP', 'WEIGHT'];
 function combinedVitalsTests(catId) {
   const labEntries = labTests
     .filter(t => t.catId === catId)
-    .map(t => ({ date: t.date, values: t.values || {} }));
+    .map(t => ({ date: t.date, time: t.time || '', hospital: t.hospital || '', values: t.values || {} }));
   const examEntries = ultrasoundRecords
     .filter(u => u.catId === catId && u.vitals)
     .map(u => {
       const values = {};
       VITALS_KEYS.forEach(k => { if (u.vitals[k] != null && u.vitals[k] !== '') values[k] = u.vitals[k]; });
-      return { date: u.date, values };
+      return { date: u.date, time: u.time || '', hospital: u.hospital || '', values };
     })
     .filter(e => Object.keys(e.values).length);
   return labEntries.concat(examEntries);
@@ -4327,31 +4334,42 @@ function renderLabTab() {
   renderUltrasoundList();
 }
 
+let labSummaryGroup = null;
+function labTestSortKey(t) { return (t.date || '') + 'T' + (t.time || '00:00'); }
 function renderLabSummaryTable() {
   const wrap = document.getElementById('lab-summary-table-wrap');
   if (!wrap) return;
-  const tests = combinedVitalsTests(selectedLabCat).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const tests = combinedVitalsTests(selectedLabCat).sort((a, b) => labTestSortKey(b).localeCompare(labTestSortKey(a)));
   if (!tests.length) { wrap.innerHTML = '<p class="empty">ยังไม่มีผลตรวจของแมวตัวนี้</p>'; return; }
+  const hasVal = (t, key) => { const v = (t.values || {})[key]; return v != null && v !== ''; };
 
-  // เอาเฉพาะค่าที่เคยมีการบันทึกจริงอย่างน้อย 1 ครั้ง จัดกลุ่มตามหมวดเหมือนหน้ากรอกผลตรวจ
-  const usedKeys = new Set();
-  tests.forEach(t => Object.keys(t.values || {}).forEach(k => usedKeys.add(k)));
+  // เอาเฉพาะค่าที่เคยมีการบันทึกจริงอย่างน้อย 1 ครั้ง จัดกลุ่มตามหมวด
   const labGroupOrder = ['vitals', 'chem', 'cbc', 'urine', 'gas', 'other'];
   const rowsByGroup = {};
   labCatalog.forEach(entry => {
-    if (!usedKeys.has(entry.key)) return;
+    if (!tests.some(t => hasVal(t, entry.key))) return;
     const g = entry.group || 'other';
     if (!rowsByGroup[g]) rowsByGroup[g] = [];
     rowsByGroup[g].push(entry);
   });
+  const groupsWithData = labGroupOrder.filter(g => rowsByGroup[g] && rowsByGroup[g].length);
+  if (!groupsWithData.length) { wrap.innerHTML = '<p class="empty">ยังไม่มีผลตรวจของแมวตัวนี้</p>'; return; }
+  let sel = labSummaryGroup;
+  if (sel !== 'all' && !groupsWithData.includes(sel)) sel = groupsWithData[0];
+  const visibleGroups = sel === 'all' ? groupsWithData : [sel];
+  // แสดงเฉพาะวันที่ที่มีค่าในหมวดที่เลือก
+  const cols = tests.filter(t => visibleGroups.some(g => rowsByGroup[g].some(e => hasVal(t, e.key))));
+
+  const btns = groupsWithData.map(g => `<button type="button" class="btn lab-sum-group ${sel === g ? 'btn-primary' : ''}" data-g="${g}" style="padding:4px 12px;font-size:12px;">${LAB_GROUP_LABELS[g] || g}</button>`).join('') +
+    `<button type="button" class="btn lab-sum-group ${sel === 'all' ? 'btn-primary' : ''}" data-g="all" style="padding:4px 12px;font-size:12px;">ทั้งหมด</button>`;
 
   const stickyLabelStyle = 'position:sticky;left:0;z-index:1;background:var(--card);box-shadow:1px 0 0 var(--border);';
-  const headerCells = tests.map(t => `<th style="padding:6px 10px;text-align:center;white-space:nowrap;">${fmtDateStr(t.date)}</th>`).join('');
+  const headerCells = cols.map(t => `<th style="padding:6px 10px;text-align:center;white-space:nowrap;">${fmtDateStr(t.date)}${t.time ? ' ' + labExportEsc(t.time) : ''}${t.hospital ? `<div class="muted" style="font-size:10.5px;font-weight:400;">${labExportEsc(t.hospital)}</div>` : ''}</th>`).join('');
   let bodyHtml = '';
-  labGroupOrder.filter(g => rowsByGroup[g] && rowsByGroup[g].length).forEach(g => {
-    bodyHtml += `<tr><td colspan="${tests.length + 1}" class="lab-group-title" style="padding-top:10px;"><span style="position:sticky;left:10px;display:inline-block;">${LAB_GROUP_LABELS[g] || g}</span></td></tr>`;
-    rowsByGroup[g].forEach(entry => {
-      const cells = tests.map(t => {
+  visibleGroups.forEach(g => {
+    if (sel === 'all') bodyHtml += `<tr><td colspan="${cols.length + 1}" class="lab-group-title" style="padding-top:10px;"><span style="position:sticky;left:10px;display:inline-block;">${LAB_GROUP_LABELS[g] || g}</span></td></tr>`;
+    rowsByGroup[g].filter(entry => cols.some(t => hasVal(t, entry.key))).forEach(entry => {
+      const cells = cols.map(t => {
         const val = (t.values || {})[entry.key];
         if (val == null || val === '') return '<td style="padding:5px 10px;text-align:center;color:var(--text-muted);">–</td>';
         const status = labValueStatus(entry, val);
@@ -4363,10 +4381,12 @@ function renderLabSummaryTable() {
     });
   });
 
-  wrap.innerHTML = `<div style="overflow-x:auto;"><table style="border-collapse:collapse;font-size:12.5px;width:100%;">
+  wrap.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px;">${btns}</div>
+  <div style="overflow-x:auto;"><table style="border-collapse:collapse;font-size:12.5px;width:100%;">
     <thead><tr><th style="padding:6px 10px;text-align:left;${stickyLabelStyle}z-index:2;">ค่า</th>${headerCells}</tr></thead>
     <tbody>${bodyHtml}</tbody>
   </table></div>`;
+  wrap.querySelectorAll('.lab-sum-group').forEach(b => b.addEventListener('click', () => { labSummaryGroup = b.dataset.g; renderLabSummaryTable(); }));
 }
 
 document.getElementById('labcatalog-export-csv').addEventListener('click', () => {
@@ -4393,7 +4413,7 @@ document.getElementById('labcatalog-export-csv').addEventListener('click', () =>
 
 /* ---------------- Export ตารางสรุปผลตรวจ (CSV / พิมพ์ PDF) ---------------- */
 function labSummaryModel() {
-  const tests = combinedVitalsTests(selectedLabCat).sort((a, b) => (a.date || '').localeCompare(b.date || '')).reverse();
+  const tests = combinedVitalsTests(selectedLabCat).sort((a, b) => labTestSortKey(b).localeCompare(labTestSortKey(a)));
   const usedKeys = new Set();
   tests.forEach(t => Object.keys(t.values || {}).forEach(k => { const v = t.values[k]; if (v != null && v !== '') usedKeys.add(k); }));
   const order = ['vitals', 'chem', 'cbc', 'urine', 'gas', 'other'];
@@ -4420,7 +4440,9 @@ document.getElementById('lab-export-csv').addEventListener('click', () => {
   const m = labSummaryModel();
   if (!m.tests.length || !m.groups.length) { alert('ยังไม่มีผลตรวจให้ Export'); return; }
   const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-  const lines = [[q('กลุ่ม'), q('ค่า'), q('ช่วงอ้างอิง')].concat(m.tests.map(t => q(t.date || ''))).join(',')];
+  const lines = [[q('กลุ่ม'), q('ค่า'), q('ช่วงอ้างอิง')].concat(m.tests.map(t => q(t.date || ''))).join(','),
+    [q(''), q(''), q('เวลา')].concat(m.tests.map(t => q(t.time || ''))).join(','),
+    [q(''), q(''), q('โรงพยาบาล')].concat(m.tests.map(t => q(t.hospital || ''))).join(',')];
   m.groups.forEach(g => g.rows.forEach(r => {
     lines.push([q(g.title), q(r.label), q(r.range)].concat(r.cells.map(c => q(c.text))).join(','));
   }));
@@ -4435,7 +4457,7 @@ document.getElementById('lab-export-csv').addEventListener('click', () => {
 document.getElementById('lab-export-print').addEventListener('click', () => {
   const m = labSummaryModel();
   if (!m.tests.length || !m.groups.length) { alert('ยังไม่มีผลตรวจให้พิมพ์'); return; }
-  const head = m.tests.map(t => `<th>${labExportEsc(fmtDateStr(t.date))}</th>`).join('');
+  const head = m.tests.map(t => `<th>${labExportEsc(fmtDateStr(t.date))}${t.time ? ' ' + labExportEsc(t.time) : ''}${t.hospital ? '<br><span style="font-weight:400;font-size:9.5px;color:#777;">' + labExportEsc(t.hospital) + '</span>' : ''}</th>`).join('');
   let body = '';
   m.groups.forEach(g => {
     body += `<tr><td class="grp" colspan="${m.tests.length + 2}">${labExportEsc(g.title)}</td></tr>`;
