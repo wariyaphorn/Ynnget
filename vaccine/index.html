@@ -2443,6 +2443,18 @@ function labFlag(cell) {
 }
 function labIsPos(t, c) { return !!(t && t.t === 'text' && c && typeof c.v === 'string' && /^\s*(positive|detected|reactive|pos\b|\+)/i.test(c.v)); }
 function labPosHtml(t, c) { return labIsPos(t, c) ? ' <span style="color:#B14A34;font-weight:700;">●</span>' : ''; }
+function labDev(c) {
+  if (!c || typeof c.v !== 'number') return null;
+  let d = null, base = null;
+  if (c.lo != null && c.v < c.lo) { d = c.lo - c.v; base = c.lo; }
+  else if (c.hi != null && c.v > c.hi) { d = c.v - c.hi; base = c.hi; }
+  if (d == null) return null;
+  const r = Math.round(d * 100) / 100;
+  const pct = base > 0 ? Math.round(d / base * 100) : null;
+  return { txt: (Math.abs(r) >= 100 ? Math.round(r) : parseFloat(r.toPrecision(3))) + (pct != null ? ' (' + pct + '%)' : '') };
+}
+function labDevHtml(c) { const d = labDev(c); return d ? ` <span style="font-size:11px;color:${c.v < (c.lo != null ? c.lo : -Infinity) ? '#3B7EA6' : '#B14A34'};">${d.txt}</span>` : ''; }
+function labRefStr(c) { return c && (c.lo != null || c.hi != null) ? (c.lo != null ? c.lo : '') + '–' + (c.hi != null ? c.hi : '') : ''; }
 function labFlagHtml(f) { return f === 'H' ? ' <span style="color:#B14A34;font-weight:700;">▲</span>' : (f === 'L' ? ' <span style="color:#3B7EA6;font-weight:700;">▼</span>' : ''); }
 function labCompressImage(file) {
   return new Promise((resolve, reject) => {
@@ -2565,7 +2577,7 @@ function labRenderRecords(list) {
       return `<div style="margin:6px 0 2px;font-weight:600;font-size:12.5px;">${LAB_GROUPS[g]}</div>` + rows.map(x => {
         const f = labFlag(x.c);
         const ref = (x.c.lo != null || x.c.hi != null) ? ` <span class="muted" style="font-size:11.5px;">(${x.c.lo != null ? x.c.lo : ''}–${x.c.hi != null ? x.c.hi : ''})</span>` : '';
-        return `<div class="row-between" style="font-size:13px;padding:1px 0;"><span>${escAttr(x.t.l)}</span><span><strong>${escAttr(x.c.v)}</strong> <span class="muted">${escAttr(x.t.u || '')}</span>${labFlagHtml(f)}${labPosHtml(x.t, x.c)}${ref}</span></div>`;
+        return `<div class="row-between" style="font-size:13px;padding:1px 0;"><span>${escAttr(x.t.l)}</span><span><strong>${escAttr(x.c.v)}</strong> <span class="muted">${escAttr(x.t.u || '')}</span>${labFlagHtml(f)}${labDevHtml(x.c)}${labPosHtml(x.t, x.c)}${ref}</span></div>`;
       }).join('');
     }).join('') : '';
     return `<div class="visit-card" style="margin-bottom:8px;">
@@ -2587,11 +2599,17 @@ function labRenderTable(list) {
   const rows = tests.filter(t => t.g === labTableGroup && recs.some(r => r.values && r.values[t.k] && r.values[t.k].v != null));
   if (!recs.length) return '<p class="empty">ยังไม่มีผลตรวจ</p>';
   const head = `<tr><th style="position:sticky;left:0;background:var(--card);text-align:left;padding:4px 6px;">ค่า</th>${recs.map(r => `<th style="padding:4px 8px;white-space:nowrap;font-weight:600;">${fmtDateStr(r.date)}</th>`).join('')}</tr>`;
-  const body = rows.map(t => `<tr><td style="position:sticky;left:0;background:var(--card);padding:4px 6px;white-space:nowrap;border-top:1px solid var(--border);">${escAttr(t.l)}${t.u ? ' <span class="muted" style="font-size:11px;">' + escAttr(t.u) + '</span>' : ''}</td>${recs.map(r => {
+  const body = rows.map(t => {
+    const withRef = recs.filter(r => r.values && r.values[t.k] && labRefStr(r.values[t.k]));
+    const refs = withRef.map(r => labRefStr(r.values[t.k]));
+    const latestRef = refs.length ? refs[refs.length - 1] : '';
+    const mixed = new Set(refs).size > 1;
+    return `<tr><td style="position:sticky;left:0;background:var(--card);padding:4px 6px;white-space:nowrap;border-top:1px solid var(--border);">${escAttr(t.l)}${t.u ? ' <span class="muted" style="font-size:11px;">' + escAttr(t.u) + '</span>' : ''}${latestRef ? '<div class="muted" style="font-size:11px;">' + escAttr(latestRef) + (mixed ? ' *' : '') + '</div>' : ''}</td>${recs.map(r => {
     const c = r.values && r.values[t.k]; if (!c || c.v == null) return '<td style="padding:4px 8px;border-top:1px solid var(--border);text-align:center;color:#aaa;">–</td>';
     const f = labFlag(c);
-    return `<td style="padding:4px 8px;border-top:1px solid var(--border);text-align:center;white-space:nowrap;${f ? 'background:' + (f === 'H' ? '#FBE9E5' : '#E5F0F8') + ';' : (labIsPos(t, c) ? 'background:#FBE9E5;' : '')}">${escAttr(c.v)}${labFlagHtml(f)}${labPosHtml(t, c)}</td>`;
-  }).join('')}</tr>`).join('');
+    const rs = labRefStr(c);
+    return `<td title="${rs ? 'ช่วงอ้างอิง ' + escAttr(rs) : ''}" style="padding:4px 8px;border-top:1px solid var(--border);text-align:center;white-space:nowrap;${f ? 'background:' + (f === 'H' ? '#FBE9E5' : '#E5F0F8') + ';' : (labIsPos(t, c) ? 'background:#FBE9E5;' : '')}">${escAttr(c.v)}${labFlagHtml(f)}${labDevHtml(c)}${labPosHtml(t, c)}</td>`;
+  }).join('')}</tr>`;}).join('');
   return `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">${groupBtns}</div>${rows.length ? `<div style="overflow-x:auto;"><table style="border-collapse:collapse;font-size:13px;">${head}${body}</table></div>` : '<p class="empty">ยังไม่มีค่าในกลุ่มนี้</p>'}`;
 }
 function labChartSvg(points, ref) {
