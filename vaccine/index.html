@@ -355,9 +355,21 @@
         </div>
         <div class="form-grid g2">
           <div>
+            <label class="field-label" for="chk-status">สถานะการนัด</label>
+            <select id="chk-status">
+              <option value="">📅 รอไปตามนัด / ปกติ</option>
+              <option value="attended">✅ ไปแล้ว</option>
+              <option value="cancelled">❌ ยกเลิกนัด</option>
+              <option value="missed">⚠️ ไม่ได้ไปตามนัด</option>
+              <option value="postponed">🔄 เลื่อนนัด</option>
+            </select>
+          </div>
+          <div>
             <label class="field-label" for="chk-cost">ค่าใช้จ่าย (บาท)</label>
             <input type="number" id="chk-cost" placeholder="ไม่บังคับ" min="0">
           </div>
+        </div>
+        <div class="form-grid g2">
           <div>
             <label class="field-label" for="chk-next">วันนัดครั้งถัดไป</label>
             <input type="date" id="chk-next">
@@ -1148,6 +1160,14 @@ function currentAgeLabel(child) {
 }
 
 function futureChipClass(rec) { return rec.confirmed ? 'chip-booked' : 'chip-planned'; }
+const CHK_STATUS = {
+  attended: { label: '✅ ไปแล้ว', color: '#2E7D4F', bg: '#E4F3EA' },
+  cancelled: { label: '❌ ยกเลิกนัด', color: '#B23B3B', bg: '#FBE7E7' },
+  missed: { label: '⚠️ ไม่ได้ไปตามนัด', color: '#A66A00', bg: '#FFF1D6' },
+  postponed: { label: '🔄 เลื่อนนัด', color: '#5B4B9E', bg: '#EDE8FA' }
+};
+// สถานะที่ถือว่า "ไม่ได้ไปตามวันนั้น" → ไม่ขึ้นแจ้งเตือน
+function chkInactive(r) { return r && (r.status === 'cancelled' || r.status === 'missed' || r.status === 'postponed'); }
 function futureChipPrefix(rec) { return rec.confirmed ? 'นัดแล้ว: ' : 'ยังไม่นัด: '; }
 
 function nameCellHtml(cat, rowspan, idx, total, catalogType) {
@@ -1489,16 +1509,19 @@ function renderCheckupTab() {
     list.forEach(r => {
       const div = document.createElement('div');
       div.className = 'visit-card';
+      const stInfo = CHK_STATUS[r.status];
+      if (chkInactive(r)) div.style.opacity = '0.75';
       const hnNo = hnFor(r.member, r.hospital);
       const placeParts = [r.hospital ? r.hospital + (hnNo ? ' (HN ' + hnNo + ')' : '') : '', r.department, r.doctor ? 'หมอ ' + r.doctor : ''].filter(Boolean).join(' · ');
       const timeLabel = r.time ? ' เวลา ' + r.time : '';
       div.innerHTML = `<div class="row-between">
-          <span><strong>${fmtDateStr(r.date)}${timeLabel}</strong>${r.note ? ' · ' + r.note : ''}</span>
+          <span style="${chkInactive(r) ? 'text-decoration:line-through;' : ''}"><strong>${fmtDateStr(r.date)}${timeLabel}</strong>${r.note ? ' · ' + r.note : ''}</span>
           <span>
             <button class="del-btn" data-edit="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
             <button class="del-btn" data-del="${r.id}" aria-label="ลบ">✕</button>
           </span>
         </div>
+        ${stInfo ? `<p style="margin:6px 0 0;"><span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;color:${stInfo.color};background:${stInfo.bg};">${stInfo.label}</span></p>` : ''}
         ${placeParts ? `<p class="muted" style="margin:4px 0 0;">${placeParts}</p>` : ''}
         <p class="muted" style="margin:4px 0 0;">
           ${r.cost != null ? fmt(r.cost) + ' · ' : ''}${r.nextDate ? 'นัดครั้งถัดไป: ' + fmtDateStr(r.nextDate) : ''}
@@ -1544,6 +1567,7 @@ function startCheckupEdit(id) {
   document.getElementById('chk-time').value = r.time || '';
   document.getElementById('chk-cost').value = r.cost != null ? r.cost : '';
   document.getElementById('chk-next').value = r.nextDate || '';
+  document.getElementById('chk-status').value = r.status || '';
   document.getElementById('chk-add').textContent = '💾 บันทึกการแก้ไข';
   document.getElementById('chk-cancel-edit').style.display = 'inline-block';
   document.getElementById('chk-date').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1559,6 +1583,7 @@ function cancelCheckupEdit() {
   document.getElementById('chk-time').value = '';
   document.getElementById('chk-cost').value = '';
   document.getElementById('chk-next').value = '';
+  document.getElementById('chk-status').value = '';
   document.getElementById('chk-add').textContent = '+ บันทึกนัด';
   document.getElementById('chk-cancel-edit').style.display = 'none';
 }
@@ -2092,7 +2117,7 @@ function renderDueBanner() {
   checkupRecords.forEach(r => {
     const child = findMember(r.member);
     // นัดที่ใส่ไว้ที่ "วันที่พบหมอ/ตรวจ" เป็นวันนี้หรืออนาคต (พร้อมเวลา/รพ./แผนก)
-    if (r.date && r.date >= todayISO && r.date <= thresholdDate) {
+    if (r.date && r.date >= todayISO && r.date <= thresholdDate && !chkInactive(r) && r.status !== 'attended') {
       items.push({ kind: 'checkup', child: child || { slug: r.member }, date: r.date, note: r.note || '', time: r.time || '', hospital: r.hospital || '', department: r.department || '' });
     }
     // วันนัดครั้งถัดไป (ไม่ซ้ำกับวันที่ข้างบน)
@@ -3064,7 +3089,8 @@ document.getElementById('chk-add').addEventListener('click', async () => {
     doctor: doctorInput.value.trim(),
     time: timeInput.value.trim(),
     cost: costInput.value !== '' && !isNaN(parseFloat(costInput.value)) ? parseFloat(costInput.value) : null,
-    nextDate: nextInput.value || null
+    nextDate: nextInput.value || null,
+    status: document.getElementById('chk-status').value || ''
   };
   if (editingCheckupId) {
     const rec = checkupRecords.find(r => r.id === editingCheckupId);
@@ -3072,7 +3098,7 @@ document.getElementById('chk-add').addEventListener('click', async () => {
     cancelCheckupEdit();
   } else {
     checkupRecords.push(Object.assign({ id: genId(), member: selectedCheckupChild }, values));
-    dateInput.value = ''; noteInput.value = ''; hospitalInput.value = ''; departmentInput.value = ''; doctorInput.value = ''; timeInput.value = ''; costInput.value = ''; nextInput.value = '';
+    dateInput.value = ''; noteInput.value = ''; hospitalInput.value = ''; departmentInput.value = ''; doctorInput.value = ''; timeInput.value = ''; costInput.value = ''; nextInput.value = ''; document.getElementById('chk-status').value = '';
   }
   await saveCheckupRecords(); render();
 });
