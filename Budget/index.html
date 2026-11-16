@@ -742,6 +742,13 @@
         </div>
       </div>
       <p class="muted" style="margin:-4px 0 8px;">เลือกได้มากกว่า 1 คน ระบบจะหารค่าใช้จ่ายเท่าๆ กันและลงแยกรายการให้ (เศษที่หารไม่ลงตัวไปอยู่ที่คนแรกที่เลือก)</p>
+      <div style="margin:0 0 8px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="checkbox" id="f-refund" style="width:auto;"> ↩️ เป็นเงินคืน (ได้เงินกลับจากรายการที่จ่ายไปก่อนหน้า)</label>
+        <div id="f-refund-wrap" style="display:none;margin-top:6px;">
+          <select id="f-refund-of"></select>
+          <p class="muted" style="margin:4px 0 0;font-size:12.5px;">ใส่จำนวนเงินที่ได้คืนเป็นตัวเลขบวก ระบบหักจากยอดเดือนที่ได้เงินคืน (ตามวันที่ด้านบน) ถ้าเลือกรายการเดิม ระบบเติมหมวด/วิธีจ่าย/คนให้เอง</p>
+        </div>
+      </div>
       <div class="form-grid g2">
         <select id="f-payment"></select>
         <select id="f-account"></select>
@@ -4017,7 +4024,7 @@ function renderLedger() {
         </div>
         ${(e.category === 'saving' || e.category === 'debt') ? `<div style="margin-bottom:8px;"><select class="le-goal">${goalOptions}</select></div>` : ''}
         <div class="form-grid g2">
-          <input type="number" class="le-amount" value="${e.amount}" min="0" step="0.01">
+          <input type="number" class="le-amount" value="${Math.abs(e.amount)}" min="0" step="0.01">
           <select class="le-member">${memberOptions}</select>
         </div>
         <div class="form-grid g2">
@@ -4038,10 +4045,11 @@ function renderLedger() {
     row.className = 'ledger-item';
     row.innerHTML = `<div class="badge" style="background:${c.color}22;color:${c.color};">${c.label.charAt(0)}</div>
       <div style="flex:1;min-width:0;">
-        <p style="margin:0;font-size:14px;">${c.label}${goalTag ? ' · ' + goalTag : ''}${e.note ? ' · ' + e.note : ''}</p>
+        <p style="margin:0;font-size:14px;">${e.refund ? '<span style="background:#E4F3EA;color:#2E7D4F;border-radius:8px;padding:1px 8px;font-size:11.5px;margin-right:4px;">↩️ เงินคืน</span>' : ''}${c.label}${goalTag ? ' · ' + goalTag : ''}${e.note ? ' · ' + e.note : ''}</p>
+        ${refundInfoHtml(e)}
         <p class="muted" style="margin:2px 0 0;">${e.date} · ${memberLabel(e.member)} · ${paymentLabel(e.payment)}${e.account ? ' · ' + walletLabel(e.account) : ''}</p>
       </div>
-      <span style="font-size:14px;font-weight:600;color:${c.kind === 'income' ? 'var(--sage)' : 'var(--rust)'};white-space:nowrap;">${c.kind === 'income' ? '+' : '-'}${fmt(e.amount)}</span>
+      <span style="font-size:14px;font-weight:600;color:${(c.kind === 'income' || e.amount < 0) ? 'var(--sage)' : 'var(--rust)'};white-space:nowrap;">${(c.kind === 'income' || e.amount < 0) ? '+' : '-'}${fmt(Math.abs(e.amount))}</span>
       <button class="del-btn" data-edit-id="${e.id}" aria-label="แก้ไขรายการ" title="แก้ไข">✎</button>
       <button class="del-btn" data-id="${e.id}" aria-label="ลบรายการ">✕</button>`;
     ledger.appendChild(row);
@@ -4071,7 +4079,7 @@ function renderLedger() {
     entry.category = row.querySelector('.le-category').value;
     const goalSel = row.querySelector('.le-goal');
     entry.goal = goalSel ? goalSel.value : '';
-    entry.amount = amount;
+    entry.amount = entry.refund ? -amount : amount;
     entry.member = row.querySelector('.le-member').value;
     entry.payment = row.querySelector('.le-payment').value;
     entry.account = row.querySelector('.le-account').value.trim();
@@ -4084,6 +4092,21 @@ function renderLedger() {
     entries = entries.filter(e => e.id !== btn.dataset.id);
     await saveEntries(); render();
   }));
+}
+
+function refundInfoHtml(e) {
+  if (e.refund && e.refundOf) {
+    const o = entries.find(x => x.id === e.refundOf);
+    return `<p class="muted" style="margin:2px 0 0;font-size:12.5px;">คืนจาก: ${o ? o.date + ' · ' + String(o.note || getCat(o.category).label).replace(/</g, '&lt;') + ' ' + fmt(o.amount) : '(รายการเดิมถูกลบแล้ว)'}</p>`;
+  }
+  if (!e.refund && e.amount > 0) {
+    const rs = entries.filter(r => r.refund && r.refundOf === e.id);
+    if (rs.length) {
+      const back = rs.reduce((t, r) => t + Math.abs(r.amount), 0);
+      return `<p style="margin:2px 0 0;font-size:12.5px;color:#2E7D4F;">↩️ คืนแล้ว ${fmt(back)} · สุทธิ ${fmt(e.amount - back)}</p>`;
+    }
+  }
+  return '';
 }
 
 function renderCycleDiagnostic() {
@@ -4175,6 +4198,7 @@ function renderCycleDiagnostic() {
   panel.innerHTML = html;
 }
 function render() {
+  try { refreshRefundOptions(); } catch (err) {}
   const diagPanel = document.getElementById('cycle-diag-panel');
   if (diagPanel) diagPanel.style.display = 'none';
   document.getElementById('month-label').textContent = monthLabel(currentViewMonth);
@@ -4662,11 +4686,35 @@ document.getElementById('g-add').addEventListener('click', async () => {
   await saveGoals(); refreshGoalSelect(); refreshAccountList(); render();
 });
 
+
+/* ---------- เงินคืน (Refund): refresh รายการเดิมให้เลือก ---------- */
+function refreshRefundOptions() {
+  const sel = document.getElementById('f-refund-of');
+  if (!sel) return;
+  const prev = sel.value;
+  const cand = entries.filter(e => !e.refund && e.amount > 0 && getCat(e.category).kind === 'expense' && e.category !== 'saving' && e.category !== 'debt')
+    .sort((a, b) => (b.date + b.id).localeCompare(a.date + a.id)).slice(0, 200);
+  sel.innerHTML = '<option value="">ไม่ระบุรายการเดิม (เงินคืนทั่วไป)</option>' + cand.map(e => `<option value="${e.id}">${e.date} · ${getCat(e.category).label}${e.note ? ' · ' + String(e.note).replace(/</g, '&lt;') : ''} · ${fmt(e.amount)}</option>`).join('');
+  if (prev && cand.some(e => e.id === prev)) sel.value = prev;
+}
+document.getElementById('f-refund').addEventListener('change', (e) => {
+  document.getElementById('f-refund-wrap').style.display = e.target.checked ? '' : 'none';
+  if (e.target.checked) refreshRefundOptions();
+});
+document.getElementById('f-refund-of').addEventListener('change', () => {
+  const orig = entries.find(x => x.id === document.getElementById('f-refund-of').value);
+  if (!orig) return;
+  const catEl = document.getElementById('f-category');
+  catEl.value = orig.category; catEl.dispatchEvent(new Event('change'));
+  const payEl = document.getElementById('f-payment'); if (payEl) payEl.value = orig.payment || 'cash';
+  const accEl = document.getElementById('f-account'); if (accEl && orig.account) accEl.value = orig.account;
+});
+
 document.getElementById('f-add').addEventListener('click', async () => {
   const amount = parseFloat(document.getElementById('f-amount').value);
   const errEl = document.getElementById('f-error');
-  if (!amount || amount <= 0) { errEl.style.display = 'block'; return; }
-  errEl.style.display = 'none';
+  if (!amount || amount <= 0) { errEl.textContent = 'กรอกจำนวนเงินให้ถูกต้องก่อนกดเพิ่ม'; errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none'; errEl.textContent = 'กรอกจำนวนเงินให้ถูกต้องก่อนกดเพิ่ม';
   let selectedMembers = getSelectedMembers();
   if (selectedMembers.length === 0) selectedMembers = ['shared'];
   const date = document.getElementById('f-date').value || toISO(new Date());
@@ -4675,6 +4723,15 @@ document.getElementById('f-add').addEventListener('click', async () => {
   const payment = document.getElementById('f-payment').value;
   const account = document.getElementById('f-account').value.trim();
   const note = document.getElementById('f-note').value.trim();
+  const isRefund = document.getElementById('f-refund').checked;
+  const refundOfId = isRefund ? document.getElementById('f-refund-of').value : '';
+  if (isRefund) {
+    if (getCat(category).kind !== 'expense' || ((category === 'saving' || category === 'debt'))) {
+      errEl.textContent = 'เงินคืนใช้ได้กับหมวดรายจ่ายทั่วไปเท่านั้น (ไม่ใช่รายรับ/เงินออม/หนี้สิน)'; errEl.style.display = 'block'; return;
+    }
+    const orig = refundOfId ? entries.find(x => x.id === refundOfId) : null;
+    if (orig) selectedMembers = [orig.member];
+  }
   const n = selectedMembers.length;
   const totalCents = Math.round(amount * 100);
   const baseCents = Math.floor(totalCents / n);
@@ -4686,10 +4743,12 @@ document.getElementById('f-add').addEventListener('click', async () => {
       date, category, goal,
       member: memberKey,
       payment, account,
-      amount: cents / 100,
-      note: note + (n > 1 ? ` (หารกับ ${n} คน)` : '')
+      amount: isRefund ? -(cents / 100) : cents / 100,
+      note: (isRefund && !note ? 'เงินคืน' : note) + (n > 1 ? ` (หารกับ ${n} คน)` : '')
     });
+    if (isRefund) { const ne = entries[entries.length - 1]; ne.refund = true; if (refundOfId) ne.refundOf = refundOfId; }
   });
+  document.getElementById('f-refund').checked = false; document.getElementById('f-refund-wrap').style.display = 'none';
   document.getElementById('f-amount').value = ''; document.getElementById('f-note').value = ''; document.getElementById('f-account').value = '';
   await saveEntries(); refreshAccountList(); render();
 });
