@@ -2398,7 +2398,7 @@ function renderCareChecklists(opts) {
     medWrap.innerHTML = allMeds.length ? meds.map(m => `
       <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;flex-wrap:wrap;">
         <input type="checkbox" class="care-med-check" value="${m.id}" ${prevChecked.has(m.id) ? 'checked' : ''} style="width:auto;">
-        ${m.name} <span class="muted">(${m.type === 'continuous' ? 'ต่อเนื่อง' : 'ตามอาการ'})</span>${isActive(m) ? '' : ' <span class="muted" style="font-size:11px;">(หยุดแล้ว/ยังไม่เริ่ม)</span>'}
+        ${m.name} <span class="muted">(${m.type === 'continuous' ? 'ต่อเนื่อง' : 'ตามอาการ'})</span>${m.dosage ? ' <span style="font-size:12.5px;color:var(--ink);background:var(--paper);border-radius:8px;padding:1px 8px;">💊 ' + symEsc(m.dosage) + '</span>' : ''}${isActive(m) ? '' : ' <span class="muted" style="font-size:11px;">(หยุดแล้ว/ยังไม่เริ่ม)</span>'}
         ${medTimesBoxHtml(m.id, prevTimes[m.id])}
       </label>
     `).join('') : '<p class="empty">ยังไม่มียาในคลัง — เพิ่มได้จากด้านบน</p>';
