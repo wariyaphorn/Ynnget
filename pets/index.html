@@ -405,62 +405,14 @@
     </section>
     <section>
       <div class="subtab-nav" data-group="care">
-        <button type="button" data-sub="day">บันทึกวันนี้</button>
-        <button type="button" data-sub="excr">ป้อน/ขับถ่าย</button>
+        <button type="button" data-sub="excr">บันทึกประจำวัน</button>
         <button type="button" data-sub="sym">อาการ</button>
-        <button type="button" data-sub="fluid">น้ำเกลือ</button>
-        <button type="button" data-sub="med">ยา</button>
-        <button type="button" data-sub="food">อาหาร</button>
+        <button type="button" data-sub="fluid">แผนน้ำเกลือ</button>
+        <button type="button" data-sub="med">คลังยา</button>
+        <button type="button" data-sub="food">แผนอาหาร</button>
         <button type="button" data-sub="admit">แอดมิด</button>
       </div>
     </section>
-    <div class="subpane" data-group="care" data-sub="day">
-    <section>
-      <div class="card">
-        <h2 id="care-log-form-title">+ บันทึกวันนี้</h2>
-        <div class="form-grid">
-          <div style="max-width:200px;">
-            <label class="field-label" for="care-date">วันที่</label>
-            <input type="date" id="care-date">
-          </div>
-        </div>
-        <div style="margin-bottom:12px;">
-          <label style="display:flex;align-items:center;gap:6px;font-weight:500;font-size:13px;"><input type="checkbox" id="care-fluid-given" style="width:auto;"> ให้น้ำเกลือวันนี้</label>
-          <div id="care-fluid-amount-wrap" style="display:none;margin-top:6px;">
-            <div class="form-grid g2" style="max-width:320px;">
-              <div>
-                <label class="field-label" for="care-fluid-amount">ปริมาณ (มล.)</label>
-                <input type="number" step="any" id="care-fluid-amount">
-              </div>
-              <div>
-                <label class="field-label" for="care-fluid-time">เวลาที่ให้</label>
-                <input type="time" id="care-fluid-time">
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style="margin-bottom:12px;">
-          <label class="field-label">ยาที่ให้วันนี้ (ติ๊กแล้วกรอกเวลาที่ให้ได้)</label>
-          <div id="care-med-checks" style="display:flex;flex-direction:column;gap:6px;"></div>
-        </div>
-        <div style="margin-bottom:12px;">
-          <label class="field-label">อาหารที่ให้วันนี้ (แสดงตามแผนอาหารของแมวตัวนี้)</label>
-          <p id="care-food-plan-hint" class="muted" style="margin:0 0 6px;font-size:12.5px;display:none;"></p>
-          <div id="care-food-checks" style="display:flex;flex-direction:column;gap:6px;"></div>
-        </div>
-        <div class="form-grid">
-          <div>
-            <label class="field-label" for="care-note">หมายเหตุ</label>
-            <textarea id="care-note" rows="3" placeholder="ไม่บังคับ — พิมพ์ Enter ขึ้นบรรทัดใหม่ได้"></textarea>
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-primary" id="care-log-save" style="flex:1;">+ บันทึก</button>
-          <button class="btn" id="care-log-cancel-edit" style="display:none;">ยกเลิก</button>
-        </div>
-      </div>
-    </section>
-    </div>
     <div class="subpane" data-group="care" data-sub="sym">
     <section>
       <div class="card">
@@ -785,6 +737,47 @@
         <div style="display:flex;gap:8px;">
           <button class="btn btn-primary" id="ex-save" style="flex:1;">+ บันทึก</button>
           <button class="btn" id="ex-cancel-edit" style="display:none;">ยกเลิก</button>
+        </div>
+      </div>
+    </section>
+    <section>
+      <div class="card">
+        <h2 id="care-log-form-title">+ 💧 น้ำเกลือ / 💊 ยา ประจำวัน</h2>
+        <p class="muted" style="margin:0 0 10px;font-size:12.5px;">อาหาร น้ำ และขับถ่าย บันทึกในฟอร์มด้านบน (มีเวลา) ที่นี่ใช้สำหรับน้ำเกลือ ยา และหมายเหตุรายวัน</p>
+        <div class="form-grid">
+          <div style="max-width:200px;">
+            <label class="field-label" for="care-date">วันที่</label>
+            <input type="date" id="care-date">
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:500;font-size:13px;"><input type="checkbox" id="care-fluid-given" style="width:auto;"> 💧 ให้น้ำเกลือ (ใต้ผิวหนัง)</label>
+          <div id="care-fluid-amount-wrap" style="display:none;margin-top:6px;">
+            <div class="form-grid g2" style="max-width:320px;">
+              <div>
+                <label class="field-label" for="care-fluid-amount">ปริมาณ (มล.)</label>
+                <input type="number" step="any" id="care-fluid-amount">
+              </div>
+              <div>
+                <label class="field-label" for="care-fluid-time">เวลาที่ให้</label>
+                <input type="time" id="care-fluid-time">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label class="field-label">ยาที่ให้วันนี้ (ติ๊กแล้วกรอกเวลาที่ให้ได้)</label>
+          <div id="care-med-checks" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label class="field-label" for="care-note">หมายเหตุ</label>
+            <textarea id="care-note" rows="3" placeholder="ไม่บังคับ — พิมพ์ Enter ขึ้นบรรทัดใหม่ได้"></textarea>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="care-log-save" style="flex:1;">+ บันทึก</button>
+          <button class="btn" id="care-log-cancel-edit" style="display:none;">ยกเลิก</button>
         </div>
       </div>
     </section>
@@ -2527,7 +2520,7 @@ function cancelCareLogEdit() {
   renderCareChecklists({ clear: true });
   updateFoodPlanHint(d);
   document.getElementById('care-note').value = '';
-  document.getElementById('care-log-form-title').textContent = '+ บันทึกวันนี้';
+  document.getElementById('care-log-form-title').textContent = '+ 💧 น้ำเกลือ / 💊 ยา ประจำวัน';
   document.getElementById('care-log-save').textContent = '+ บันทึก';
   document.getElementById('care-log-cancel-edit').style.display = 'none';
 }
@@ -2562,9 +2555,6 @@ document.getElementById('care-log-save').addEventListener('click', async () => {
     const ts = collectMedTimes(id);
     if (ts.length === 1) medTimes[id] = ts[0]; else if (ts.length > 1) medTimes[id] = ts;
   });
-  const foodIds = Array.from(document.querySelectorAll('.care-food-check:checked')).map(cb => cb.value);
-  const foodGrams = {};
-  document.querySelectorAll('.care-food-g').forEach(inp => { if (inp.value !== '' && Number(inp.value) > 0) { foodGrams[inp.dataset.foodid] = Number(inp.value); if (!foodIds.includes(inp.dataset.foodid)) foodIds.push(inp.dataset.foodid); } });
   const note = document.getElementById('care-note').value.trim();
   const data = {
     catId: selectedCareCat,
@@ -2572,8 +2562,6 @@ document.getElementById('care-log-save').addEventListener('click', async () => {
     fluid: { given: fluidGiven, amount: (fluidGiven && fluidAmountVal !== '') ? Number(fluidAmountVal) : null, time: (fluidGiven && fluidTimeVal) ? fluidTimeVal : null },
     medIds,
     medTimes,
-    foodIds,
-    foodGrams,
     note
   };
   if (editingCareLogId) {
@@ -2805,7 +2793,7 @@ document.getElementById('fp-quick-add-food').addEventListener('click', async () 
 });
 
 /* ---------------- Sub-tabs (แท็บย่อยในหน้า) ---------------- */
-const SUBTAB_DEFAULTS = { care: 'day', settings: 'lab', labs: 'summary' };
+const SUBTAB_DEFAULTS = { care: 'excr', settings: 'lab', labs: 'summary' };
 function showSubTab(group, key) {
   document.querySelectorAll('.subpane[data-group="' + group + '"]').forEach(el => el.classList.toggle('active', el.dataset.sub === key));
   document.querySelectorAll('.subtab-nav[data-group="' + group + '"] button').forEach(b => b.classList.toggle('active', b.dataset.sub === key));
@@ -3179,7 +3167,15 @@ document.getElementById('ex-photo').addEventListener('change', async (e) => {
   statusEl.textContent = exPendingPhotos.length ? `✅ เตรียมรูป ${exPendingPhotos.length} รูป (บันทึกตอนกด "บันทึก")` : statusEl.textContent;
 });
 document.getElementById('ex-cancel-edit').addEventListener('click', () => resetExForm());
-document.getElementById('ex-date').addEventListener('change', () => { if (exKs().some(exIsFeed)) updateExKindUI(); });
+document.getElementById('ex-date').addEventListener('change', () => {
+  if (exKs().some(exIsFeed)) updateExKindUI();
+  const cd = document.getElementById('care-date');
+  if (cd && document.getElementById('ex-date').value && cd.value !== document.getElementById('ex-date').value) { cd.value = document.getElementById('ex-date').value; cd.dispatchEvent(new Event('change')); }
+});
+document.getElementById('care-date').addEventListener('change', () => {
+  const ed = document.getElementById('ex-date');
+  if (ed && document.getElementById('care-date').value && ed.value !== document.getElementById('care-date').value) { ed.value = document.getElementById('care-date').value; ed.dispatchEvent(new Event('change')); }
+});
 async function exSaveRows(noneMode) {
   if (!selectedCareCat) { alert('กรุณาเพิ่มแมวก่อน'); return; }
   const ks = noneMode ? ['toilet'] : exKs();
@@ -3385,7 +3381,7 @@ function renderCareCalendar() {
       if (log.medIds && log.medIds.length) {
         marks.push(`💊${log.medIds.length}`);
       }
-      if (log.foodIds && log.foodIds.length) { const tg = Object.values(log.foodGrams || {}).reduce((t, v) => t + (Number(v) || 0), 0); marks.push(tg ? `🍽${tg}g` : `🍽${log.foodIds.length}`); }
+      if (log.foodIds && log.foodIds.length && !excretionLogs.some(x => x.catId === selectedCareCat && x.date === dateStr && x.kind === 'feed')) { const tg = Object.values(log.foodGrams || {}).reduce((t, v) => t + (Number(v) || 0), 0); marks.push(tg ? `🍽${tg}g` : `🍽${log.foodIds.length}`); }
     }
     const exDay = excretionLogs.filter(x => x.catId === selectedCareCat && x.date === dateStr);
     if (exDay.length) {
@@ -3394,7 +3390,7 @@ function renderCareCalendar() {
       const pn = exDay.filter(x => x.kind === 'poop').length, un = exDay.filter(x => x.kind === 'pee').length;
       if (wn) marks.push('🚰' + (wml ? wml : wn + 'ครั้ง'));
       const fdr = exDay.filter(x => x.kind === 'feed'), fdg = fdr.reduce((t, x) => t + (Number(x.amount) || 0), 0);
-      if (fdr.length) marks.push('🥣' + (fdg ? fdg + 'g' : fdr.length + 'ครั้ง'));
+      if (fdr.length) marks.push('🍽' + (fdg ? fdg + 'g' : fdr.length + 'ครั้ง'));
       const sfn = exDay.filter(x => x.kind === 'selffeed').length, swn = exDay.filter(x => x.kind === 'selfwater').length;
       if (sfn) marks.push('🐾' + sfn);
       if (swn) marks.push('💧' + swn);
@@ -3418,7 +3414,7 @@ function renderCareCalendar() {
   wrap.querySelectorAll('[data-caldate]').forEach(cell => cell.addEventListener('click', () => {
     const dateStr = cell.dataset.caldate;
     const log = logsByDate[dateStr];
-    showSubTab('care', 'day');
+    showSubTab('care', 'excr');
     if (log) { startCareLogEdit(log.id); }
     else {
       cancelCareLogEdit();
