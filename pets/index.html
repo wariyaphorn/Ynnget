@@ -1353,6 +1353,8 @@ function examTypeInfo(u) {
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 function fmt(n) { return '฿' + Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function fmtDateStr(iso) { return iso ? new Date(iso + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : ''; }
+const WEEKDAY_FULL_TH = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+function fmtDateWd(iso) { return iso ? WEEKDAY_FULL_TH[new Date(iso + 'T00:00:00').getDay()] + ' ' + fmtDateStr(iso) : ''; }
 function toISO(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
 function catById(id) { return cats.find(c => c.id === id); }
@@ -2083,7 +2085,7 @@ function renderCheckupTab() {
       div.className = 'visit-card';
       const placeParts = [r.hospital, r.doctor ? 'หมอ ' + r.doctor : ''].filter(Boolean).join(' · ');
       div.innerHTML = `<div class="row-between">
-          <span><strong>${fmtDateStr(r.date)}</strong>${r.time ? ' <strong>' + r.time + ' น.</strong>' : ''}${r.note ? ' · ' + r.note : ''}</span>
+          <span><strong>${fmtDateWd(r.date)}</strong>${r.time ? ' <strong>' + r.time + ' น.</strong>' : ''}${r.note ? ' · ' + r.note : ''}</span>
           <span>
             <button class="del-btn" data-edit="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
             <button class="del-btn" data-del="${r.id}" aria-label="ลบ">✕</button>
@@ -2091,7 +2093,7 @@ function renderCheckupTab() {
         </div>
         ${placeParts ? `<p class="muted" style="margin:4px 0 0;">${placeParts}</p>` : ''}
         <p class="muted" style="margin:4px 0 0;">
-          ${r.cost != null ? fmt(r.cost) + ' · ' : ''}${(r.nextDate || r.nextTime) ? 'นัดครั้งถัดไป: ' + (r.nextDate ? fmtDateStr(r.nextDate) : '') + (r.nextTime ? ' เวลา ' + r.nextTime + ' น.' : '') : ''}
+          ${r.cost != null ? fmt(r.cost) + ' · ' : ''}${(r.nextDate || r.nextTime) ? 'นัดครั้งถัดไป: ' + (r.nextDate ? fmtDateWd(r.nextDate) : '') + (r.nextTime ? ' เวลา ' + r.nextTime + ' น.' : '') : ''}
         </p>`;
       listWrap.appendChild(div);
     });
@@ -4237,7 +4239,7 @@ function renderCombinedHistoryList() {
         <div class="row-between">
           <span data-toggle="${t.id}" style="cursor:pointer;">
             <span class="badge" style="background:#5B8C6E;color:#fff;margin-right:4px;">🩸 ตรวจเลือด</span>
-            <strong>${fmtDateStr(t.date)}</strong>${t.hospital ? ' · ' + t.hospital : ''}${t.note ? ' · ' + t.note : ''}${t.cost != null ? ' · ' + fmt(t.cost) : ''}
+            <strong>${fmtDateWd(t.date)}</strong>${t.hospital ? ' · ' + t.hospital : ''}${t.note ? ' · ' + t.note : ''}${t.cost != null ? ' · ' + fmt(t.cost) : ''}
             ${abnormalCount ? `<span class="badge badge-abnormal">ผิดปกติ ${abnormalCount}</span>` : '<span class="badge badge-normal">ปกติ</span>'}
             ${attCount ? `<span class="badge" style="margin-left:4px;">📎 ${attCount}</span>` : ''}
           </span>
@@ -4267,7 +4269,7 @@ function renderCombinedHistoryList() {
         <div class="row-between">
           <span data-toggle="${u.id}" style="cursor:pointer;">
             <span class="badge" style="background:#B4623D;color:#fff;margin-right:4px;">${info.icon} ${info.label}</span>
-            <strong>${fmtDateStr(u.date)}</strong>${u.hospital ? ' · ' + u.hospital : ''}${u.note ? ' · ' + u.note : ''}${u.cost != null ? ' · ' + fmt(u.cost) : ''}
+            <strong>${fmtDateWd(u.date)}</strong>${u.hospital ? ' · ' + u.hospital : ''}${u.note ? ' · ' + u.note : ''}${u.cost != null ? ' · ' + fmt(u.cost) : ''}
             ${atts.length ? `<span class="badge" style="margin-left:4px;">📎 ${atts.length}${atts.length ? (examExpanded ? ' ▲' : ' ▼') : ''}</span>` : ''}
           </span>
           <span>
