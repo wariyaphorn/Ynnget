@@ -921,6 +921,8 @@ let growthShowRefManual = null; // null = อัตโนมัติ, true/fals
 function fmt(n) { return '฿' + Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function toISO(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function fmtDateStr(iso) { return iso ? new Date(iso + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : ''; }
+const WEEKDAY_FULL_TH = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+function fmtDateWd(iso) { return iso ? WEEKDAY_FULL_TH[new Date(iso + 'T00:00:00').getDay()] + ' ' + fmtDateStr(iso) : ''; }
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
 function memberLabel(memberKey) {
@@ -1477,7 +1479,7 @@ function renderDentistTab() {
     if (teethParts.length) detailParts.push(teethParts.join(' · '));
     if (r.cost != null) detailParts.push(fmt(r.cost));
     div.innerHTML = `<div class="row-between">
-        <span>${fmtDateStr(r.date)}${age ? ' <span class="muted">(อายุ ' + age + ')</span>' : ''} ${statusBadge}</span>
+        <span>${fmtDateWd(r.date)}${age ? ' <span class="muted">(อายุ ' + age + ')</span>' : ''} ${statusBadge}</span>
         <span>
           <button class="del-btn" data-edit="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
           <button class="del-btn" data-del="${r.id}" aria-label="ลบ">✕</button>
@@ -1554,7 +1556,7 @@ function renderCheckupTab() {
       const placeParts = [r.hospital ? r.hospital + (hnNo ? ' (HN ' + hnNo + ')' : '') : '', r.department, r.doctor ? 'หมอ ' + r.doctor : ''].filter(Boolean).join(' · ');
       const timeLabel = r.time ? ' เวลา ' + r.time : '';
       div.innerHTML = `<div class="row-between">
-          <span style="${chkInactive(r) ? 'text-decoration:line-through;' : ''}"><strong>${fmtDateStr(r.date)}${timeLabel}</strong>${r.note ? ' · ' + r.note : ''}</span>
+          <span style="${chkInactive(r) ? 'text-decoration:line-through;' : ''}"><strong>${fmtDateWd(r.date)}${timeLabel}</strong>${r.note ? ' · ' + r.note : ''}</span>
           <span>
             <button class="del-btn" data-edit="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button>
             <button class="del-btn" data-del="${r.id}" aria-label="ลบ">✕</button>
@@ -1563,7 +1565,7 @@ function renderCheckupTab() {
         ${stInfo ? `<p style="margin:6px 0 0;"><span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;color:${stInfo.color};background:${stInfo.bg};">${stInfo.label}</span></p>` : ''}
         ${placeParts ? `<p class="muted" style="margin:4px 0 0;">${placeParts}</p>` : ''}
         <p class="muted" style="margin:4px 0 0;">
-          ${r.cost != null ? fmt(r.cost) + ' · ' : ''}${r.nextDate ? 'นัดครั้งถัดไป: ' + fmtDateStr(r.nextDate) : ''}
+          ${r.cost != null ? fmt(r.cost) + ' · ' : ''}${r.nextDate ? 'นัดครั้งถัดไป: ' + fmtDateWd(r.nextDate) : ''}
         </p>`;
       listWrap.appendChild(div);
     });
@@ -2827,7 +2829,7 @@ function labRenderRecords(list) {
     }).join('') : '';
     return `<div class="visit-card" style="margin-bottom:8px;">
       <div class="row-between">
-        <span><strong>${fmtDateStr(r.date)}${labTimeStr(r)}</strong>${r.hospital ? ' · ' + escAttr(r.hospital) : ''} <span class="muted">· ${cells.length} ค่า${abn ? ' · นอกช่วง ' + abn : ''}</span></span>
+        <span><strong>${fmtDateWd(r.date)}${labTimeStr(r)}</strong>${r.hospital ? ' · ' + escAttr(r.hospital) : ''} <span class="muted">· ${cells.length} ค่า${abn ? ' · นอกช่วง ' + abn : ''}</span></span>
         <span>${(r.photos && r.photos.length) ? `<button class="btn" data-lab-photos="${r.id}" style="padding:2px 8px;font-size:12px;margin-right:4px;">🖼 ${r.photos.length}</button>` : ''}
           <button class="del-btn" data-lab-edit="${r.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button><button class="del-btn" data-lab-del="${r.id}" aria-label="ลบ">✕</button></span>
       </div>
