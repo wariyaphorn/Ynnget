@@ -216,6 +216,7 @@
     <button class="page-tab" data-page="alerts" id="alerts-tab">แจ้งเตือน</button>
     <button class="page-tab" data-page="dentist">ทันตกรรม</button>
     <button class="page-tab" data-page="checkup">นัดหมอ</button>
+    <button class="page-tab" data-page="questions" id="questions-tab">คำถามหมอ</button>
     <button class="page-tab" data-page="illness">เจ็บป่วย</button>
     <button class="page-tab" data-page="labs">ผลตรวจ</button>
     <button class="page-tab" data-page="growth">การเจริญเติบโต</button>
@@ -379,6 +380,43 @@
           <button class="btn btn-primary" id="chk-add" style="flex:1;">+ บันทึกนัด</button>
           <button class="btn" id="chk-cancel-edit" style="display:none;">ยกเลิก</button>
         </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="page-questions" class="page">
+    <section>
+      <div class="card">
+        <h2>📝 คำถามถามหมอ</h2>
+        <p class="muted" style="margin:0 0 10px;">จดคำถามไว้ล่วงหน้า พอไปหาหมอก็เปิดดู ติ๊ก "ถามแล้ว" และจดคำตอบของหมอไว้ท้ายคำถามได้ (จดตามที่หมอบอก ไม่ต้องแปลความ)</p>
+        <div class="child-tabs" id="q-child-tabs"></div>
+        <div id="q-filter" style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 10px;"></div>
+        <div id="q-list"></div>
+      </div>
+    </section>
+    <section>
+      <div class="card">
+        <h2 id="q-form-title">+ จดคำถามใหม่</h2>
+        <label class="field-label" for="q-text">คำถาม</label>
+        <textarea id="q-text" rows="3" placeholder="เช่น ผลตรวจครั้งล่าสุดต้องติดตามเมื่อไหร่ / อาการนี้ต้องเฝ้าระวังอะไร" style="width:100%;margin-bottom:8px;"></textarea>
+        <div class="form-grid g2">
+          <div>
+            <label class="field-label" for="q-hospital">ถามที่โรงพยาบาล (ไม่บังคับ)</label>
+            <input type="text" id="q-hospital" list="chk-hospital-list" placeholder="ว่าง = ถามหมอที่ไหนก็ได้">
+          </div>
+          <div>
+            <label class="field-label" for="q-doctor">แผนก / ชื่อหมอ (ไม่บังคับ)</label>
+            <input type="text" id="q-doctor" placeholder="เช่น หมอเลือด, หมอประสาท">
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;margin:8px 0;font-size:13.5px;cursor:pointer;"><input type="checkbox" id="q-star" style="width:auto;"> ⭐ สำคัญ (ขึ้นก่อน)</label>
+        <label class="field-label" for="q-answer">คำตอบ / ที่หมอแนะนำ (ใส่ทีหลังได้)</label>
+        <textarea id="q-answer" rows="2" placeholder="จดตามที่หมอบอก" style="width:100%;margin-bottom:8px;"></textarea>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="q-add">+ บันทึกคำถาม</button>
+          <button class="btn" id="q-cancel-edit" style="display:none;">ยกเลิกการแก้ไข</button>
+        </div>
+        <p id="q-error" style="color:#E8604C;font-size:13px;display:none;margin:8px 0 0;">พิมพ์คำถามก่อนกดบันทึก</p>
       </div>
     </section>
   </div>
@@ -1026,6 +1064,7 @@ async function load() {
   try { const r = await window.storage.get(ILLNESS_RECORDS_KEY); illnessRecords = r ? JSON.parse(r.value) : []; } catch (e) { illnessRecords = []; }
   try { const r = await window.storage.get(LAB_RECORDS_KEY); labRecords = r ? JSON.parse(r.value) : []; } catch (e) { labRecords = []; }
   try { const r = await window.storage.get(LAB_CUSTOM_KEY); labCustom = r ? JSON.parse(r.value) : []; } catch (e) { labCustom = []; }
+  try { const r = await window.storage.get(QUESTION_KEY); questionRecords = r ? JSON.parse(r.value) : []; } catch (e) { questionRecords = []; }
   try { const r = await window.storage.get(ILLNESS_TYPES_KEY); illnessCustomTypes = r ? JSON.parse(r.value) : []; } catch (e) { illnessCustomTypes = []; }
   try { const r = await window.storage.get(GROWTH_RECORDS_KEY); growthRecords = r ? JSON.parse(r.value) : defaultGrowthRecords(); } catch (e) { growthRecords = defaultGrowthRecords(); }
   try { const r = await window.storage.get(ADULTS_KEY); adults = r && JSON.parse(r.value).length ? JSON.parse(r.value) : defaultAdults(); } catch (e) { adults = defaultAdults(); }
@@ -1550,6 +1589,7 @@ function refreshCheckupDatalists() {
   checkupRecords.forEach(r => addH(r.hospital));
   illnessRecords.forEach(r => addH(r.hospital));
   labRecords.forEach(r => addH(r.hospital));
+  questionRecords.forEach(r => addH(r.hospital));
   const departments = [...new Set(checkupRecords.map(r => r.department).filter(Boolean))];
   hospitalList.innerHTML = hospitals.map(h => `<option value="${escAttr(h)}"></option>`).join('');
   departmentList.innerHTML = departments.map(d => `<option value="${d}"></option>`).join('');
@@ -2475,6 +2515,140 @@ const LAB_CATALOG = [
 let labRecords = [];
 let labCustom = [];
 let selectedLabChild = null;
+// ---------------- คำถามถามหมอ ----------------
+const QUESTION_KEY = 'child-doctor-questions';
+let questionRecords = [];
+let selectedQuestionMember = null;
+let qFilter = 'all';          // 'all' | '__general' | ชื่อโรงพยาบาล (ตัวพิมพ์เล็ก)
+let editingQuestionId = null;
+async function saveQuestionRecords() { try { await window.storage.set(QUESTION_KEY, JSON.stringify(questionRecords)); } catch (e) { console.error(e); } }
+function qSelectedMember() {
+  const all = [...children, ...adults];
+  if (!all.length) return null;
+  if (!selectedQuestionMember || !all.some(m => m.slug === selectedQuestionMember)) selectedQuestionMember = all[0].slug;
+  return selectedQuestionMember;
+}
+function qHospKey(r) { return String(r.hospital || '').trim().toLowerCase(); }
+function resetQuestionForm() {
+  editingQuestionId = null;
+  document.getElementById('q-text').value = ''; document.getElementById('q-hospital').value = '';
+  document.getElementById('q-doctor').value = ''; document.getElementById('q-star').checked = false;
+  document.getElementById('q-answer').value = '';
+  document.getElementById('q-form-title').textContent = '+ จดคำถามใหม่';
+  document.getElementById('q-add').textContent = '+ บันทึกคำถาม';
+  document.getElementById('q-cancel-edit').style.display = 'none';
+  document.getElementById('q-error').style.display = 'none';
+}
+function fillQuestionForm(r, asCopy) {
+  document.getElementById('q-text').value = r.text || '';
+  document.getElementById('q-hospital').value = asCopy ? '' : (r.hospital || '');
+  document.getElementById('q-doctor').value = asCopy ? '' : (r.doctor || '');
+  document.getElementById('q-star').checked = !!r.star;
+  document.getElementById('q-answer').value = asCopy ? '' : (r.answer || '');
+  document.getElementById('q-text').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function renderQuestionsTab() {
+  const tabsWrap = document.getElementById('q-child-tabs'); if (!tabsWrap) return;
+  const all = [...children, ...adults];
+  tabsWrap.innerHTML = '';
+  const listEl = document.getElementById('q-list'), filterEl = document.getElementById('q-filter');
+  if (!all.length) { tabsWrap.innerHTML = '<p class="empty">ยังไม่มีข้อมูลสมาชิก ไปที่แท็บ "ตั้งค่า" ก่อน</p>'; listEl.innerHTML = ''; filterEl.innerHTML = ''; return; }
+  const sel = qSelectedMember();
+  all.forEach(c => {
+    const pending = questionRecords.filter(r => r.member === c.slug && !r.done).length;
+    const btn = document.createElement('button');
+    btn.className = 'child-tab' + (sel === c.slug ? ' active' : '');
+    btn.textContent = childLabel(c) + (pending ? ' (' + pending + ')' : '');
+    btn.addEventListener('click', () => { selectedQuestionMember = c.slug; qFilter = 'all'; resetQuestionForm(); renderQuestionsTab(); });
+    tabsWrap.appendChild(btn);
+  });
+  const mine = questionRecords.filter(r => r.member === sel);
+  // ปุ่มกรอง: ทั้งหมด | โรงพยาบาลที่มีในคำถามของคนนี้ | ทั่วไป
+  const hospMap = new Map();
+  mine.forEach(r => { const k = qHospKey(r); if (k && !hospMap.has(k)) hospMap.set(k, String(r.hospital).trim()); });
+  if (qFilter !== 'all' && qFilter !== '__general' && !hospMap.has(qFilter)) qFilter = 'all';
+  const chips = [['all', 'ทั้งหมด']].concat([...hospMap.entries()].map(([k, n]) => [k, '🏥 ' + n]));
+  if (mine.some(r => !qHospKey(r))) chips.push(['__general', 'ทั่วไป']);
+  filterEl.innerHTML = chips.map(([k, n]) => `<button type="button" class="btn q-chip${qFilter === k ? ' btn-primary' : ''}" data-qf="${escAttr(k)}">${escAttr(n)}</button>`).join('');
+  filterEl.style.display = chips.length > 1 ? 'flex' : 'none';
+  filterEl.querySelectorAll('.q-chip').forEach(b => b.addEventListener('click', () => { qFilter = b.dataset.qf; renderQuestionsTab(); }));
+  let shown = mine;
+  if (qFilter === '__general') shown = mine.filter(r => !qHospKey(r));
+  else if (qFilter !== 'all') shown = mine.filter(r => !qHospKey(r) || qHospKey(r) === qFilter);
+  const pend = shown.filter(r => !r.done).sort((a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  const done = shown.filter(r => r.done).sort((a, b) => String(b.doneAt || '').localeCompare(String(a.doneAt || '')));
+  const item = (r) => {
+    const tags = [r.hospital ? '🏥 ' + escAttr(r.hospital) : '', r.doctor ? '👩‍⚕️ ' + escAttr(r.doctor) : ''].filter(Boolean).join(' · ');
+    return `<div class="visit-card" style="${r.done ? 'opacity:.9;' : ''}">
+      <div style="display:flex;gap:8px;align-items:flex-start;">
+        <input type="checkbox" class="q-done" data-qid="${r.id}" ${r.done ? 'checked' : ''} style="width:20px;height:20px;margin-top:2px;flex:none;" aria-label="ถามแล้ว">
+        <div style="flex:1;min-width:0;">
+          <p style="margin:0;font-size:15px;white-space:pre-wrap;${r.done ? 'text-decoration:line-through;color:#6B8588;' : ''}">${r.star ? '⭐ ' : ''}${escAttr(r.text)}</p>
+          ${tags ? `<p class="muted" style="margin:3px 0 0;font-size:12.5px;">${tags}</p>` : ''}
+          <textarea class="q-ans" data-qid="${r.id}" rows="2" placeholder="คำตอบ / ที่หมอแนะนำ" style="width:100%;margin-top:6px;">${escAttr(r.answer || '')}</textarea>
+          ${r.done && r.doneAt ? `<p class="muted" style="margin:3px 0 0;font-size:12px;">ถามแล้ว ${fmtDateStr(r.doneAt)}</p>` : ''}
+        </div>
+        <span style="display:flex;flex-direction:column;gap:2px;flex:none;">
+          <button class="del-btn" data-qedit="${r.id}" aria-label="แก้ไข">✏️</button>
+          <button class="del-btn" data-qcopy="${r.id}" aria-label="คัดลอกไปถามหมออีกท่าน" title="คัดลอกไปถามหมออีกท่าน">📋</button>
+          <button class="del-btn" data-qdel="${r.id}" aria-label="ลบ">✕</button>
+        </span>
+      </div>
+    </div>`;
+  };
+  listEl.innerHTML = (pend.length ? '<h3 style="margin:6px 0;font-size:14px;">ยังไม่ได้ถาม (' + pend.length + ')</h3>' + pend.map(item).join('') : '<p class="empty">ไม่มีคำถามที่ค้างอยู่ 🎉</p>')
+    + (done.length ? `<details style="margin-top:12px;"><summary style="cursor:pointer;font-size:14px;font-weight:600;">ถามแล้ว (${done.length})</summary>${done.map(item).join('')}</details>` : '');
+  listEl.querySelectorAll('.q-done').forEach(cb => cb.addEventListener('change', async () => {
+    const r = questionRecords.find(x => x.id === cb.dataset.qid); if (!r) return;
+    r.done = cb.checked; r.doneAt = cb.checked ? toISO(new Date()) : '';
+    await saveQuestionRecords(); renderQuestionsTab();
+  }));
+  listEl.querySelectorAll('.q-ans').forEach(ta => ta.addEventListener('change', async () => {
+    const r = questionRecords.find(x => x.id === ta.dataset.qid); if (!r) return;
+    r.answer = ta.value.trim(); await saveQuestionRecords();
+  }));
+  listEl.querySelectorAll('[data-qedit]').forEach(b => b.addEventListener('click', () => {
+    const r = questionRecords.find(x => x.id === b.dataset.qedit); if (!r) return;
+    editingQuestionId = r.id; fillQuestionForm(r, false);
+    document.getElementById('q-form-title').textContent = '✏️ แก้ไขคำถาม';
+    document.getElementById('q-add').textContent = '💾 บันทึกการแก้ไข';
+    document.getElementById('q-cancel-edit').style.display = 'inline-block';
+  }));
+  listEl.querySelectorAll('[data-qcopy]').forEach(b => b.addEventListener('click', () => {
+    const r = questionRecords.find(x => x.id === b.dataset.qcopy); if (!r) return;
+    resetQuestionForm(); fillQuestionForm(r, true);
+    document.getElementById('q-form-title').textContent = '📋 คัดลอกไปถามหมออีกท่าน (ใส่โรงพยาบาล/หมอใหม่)';
+  }));
+  listEl.querySelectorAll('[data-qdel]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('ลบคำถามนี้ใช่ไหม?')) return;
+    questionRecords = questionRecords.filter(x => x.id !== b.dataset.qdel);
+    await saveQuestionRecords(); refreshCheckupDatalists(); renderQuestionsTab();
+  }));
+}
+document.getElementById('q-add').addEventListener('click', async () => {
+  const text = document.getElementById('q-text').value.trim();
+  const err = document.getElementById('q-error');
+  if (!text) { err.style.display = 'block'; return; }
+  err.style.display = 'none';
+  const sel = qSelectedMember(); if (!sel) return;
+  const data = {
+    text,
+    hospital: document.getElementById('q-hospital').value.trim(),
+    doctor: document.getElementById('q-doctor').value.trim(),
+    star: document.getElementById('q-star').checked,
+    answer: document.getElementById('q-answer').value.trim()
+  };
+  if (editingQuestionId) {
+    const r = questionRecords.find(x => x.id === editingQuestionId);
+    if (r) Object.assign(r, data);
+  } else {
+    questionRecords.push(Object.assign({ id: genId(), member: sel, done: false, doneAt: '', createdAt: toISO(new Date()) }, data));
+  }
+  resetQuestionForm();
+  await saveQuestionRecords(); refreshCheckupDatalists(); renderQuestionsTab();
+});
+document.getElementById('q-cancel-edit').addEventListener('click', () => { resetQuestionForm(); });
+
 let labView = 'records';
 let labTableGroup = 'cbc';
 let labChartKey = 'HB';
@@ -2880,6 +3054,7 @@ function render() {
   renderCheckupTab();
   renderIllnessTab();
   renderLabsTab();
+  renderQuestionsTab();
   renderGrowthTab();
   renderGrowthChart();
   renderExpenses();
