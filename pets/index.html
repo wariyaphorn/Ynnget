@@ -2392,7 +2392,7 @@ document.getElementById('med-add').addEventListener('click', async () => {
     const idx = medications.findIndex(m => m.id === editingMedId);
     if (idx > -1) medications[idx] = Object.assign({}, medications[idx], data);
   } else {
-    medications.push(Object.assign({ id: genId() }, data));
+    medications.unshift(Object.assign({ id: genId() }, data));
     if (copyFromMedId && document.getElementById('med-copy-stop').checked) {
       const old = medications.find(x => x.id === copyFromMedId);
       if (old) {
