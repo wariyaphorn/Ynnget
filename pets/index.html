@@ -781,7 +781,11 @@
     </section>
     <section>
       <div class="card">
-        <h2 id="care-log-form-title">+ 💧 น้ำเกลือ / 💊 ยา ประจำวัน</h2>
+        <div class="row-between" style="margin-bottom:6px;">
+          <h2 id="care-log-form-title" style="margin:0;">+ 💧 น้ำเกลือ / 💊 ยา ประจำวัน</h2>
+          <button class="btn" id="care-card-toggle" type="button" style="font-size:12px;padding:4px 10px;">▼ เปิด</button>
+        </div>
+        <div id="care-card-body" style="display:none;margin-top:8px;">
         <p class="muted" style="margin:0 0 10px;font-size:12.5px;">อาหาร น้ำ และขับถ่าย บันทึกในฟอร์มด้านบน (มีเวลา) ที่นี่ใช้สำหรับน้ำเกลือ ยา และหมายเหตุรายวัน</p>
         <div class="form-grid">
           <div style="max-width:200px;">
@@ -792,16 +796,8 @@
         <div style="margin-bottom:12px;">
           <label style="display:flex;align-items:center;gap:6px;font-weight:500;font-size:13px;"><input type="checkbox" id="care-fluid-given" style="width:auto;"> 💧 ให้น้ำเกลือ (ใต้ผิวหนัง)</label>
           <div id="care-fluid-amount-wrap" style="display:none;margin-top:6px;">
-            <div class="form-grid g2" style="max-width:320px;">
-              <div>
-                <label class="field-label" for="care-fluid-amount">ปริมาณ (มล.)</label>
-                <input type="number" step="any" id="care-fluid-amount">
-              </div>
-              <div>
-                <label class="field-label" for="care-fluid-time">เวลาที่ให้</label>
-                <input type="time" id="care-fluid-time">
-              </div>
-            </div>
+            <div id="care-fluid-doses" style="display:flex;flex-direction:column;gap:6px;"></div>
+            <button type="button" class="btn" id="care-fluid-add" style="margin-top:6px;padding:3px 10px;font-size:12px;">+ เพิ่มครั้งที่ให้</button>
           </div>
         </div>
         <div style="margin-bottom:12px;">
@@ -817,6 +813,7 @@
         <div style="display:flex;gap:8px;">
           <button class="btn btn-primary" id="care-log-save" style="flex:1;">+ บันทึก</button>
           <button class="btn" id="care-log-cancel-edit" style="display:none;">ยกเลิก</button>
+        </div>
         </div>
       </div>
     </section>
@@ -1513,6 +1510,7 @@ async function load() {
   if (careDateEl && !careDateEl.value) careDateEl.value = toISO(new Date());
 
   render();
+  if (careCardIsOpen()) loadCareFormForDate();
 }
 
 function watchLastModified() {
@@ -2171,7 +2169,7 @@ document.getElementById('chk-add').addEventListener('click', async () => {
 
 /* ---------------- Daily Care tab (น้ำเกลือ/ยา/อาหาร) ---------------- */
 function renderCareTab() {
-  renderCatTabsInto('care-cat-tabs', { get: () => selectedCareCat, set: v => { selectedCareCat = v; careCalendarMonth = null; } });
+  renderCatTabsInto('care-cat-tabs', { get: () => selectedCareCat, set: v => { selectedCareCat = v; careCalendarMonth = null; if (careCardIsOpen()) setTimeout(loadCareFormForDate, 0); } });
   renderFluidRegimenSection();
   renderMedCatalog();
   renderFoodCatalog();
@@ -2625,12 +2623,49 @@ function renderCareChecklists(opts) {
   }
   updateFoodPlanHint(document.getElementById('care-date') ? document.getElementById('care-date').value : null);
 }
+/* ---- น้ำเกลือหลายครั้งต่อวัน: fluid = {given, doses:[{amount,time}], amount(รวม), time(ครั้งแรก)} ---- */
+function fluidDosesOf(f) {
+  if (!f || !f.given) return [];
+  if (Array.isArray(f.doses) && f.doses.length) return f.doses;
+  return [{ amount: f.amount != null ? f.amount : null, time: f.time || null }];
+}
+function fluidDoseRowHtml(d) {
+  const a = (d && d.amount != null) ? d.amount : '', t = (d && d.time) || '';
+  return `<div class="care-fluid-dose" style="display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;"><div style="width:120px;"><label class="field-label">ปริมาณ (มล.)</label><input type="number" step="any" class="care-fluid-amount" value="${a}"></div><div style="width:130px;"><label class="field-label">เวลาที่ให้</label><input type="time" class="care-fluid-time" value="${t}"></div><button type="button" class="btn care-fluid-del" style="padding:4px 9px;" title="ลบครั้งนี้">✕</button></div>`;
+}
+function setFluidDoseRows(doses) {
+  const box = document.getElementById('care-fluid-doses');
+  box.innerHTML = (doses && doses.length ? doses : [{}]).map(fluidDoseRowHtml).join('');
+}
+function collectFluidDoses() {
+  return Array.from(document.querySelectorAll('#care-fluid-doses .care-fluid-dose')).map(r => {
+    const a = r.querySelector('.care-fluid-amount').value, t = r.querySelector('.care-fluid-time').value;
+    return { amount: a !== '' ? Number(a) : null, time: t || null };
+  }).filter(d => d.amount != null || d.time);
+}
+function fluidTotal(doses) { return doses.reduce((t, d) => t + (Number(d.amount) || 0), 0); }
+function resetFluidForm() {
+  document.getElementById('care-fluid-given').checked = false;
+  document.getElementById('care-fluid-amount-wrap').style.display = 'none';
+  setFluidDoseRows([]);
+}
+document.getElementById('care-fluid-add').addEventListener('click', () => {
+  document.getElementById('care-fluid-doses').insertAdjacentHTML('beforeend', fluidDoseRowHtml({}));
+  const ins = document.querySelectorAll('#care-fluid-doses .care-fluid-amount'); ins[ins.length - 1].focus();
+});
+document.getElementById('care-fluid-doses').addEventListener('click', (e) => {
+  const b = e.target.closest('.care-fluid-del'); if (!b) return;
+  const rows = document.querySelectorAll('#care-fluid-doses .care-fluid-dose');
+  if (rows.length > 1) b.closest('.care-fluid-dose').remove();
+  else { rows[0].querySelector('.care-fluid-amount').value = ''; rows[0].querySelector('.care-fluid-time').value = ''; }
+});
 document.getElementById('care-fluid-given').addEventListener('change', (e) => {
   const wrap = document.getElementById('care-fluid-amount-wrap');
   wrap.style.display = e.target.checked ? '' : 'none';
   if (e.target.checked) {
-    const amtInput = document.getElementById('care-fluid-amount');
-    if (!amtInput.value) {
+    if (!document.querySelector('#care-fluid-doses .care-fluid-dose')) setFluidDoseRows([]);
+    const amtInput = document.querySelector('#care-fluid-doses .care-fluid-amount');
+    if (amtInput && !amtInput.value) {
       const dateVal = document.getElementById('care-date').value || toISO(new Date());
       const reg = activeFluidRegimen(selectedCareCat, dateVal);
       if (reg) amtInput.value = reg.amount;
@@ -2655,15 +2690,15 @@ function renderCareChecklistsHook(medId) {
   });
   const ins = box.querySelectorAll('.care-med-time'); if (ins.length) ins[ins.length - 1].focus();
 }
-function startCareLogEdit(id) {
+function startCareLogEdit(id, scroll) {
+  setCareCardOpen(true);
   const l = careLogs.find(x => x.id === id);
   if (!l) return;
   editingCareLogId = id;
   document.getElementById('care-date').value = l.date || '';
   document.getElementById('care-fluid-given').checked = !!(l.fluid && l.fluid.given);
   document.getElementById('care-fluid-amount-wrap').style.display = (l.fluid && l.fluid.given) ? '' : 'none';
-  document.getElementById('care-fluid-amount').value = (l.fluid && l.fluid.amount != null) ? l.fluid.amount : '';
-  document.getElementById('care-fluid-time').value = (l.fluid && l.fluid.time) ? l.fluid.time : '';
+  setFluidDoseRows(fluidDosesOf(l.fluid));
   renderCareChecklists({ clear: true, forceFood: (l.foodIds || []).concat(Object.keys(l.foodGrams || {})), forceMed: (l.medIds || []).concat(Object.keys(l.medTimes || {})) });
   document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = (l.medIds || []).includes(cb.value); });
   document.querySelectorAll('.care-med-times').forEach(box => {
@@ -2677,16 +2712,13 @@ function startCareLogEdit(id) {
   document.getElementById('care-log-form-title').textContent = '✏️ แก้ไขบันทึกวันที่ ' + fmtDateStr(l.date);
   document.getElementById('care-log-save').textContent = '💾 บันทึกการแก้ไข';
   document.getElementById('care-log-cancel-edit').style.display = 'inline-block';
-  document.getElementById('care-log-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (scroll) document.getElementById('care-log-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function cancelCareLogEdit() {
   editingCareLogId = null;
   const d = toISO(new Date());
   document.getElementById('care-date').value = d;
-  document.getElementById('care-fluid-given').checked = false;
-  document.getElementById('care-fluid-amount-wrap').style.display = 'none';
-  document.getElementById('care-fluid-amount').value = '';
-  document.getElementById('care-fluid-time').value = '';
+  resetFluidForm();
   document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = false; });
   document.querySelectorAll('.care-med-time').forEach(inp => { inp.value = ''; });
   document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = false; });
@@ -2699,16 +2731,39 @@ function cancelCareLogEdit() {
   document.getElementById('care-log-cancel-edit').style.display = 'none';
 }
 document.getElementById('care-log-cancel-edit').addEventListener('click', cancelCareLogEdit);
+/* ซ่อน/เปิดการ์ดน้ำเกลือ-ยา (จำค่าไว้ในเครื่อง) + เปิดแล้วดึงข้อมูลของวันที่เลือก (ค่าเริ่มต้น = วันนี้) */
+function setCareCardOpen(open) {
+  const body = document.getElementById('care-card-body'), btn = document.getElementById('care-card-toggle');
+  if (!body || !btn) return;
+  body.style.display = open ? '' : 'none';
+  btn.textContent = open ? '▲ ซ่อน' : '▼ เปิด';
+  try { localStorage.setItem('pet-care-card-open', open ? '1' : '0'); } catch (e) {}
+}
+function careCardIsOpen() { const b = document.getElementById('care-card-body'); return !!b && b.style.display !== 'none'; }
+function loadCareFormForDate() {
+  if (!selectedCareCat) return;
+  const dEl = document.getElementById('care-date');
+  if (!dEl.value) dEl.value = toISO(new Date());
+  if (editingCareLogId) cancelCareLogEdit();
+  dEl.dispatchEvent(new Event('change'));
+}
+document.getElementById('care-card-toggle').addEventListener('click', () => {
+  const open = !careCardIsOpen();
+  setCareCardOpen(open);
+  if (open) loadCareFormForDate();
+});
+(function () {
+  let open = false;
+  try { open = localStorage.getItem('pet-care-card-open') === '1'; } catch (e) {}
+  setCareCardOpen(open);
+})();
 document.getElementById('care-date').addEventListener('change', () => {
   if (editingCareLogId) return;
   const dateVal = document.getElementById('care-date').value;
   if (!dateVal) return;
   const existing = findCareLog(selectedCareCat, dateVal);
-  if (existing) { startCareLogEdit(existing.id); return; }
-  document.getElementById('care-fluid-given').checked = false;
-  document.getElementById('care-fluid-amount-wrap').style.display = 'none';
-  document.getElementById('care-fluid-amount').value = '';
-  document.getElementById('care-fluid-time').value = '';
+  if (existing) { startCareLogEdit(existing.id, false); return; }
+  resetFluidForm();
   document.querySelectorAll('.care-med-check').forEach(cb => { cb.checked = false; });
   document.querySelectorAll('.care-med-time').forEach(inp => { inp.value = ''; });
   document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = false; });
@@ -2721,8 +2776,7 @@ document.getElementById('care-log-save').addEventListener('click', async () => {
   const date = document.getElementById('care-date').value;
   if (!date) { alert('กรุณาเลือกวันที่'); return; }
   const fluidGiven = document.getElementById('care-fluid-given').checked;
-  const fluidAmountVal = document.getElementById('care-fluid-amount').value;
-  const fluidTimeVal = document.getElementById('care-fluid-time').value;
+  const fluidDoses = fluidGiven ? collectFluidDoses() : [];
   const medIds = Array.from(document.querySelectorAll('.care-med-check:checked')).map(cb => cb.value);
   const medTimes = {};
   medIds.forEach(id => {
@@ -2733,7 +2787,7 @@ document.getElementById('care-log-save').addEventListener('click', async () => {
   const data = {
     catId: selectedCareCat,
     date,
-    fluid: { given: fluidGiven, amount: (fluidGiven && fluidAmountVal !== '') ? Number(fluidAmountVal) : null, time: (fluidGiven && fluidTimeVal) ? fluidTimeVal : null },
+    fluid: { given: fluidGiven, doses: fluidDoses, amount: (fluidGiven && fluidDoses.some(d => d.amount != null)) ? fluidTotal(fluidDoses) : null, time: (fluidGiven && fluidDoses[0] && fluidDoses[0].time) || null },
     medIds,
     medTimes,
     note
@@ -3551,7 +3605,11 @@ function renderCareCalendar() {
     const log = logsByDate[dateStr];
     const marks = [];
     if (log) {
-      if (log.fluid && log.fluid.given) marks.push(`💧${log.fluid.amount != null ? log.fluid.amount : ''}${log.fluid.time ? ' ' + log.fluid.time : ''}`);
+      if (log.fluid && log.fluid.given) {
+        const fd = fluidDosesOf(log.fluid);
+        if (fd.length > 1) { const tot = fluidTotal(fd); marks.push(`💧${fd.length}ครั้ง${tot ? ' รวม' + tot : ''}`); }
+        else marks.push(`💧${fd[0].amount != null ? fd[0].amount : ''}${fd[0].time ? ' ' + fd[0].time : ''}`);
+      }
       if (log.medIds && log.medIds.length) {
         marks.push(`💊${log.medIds.length}`);
       }
@@ -3589,8 +3647,9 @@ function renderCareCalendar() {
     const dateStr = cell.dataset.caldate;
     const log = logsByDate[dateStr];
     showSubTab('care', 'excr');
-    if (log) { startCareLogEdit(log.id); }
+    if (log) { startCareLogEdit(log.id, true); }
     else {
+      setCareCardOpen(true);
       cancelCareLogEdit();
       document.getElementById('care-date').value = dateStr;
       document.getElementById('care-log-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
