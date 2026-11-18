@@ -2299,11 +2299,11 @@ function renderMedCatalog() {
   const wrap = document.getElementById('med-catalog-list');
   if (!wrap) return;
   const meds = medications.filter(m => m.catId === selectedCareCat);
-  wrap.innerHTML = meds.length ? meds.map(m => `
+  wrap.innerHTML = meds.length ? meds.map((m, mi) => `
     <div class="visit-card" style="padding:0.6rem 0.9rem;">
       <div class="row-between">
         <span style="font-size:12.5px;"><strong>${m.name}</strong> <span class="chip" style="background:${m.type === 'continuous' ? '#E4F6EE' : '#FDEEDC'};color:${m.type === 'continuous' ? '#1F7A4E' : '#8A4E1D'};">${m.type === 'continuous' ? 'ให้ต่อเนื่อง' : 'ตามอาการ'}</span>${m.dosage ? ' · ' + m.dosage : ''}${medDateLabel(m)}</span>
-        <span>${(!m.endDate) ? `<button class="btn" data-stopmed="${m.id}" style="padding:1px 8px;font-size:11.5px;margin-right:4px;">หยุดให้ยา</button>` : ""}<button class="del-btn" data-copymed="${m.id}" aria-label="คัดลอกเป็นยาใหม่" title="คัดลอกเป็นยาใหม่ (เช่น ปรับโดส)" style="margin-right:4px;">📋</button><button class="del-btn" data-editmed="${m.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button><button class="del-btn" data-delmed="${m.id}" aria-label="ลบ">✕</button></span>
+        <span style="white-space:nowrap;"><button class="del-btn" data-movemed="${m.id}" data-dir="-1" aria-label="เลื่อนขึ้น" title="เลื่อนขึ้น" ${mi === 0 ? 'disabled style="opacity:.3;margin-right:2px;"' : 'style="margin-right:2px;"'}>▲</button><button class="del-btn" data-movemed="${m.id}" data-dir="1" aria-label="เลื่อนลง" title="เลื่อนลง" ${mi === meds.length - 1 ? 'disabled style="opacity:.3;margin-right:6px;"' : 'style="margin-right:6px;"'}>▼</button>${(!m.endDate) ? `<button class="btn" data-stopmed="${m.id}" style="padding:1px 8px;font-size:11.5px;margin-right:4px;">หยุดให้ยา</button>` : ""}<button class="del-btn" data-copymed="${m.id}" aria-label="คัดลอกเป็นยาใหม่" title="คัดลอกเป็นยาใหม่ (เช่น ปรับโดส)" style="margin-right:4px;">📋</button><button class="del-btn" data-editmed="${m.id}" aria-label="แก้ไข" style="margin-right:4px;">✏️</button><button class="del-btn" data-delmed="${m.id}" aria-label="ลบ">✕</button></span>
       </div>
     </div>
   `).join('') : '<p class="empty">ยังไม่มียาในคลัง</p>';
@@ -2314,6 +2314,15 @@ function renderMedCatalog() {
     if (!d) return;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { alert('รูปแบบวันที่ไม่ถูกต้อง ใช้ปี-เดือน-วัน เช่น 2026-10-30'); return; }
     m.endDate = d;
+    await saveMedications(); render();
+  }));
+  wrap.querySelectorAll('[data-movemed]').forEach(btn => btn.addEventListener('click', async () => {
+    if (btn.disabled) return;
+    const same = medications.filter(m => m.catId === selectedCareCat);
+    const i = same.findIndex(m => m.id === btn.dataset.movemed), j = i + Number(btn.dataset.dir);
+    if (i < 0 || j < 0 || j >= same.length) return;
+    const a = medications.indexOf(same[i]), b = medications.indexOf(same[j]);
+    [medications[a], medications[b]] = [medications[b], medications[a]];
     await saveMedications(); render();
   }));
   wrap.querySelectorAll('[data-editmed]').forEach(btn => btn.addEventListener('click', () => startMedEdit(btn.dataset.editmed)));
@@ -2709,7 +2718,6 @@ function startCareLogEdit(id, scroll) {
   document.querySelectorAll('.care-food-check').forEach(cb => { cb.checked = (l.foodIds || []).includes(cb.value); });
   document.querySelectorAll('.care-food-g').forEach(inp => { const g = l.foodGrams && l.foodGrams[inp.dataset.foodid]; inp.value = g != null ? g : ''; });
   document.getElementById('care-note').value = l.note || '';
-  document.getElementById('care-log-form-title').textContent = '✏️ แก้ไขบันทึกวันที่ ' + fmtDateStr(l.date);
   document.getElementById('care-log-save').textContent = '💾 บันทึกการแก้ไข';
   document.getElementById('care-log-cancel-edit').style.display = 'inline-block';
   if (scroll) document.getElementById('care-log-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2726,7 +2734,6 @@ function cancelCareLogEdit() {
   renderCareChecklists({ clear: true });
   updateFoodPlanHint(d);
   document.getElementById('care-note').value = '';
-  document.getElementById('care-log-form-title').textContent = '+ 💧 น้ำเกลือ / 💊 ยา ประจำวัน';
   document.getElementById('care-log-save').textContent = '+ บันทึก';
   document.getElementById('care-log-cancel-edit').style.display = 'none';
 }
