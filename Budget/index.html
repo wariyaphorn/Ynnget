@@ -1129,6 +1129,7 @@ async function refreshUsdRateIfStale() {
 }
 function toISO(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function fmtDateStr(iso) { return new Date(iso + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }); }
+function fmtDateWd(iso) { return iso ? fmtDateStr(iso) + ' (' + ['อา.','จ.','อ.','พ.','พฤ.','ศ.','ส.'][new Date(iso + 'T00:00:00').getDay()] + ')' : ''; }
 function fmtDate(d) { return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }); }
 function memberLabel(key) { return memberMap[key] ? memberMap[key].label : 'ไม่ระบุ'; }
 function paymentLabel(p) { if (!p || p === 'cash') return 'เงินสด/โอน'; const c = cards.find(c => c.id === p); return c ? c.name : 'เงินสด/โอน'; }
@@ -1161,6 +1162,12 @@ function goalSaved(g) {
   const kind = g.kind === 'debt' ? 'debt' : 'saving';
   const contributed = entries.filter(e => e.category === kind && e.goal === g.id && (!g.lastResetDate || e.date > g.lastResetDate)).reduce((s, e) => s + e.amount, 0);
   const transferredOut = goalTransfers.filter(t => t.fromGoalId === g.id && (!g.lastResetDate || t.date > g.lastResetDate)).reduce((s, t) => s + t.amount, 0);
+  return (g.initial || 0) + contributed - transferredOut;
+}
+function goalSavedAt(g, dateISO) {
+  const kind = g.kind === 'debt' ? 'debt' : 'saving';
+  const contributed = entries.filter(e => e.category === kind && e.goal === g.id && e.date <= dateISO && (!g.lastResetDate || e.date > g.lastResetDate)).reduce((s, e) => s + e.amount, 0);
+  const transferredOut = goalTransfers.filter(t => t.fromGoalId === g.id && t.date <= dateISO && (!g.lastResetDate || t.date > g.lastResetDate)).reduce((s, t) => s + t.amount, 0);
   return (g.initial || 0) + contributed - transferredOut;
 }
 function walletOptions(selectedId) {
@@ -1916,6 +1923,31 @@ function renderWalletsManager() {
           <div>${monthItems.length ? monthItems.map(it => `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12px;padding:2px 0;"><span class="muted">${it.name} ${it.amount >= 0 ? '+' : ''}${itemFmt(it.amount)}</span>${it.txId ? `<button class="del-btn" data-del-wallet-tx="${it.txId}" aria-label="ลบรายการนี้">✕</button>` : ''}</div>`).join('') : '<div class="muted" style="font-size:12px;padding:2px 0;">ไม่มีรายการเดือนนี้</div>'}</div>
           <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-top:1px solid var(--border);margin-top:4px;"><span>รวมรายการเดือนนี้</span><span>${monthSum >= 0 ? '+' : ''}${itemFmt(monthSum)}</span></div>
           <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;font-weight:600;"><span>ยอดคงเหลือสิ้นเดือน</span><span>${itemFmt(closingBalance)}</span></div>`;
+      }
+    }
+    if (isExpanded) {
+      // สรุป "เงินที่โอนมาจากเป้าหมาย" (จากการกดรีเซ็ตแล้วเลือกกระเป๋าปลายทาง) ตามเดือนที่เลือกอยู่
+      const fromGoals = [];
+      goals.forEach(g => {
+        const rows = [];
+        (g.history || []).forEach(h => {
+          if (!h.txId || h.destWalletId !== w.id) return;
+          const tx = walletTransactions.find(t => t.id === h.txId);
+          if (!tx || tx.account !== w.id) return;
+          if (selMonth && tx.date.slice(0, 7) !== selMonth) return;
+          rows.push({ date: tx.date, amount: tx.amount });
+        });
+        if (rows.length) fromGoals.push({ name: g.name, rows: rows.sort((x, y) => y.date.localeCompare(x.date)), total: rows.reduce((t, r) => t + r.amount, 0) });
+      });
+      if (fromGoals.length) {
+        fromGoals.sort((x, y) => y.total - x.total);
+        const grand = fromGoals.reduce((t, x) => t + x.total, 0);
+        const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        detailHtml = `<div style="margin-bottom:10px;padding:8px 10px;background:var(--paper);border-radius:8px;">
+          <div style="font-size:12.5px;font-weight:600;margin-bottom:4px;">📥 เงินที่โอนมาจากเป้าหมาย${selMonth ? ' (' + monthLabel(selMonth) + ')' : ''}</div>
+          ${fromGoals.map(x => `<div style="font-size:12px;padding:2px 0;"><div style="display:flex;justify-content:space-between;font-weight:600;"><span>${esc(x.name)} <span class="muted" style="font-weight:400;">(${x.rows.length} ครั้ง)</span></span><span>${itemFmt(x.total)}</span></div>${x.rows.map(r => `<div class="muted" style="display:flex;justify-content:space-between;padding-left:10px;"><span>· ${fmtDateWd(r.date)}</span><span>${itemFmt(r.amount)}</span></div>`).join('')}</div>`).join('')}
+          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;border-top:1px solid var(--border);margin-top:4px;padding-top:3px;"><span>รวม</span><span>${itemFmt(grand)}</span></div>
+        </div>` + detailHtml;
       }
     }
     const addingTx = addingTxWalletId === w.id;
@@ -2993,6 +3025,8 @@ function renderGoals() {
     if (resettingGoalId === g.id) {
       div.innerHTML = `<div class="row-between"><span>${g.name}</span></div>
         <p class="muted" style="margin:4px 0 8px;">${kind === 'debt' ? 'คืนครบแล้ว' : 'จ่ายแล้ว'} เท่าไหร่ (แก้ได้ถ้าไม่ครบเต็มยอดสะสม ส่วนที่เหลือจะยกยอดไปต่อ)</p>
+        <label class="field-label" style="margin-bottom:2px;">วันที่${kind === 'debt' ? 'คืน' : 'จ่าย'}</label>
+        <input type="date" class="reset-date" value="${toISO(new Date())}" max="${toISO(new Date())}" ${g.lastResetDate ? `min="${g.lastResetDate}"` : ''} style="margin-bottom:8px;">
         <input type="number" class="reset-amount" value="${saved.toFixed(2)}" min="0" step="0.01" style="margin-bottom:8px;">
         <input type="text" class="reset-remark" placeholder="Remark (ไม่บังคับ)" style="margin-bottom:8px;">
         <label class="field-label" style="margin-bottom:2px;">โอนเงินไปกระเป๋า (ไม่บังคับ)</label>
@@ -3003,6 +3037,15 @@ function renderGoals() {
           <button class="btn btn-primary" data-reset-confirm="${g.id}">ยืนยันรีเซ็ต</button>
         </div>`;
       wrap.appendChild(div);
+      (function () {
+        const dEl = div.querySelector('.reset-date'), aEl = div.querySelector('.reset-amount');
+        let lastDefault = aEl.value;
+        dEl.addEventListener('change', () => {
+          if (!dEl.value) return;
+          // อัปเดตจำนวนเริ่มต้นให้ตรงกับยอดสะสม ณ วันที่เลือก (เฉพาะถ้ายังไม่ได้แก้จำนวนเอง)
+          if (aEl.value === lastDefault) { lastDefault = goalSavedAt(g, dEl.value).toFixed(2); aEl.value = lastDefault; }
+        });
+      })();
       return;
     }
 
@@ -3193,26 +3236,30 @@ function renderGoals() {
   wrap.querySelectorAll('button[data-reset-confirm]').forEach(btn => btn.addEventListener('click', async () => {
     const goal = goals.find(g => g.id === btn.dataset.resetConfirm);
     const div = btn.closest('.goal-card');
-    const saved = goalSaved(goal);
+    const today = toISO(new Date());
+    const dateInput = div.querySelector('.reset-date');
+    const resetDate = (dateInput && dateInput.value) || today;
+    if (resetDate > today) { alert('วันที่ต้องไม่เกินวันนี้'); return; }
+    if (goal.lastResetDate && resetDate < goal.lastResetDate) { alert('วันที่ต้องไม่ก่อนการรีเซ็ตครั้งล่าสุด (' + fmtDateStr(goal.lastResetDate) + ')'); return; }
+    const saved = goalSavedAt(goal, resetDate);
     const kind = goal.kind === 'debt' ? 'debt' : 'saving';
     const resetAmount = parseFloat(div.querySelector('.reset-amount').value);
     if (isNaN(resetAmount) || resetAmount < 0) return;
     if (!goal.history) goal.history = [];
-    const today = toISO(new Date());
     const resetRemark = (div.querySelector('.reset-remark').value || '').trim();
-    const hEntry = resetRemark ? { date: today, amount: resetAmount, remark: resetRemark } : { date: today, amount: resetAmount };
+    const hEntry = resetRemark ? { date: resetDate, amount: resetAmount, remark: resetRemark } : { date: resetDate, amount: resetAmount };
     const destEl = div.querySelector('.reset-dest');
     const destWalletId = destEl ? destEl.value : '';
     if (destWalletId && destWalletId !== goal.account && resetAmount > 0) {
       const destWallet = wallets.find(w => w.id === destWalletId);
-      const tx = { id: genId(), date: today, account: destWalletId, amount: resetAmount, note: (kind === 'debt' ? 'คืนครบ ' : 'จ่ายแล้ว ') + goal.name + ' เข้า ' + (destWallet ? destWallet.name : '') };
+      const tx = { id: genId(), date: resetDate, account: destWalletId, amount: resetAmount, note: (kind === 'debt' ? 'คืนครบ ' : 'จ่ายแล้ว ') + goal.name + ' เข้า ' + (destWallet ? destWallet.name : '') };
       walletTransactions.push(tx);
       hEntry.txId = tx.id; hEntry.destWalletId = destWalletId;
       await saveWalletTransactions();
     }
     goal.history.push(hEntry);
     goal.initial = saved - resetAmount;
-    goal.lastResetDate = today;
+    goal.lastResetDate = resetDate;
     resettingGoalId = null;
     await saveGoals(); render();
   }));
