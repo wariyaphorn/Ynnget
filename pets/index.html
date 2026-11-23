@@ -3285,6 +3285,26 @@ function startExEdit(id) {
   renderExPhotoLists();
   document.getElementById('ex-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+/* สรุปน้ำเกลือ/ยาของวันนั้น จาก careLogs (ใช้ในสรุปรายวัน) */
+function careLogDaySummary(catId, d) {
+  const l = findCareLog(catId, d);
+  if (!l) return null;
+  const doses = fluidDosesOf(l.fluid);
+  const fluidOn = !!(l.fluid && l.fluid.given);
+  const medItems = (l.medIds || []).map(id => {
+    const m = medications.find(x => x.id === id);
+    const ts = medTimesArr(l.medTimes && l.medTimes[id]);
+    return { name: m ? m.name : 'ยาที่ลบแล้ว', dosage: m && m.dosage ? m.dosage : '', times: ts, idx: m ? medications.indexOf(m) : 9999 };
+  }).sort((a, b) => a.idx - b.idx);
+  if (!fluidOn && !medItems.length) return null;
+  return { fluidOn, doses, total: fluidTotal(doses), medItems };
+}
+function careLogDayLines(c) {
+  const out = [];
+  if (c.fluidOn) out.push('💧 น้ำเกลือ: ' + (c.doses.map(d => [d.amount != null ? d.amount + ' มล.' : '', d.time || ''].filter(Boolean).join(' @ ') || 'ให้แล้ว').join(' · ')) + (c.doses.length > 1 && c.total ? ' (รวม ' + c.total + ' มล.)' : ''));
+  if (c.medItems.length) out.push('💊 ยา: ' + c.medItems.map(m => m.name + (m.dosage ? ' ' + m.dosage : '') + (m.times.length ? ' (' + m.times.join(', ') + ')' : '')).join(' · '));
+  return out;
+}
 function renderExcretionSection() {
   const list = document.getElementById('ex-list');
   if (!list) return;
@@ -3294,9 +3314,12 @@ function renderExcretionSection() {
   const photoCount = photoIdSet.size;
   if (!editingExId && exKs().some(exIsFeed)) updateExKindUI();
   document.getElementById('ex-photo-note').textContent = photoCount ? `รูปแนบทั้งหมด ${photoCount} รูป (ใช้พื้นที่ประมาณ ${(photoCount * 0.15).toFixed(1)} MB จากพื้นที่ฟรี 1 GB ใช้ร่วมกับทั้งแอพ) ลบรายการเก่าเพื่อคืนพื้นที่ได้` : '';
-  if (!mine.length) { list.innerHTML = '<p class="empty">ยังไม่มีบันทึก</p>'; return; }
+  const careDays = {};
+  careLogs.filter(l => l.catId === selectedCareCat).forEach(l => { const c = careLogDaySummary(selectedCareCat, l.date); if (c) careDays[l.date] = c; });
+  if (!mine.length && !Object.keys(careDays).length) { list.innerHTML = '<p class="empty">ยังไม่มีบันทึก</p>'; return; }
   const byDate = {};
   mine.forEach(x => { (byDate[x.date] = byDate[x.date] || []).push(x); });
+  Object.keys(careDays).forEach(d => { if (!byDate[d]) byDate[d] = []; });
   let dates = Object.keys(byDate).sort().reverse();
   const total = dates.length;
   const todayIso = toISO(new Date());
@@ -3313,7 +3336,7 @@ function renderExcretionSection() {
     const tp = rows.filter(r => r.kind === 'toilet' && r.pending).length;
     const sf = rows.filter(r => r.kind === 'selffeed'), sfg = sf.reduce((t, r) => t + (Number(r.amount) || 0), 0);
     const sw = rows.filter(r => r.kind === 'selfwater'), swml = sw.reduce((t, r) => t + (Number(r.amount) || 0), 0);
-    const sum = [tp ? `⏳ ${tp}` : '', sf.length ? `🐾 ${sf.length}${sfg ? ' · ' + sfg + ' g' : ''}` : '', sw.length ? `💧 ${sw.length}${swml ? ' · ' + swml + ' มล.' : ''}` : '', w.length ? `🚰 ${w.length}${ml ? ' · ' + ml + ' มล.' : ''}` : '', fd.length ? `🍽 ${fd.length}${fg ? ' · ' + fg + ' g' : ''}` : '', pn ? `💩 ${pn}` : '', un ? `🚽 ${un}` : ''].filter(Boolean).join('  ');
+    const sum = [tp ? `⏳ ${tp}` : '', sf.length ? `🐾 ${sf.length}${sfg ? ' · ' + sfg + ' g' : ''}` : '', sw.length ? `💧 ${sw.length}${swml ? ' · ' + swml + ' มล.' : ''}` : '', w.length ? `🚰 ${w.length}${ml ? ' · ' + ml + ' มล.' : ''}` : '', fd.length ? `🍽 ${fd.length}${fg ? ' · ' + fg + ' g' : ''}` : '', pn ? `💩 ${pn}` : '', un ? `🚽 ${un}` : '', careDays[d] && careDays[d].fluidOn ? `💧น้ำเกลือ${careDays[d].doses.length > 1 ? ' ' + careDays[d].doses.length + 'ครั้ง' : ''}${careDays[d].total ? ' ' + careDays[d].total + ' มล.' : ''}` : '', careDays[d] && careDays[d].medItems.length ? `💊 ${careDays[d].medItems.length}` : ''].filter(Boolean).join('  ');
     const isToday = d === todayIso;
     const open = exOpenDays.has(d);
     const wd = new Date(d + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short' });
@@ -3330,7 +3353,7 @@ function renderExcretionSection() {
           </span>
         </div>
         ${x.note ? `<div class="muted" style="font-size:12.5px;margin-top:1px;">${symEsc(x.note)}</div>` : ''}
-      </div>`).join('') : '';
+      </div>`).join('') + (careDays[d] ? careLogDayLines(careDays[d]).map(t => `<div style="border-left:4px solid #9B7FC4;background:var(--card);border-bottom:1px solid var(--border);padding:5px 8px;font-size:13.5px;">${symEsc(t)}</div>`).join('') : '') : '';
     return `<div style="margin-bottom:10px;border-radius:10px;overflow:visible;">${head}${body}</div>`;
   }).join('') + (total > 7 ? `<button class="btn" id="ex-toggle-all" style="width:100%;">${exShowAll ? 'แสดงเฉพาะ 7 วันล่าสุด' : 'ดูเพิ่ม (ทั้งหมด ' + total + ' วัน)'}</button>` : '');
   list.querySelectorAll('[data-ex-day]').forEach(b => b.addEventListener('click', () => {
@@ -3473,10 +3496,13 @@ document.getElementById('ex-save').addEventListener('click', () => exSaveRows(fa
 document.getElementById('ex-resolve-none').addEventListener('click', () => exSaveRows(true));
 document.getElementById('ex-export-csv').addEventListener('click', () => {
   const mine = exMine().sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
-  if (!mine.length) { alert('ยังไม่มีบันทึกให้ Export'); return; }
+  const careRows = [];
+  careLogs.filter(l => l.catId === selectedCareCat).forEach(l => { const c = careLogDaySummary(selectedCareCat, l.date); if (c) careLogDayLines(c).forEach((t, i) => careRows.push({ date: l.date, kind: i === 0 && c.fluidOn ? 'น้ำเกลือ' : 'ยา', text: t.replace(/^[^:]*: /, '') })); });
+  if (!mine.length && !careRows.length) { alert('ยังไม่มีบันทึกให้ Export'); return; }
   const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
   const lines = [['วันที่', 'เวลา', 'ประเภท', 'ปริมาณน้ำ (มล.)', 'อาหาร', 'ปริมาณอาหาร (g)', 'ลักษณะ/ปริมาณ', 'สี/อื่นๆ', 'หมายเหตุ', 'จำนวนรูป', 'ระดับการกิน/ชาม'].map(q).join(',')];
   mine.forEach(x => lines.push([x.date, x.time || '', EX_KINDS[x.kind] || x.kind, exIsWater(x.kind) && x.amount != null ? x.amount : '', exIsFeed(x.kind) ? ((foodCatalog.find(f => f.id === x.foodId) || {}).name || x.foodName || '') : '', exIsFeed(x.kind) && x.amount != null ? x.amount : '', (EX_FORMS[x.kind] && EX_FORMS[x.kind].opts[x.form]) || '', x.color || '', x.note || '', (x.photos || []).length, x.kind === 'toilet' ? (x.pending ? 'รอเช็ค' : 'ไม่พบอะไร') : x.kind === 'bowl' ? ((BOWL_WHEN[x.bowlWhen] || '') + ' ' + (BOWL_LEVELS[x.bowlLevel] || '')).trim() : (EX_LEVELS[x.level] || '')].map(q).join(',')));
+  careRows.sort((a, b) => a.date.localeCompare(b.date)).forEach(r => lines.push([r.date, '', r.kind, '', '', '', '', '', r.text, '', ''].map(q).join(',')));
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
