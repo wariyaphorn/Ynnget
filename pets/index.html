@@ -3299,6 +3299,20 @@ function careLogDaySummary(catId, d) {
   if (!fluidOn && !medItems.length) return null;
   return { fluidOn, doses, total: fluidTotal(doses), medItems };
 }
+function careDayItems(c, d) {
+  const items = [];
+  const wrap = (k, inner) => ({ k: k || '99:99', h: `<div style="border-left:4px solid #9B7FC4;background:var(--card);border-bottom:1px solid var(--border);padding:5px 8px;"><div class="row-between" style="gap:6px;"><span style="font-size:13.5px;">${k ? '<strong>' + symEsc(k) + '</strong> ' : ''}${inner}</span><span style="white-space:nowrap;"><button class="del-btn" data-care-edit="${d}" aria-label="แก้ไข" title="เปิดการ์ดน้ำเกลือ/ยาของวันนี้" style="margin-right:2px;">✏️</button></span></div></div>` });
+  if (c.fluidOn) {
+    const doses = c.doses.length ? c.doses : [{}];
+    doses.forEach(x => items.push(wrap(x.time, '💧 น้ำเกลือ' + (x.amount != null ? ' <span class="muted">' + symEsc(x.amount) + ' มล.</span>' : ''))));
+  }
+  c.medItems.forEach(m => {
+    const name = '💊 ' + symEsc(m.name) + (m.dosage ? ' <span class="muted">' + symEsc(m.dosage) + '</span>' : '');
+    if (m.times.length) m.times.forEach(t => items.push(wrap(t, name)));
+    else items.push(wrap('', name));
+  });
+  return items;
+}
 function careLogDayLines(c) {
   const out = [];
   if (c.fluidOn) out.push('💧 น้ำเกลือ: ' + (c.doses.map(d => [d.amount != null ? d.amount + ' มล.' : '', d.time || ''].filter(Boolean).join(' @ ') || 'ให้แล้ว').join(' · ')) + (c.doses.length > 1 && c.total ? ' (รวม ' + c.total + ' มล.)' : ''));
@@ -3344,7 +3358,7 @@ function renderExcretionSection() {
         <span style="font-weight:700;white-space:nowrap;">${open ? '▾' : '▸'} ${wd} ${fmtDateStr(d)}${isToday ? ' (วันนี้)' : ''}</span>
         <span style="margin-left:auto;font-size:12.5px;opacity:.95;text-align:right;">${sum}</span>
       </button>`;
-    const body = open ? rows.map(x => `<div style="border-left:4px solid ${KIND_COLOR[x.kind] || '#ccc'};background:var(--card);border-bottom:1px solid var(--border);padding:5px 8px;">
+    const body = open ? rows.map(x => ({ k: x.time || '00:00', h: `<div style="border-left:4px solid ${KIND_COLOR[x.kind] || '#ccc'};background:var(--card);border-bottom:1px solid var(--border);padding:5px 8px;">
         <div class="row-between" style="gap:6px;">
           <span style="font-size:13.5px;">${x.time ? '<strong>' + symEsc(x.time) + '</strong> ' : ''}${EX_KINDS[x.kind] || x.kind} <span class="muted">${symEsc(exLabel(x))}</span>${(x.photos && x.photos.length) ? ` <button class="btn" data-ex-photos="${x.id}" style="padding:0 7px;font-size:12px;">🖼 ${x.photos.length}</button>` : ''}</span>
           <span style="white-space:nowrap;">
@@ -3353,7 +3367,7 @@ function renderExcretionSection() {
           </span>
         </div>
         ${x.note ? `<div class="muted" style="font-size:12.5px;margin-top:1px;">${symEsc(x.note)}</div>` : ''}
-      </div>`).join('') + (careDays[d] ? careLogDayLines(careDays[d]).map(t => `<div style="border-left:4px solid #9B7FC4;background:var(--card);border-bottom:1px solid var(--border);padding:5px 8px;font-size:13.5px;">${symEsc(t)}</div>`).join('') : '') : '';
+      </div>` })).concat(careDays[d] ? careDayItems(careDays[d], d) : []).sort((a, b) => a.k.localeCompare(b.k)).map(i => i.h).join('') : '';
     return `<div style="margin-bottom:10px;border-radius:10px;overflow:visible;">${head}${body}</div>`;
   }).join('') + (total > 7 ? `<button class="btn" id="ex-toggle-all" style="width:100%;">${exShowAll ? 'แสดงเฉพาะ 7 วันล่าสุด' : 'ดูเพิ่ม (ทั้งหมด ' + total + ' วัน)'}</button>` : '');
   list.querySelectorAll('[data-ex-day]').forEach(b => b.addEventListener('click', () => {
@@ -3364,6 +3378,10 @@ function renderExcretionSection() {
   const tg = document.getElementById('ex-toggle-all');
   if (tg) tg.addEventListener('click', () => { exShowAll = !exShowAll; renderExcretionSection(); });
   list.querySelectorAll('[data-ex-edit]').forEach(b => b.addEventListener('click', () => startExEdit(b.dataset.exEdit)));
+  list.querySelectorAll('[data-care-edit]').forEach(b => b.addEventListener('click', () => {
+    const l = findCareLog(selectedCareCat, b.dataset.careEdit);
+    if (l) startCareLogEdit(l.id, true);
+  }));
   list.querySelectorAll('[data-ex-del]').forEach(b => b.addEventListener('click', async () => {
     if (!confirm('ลบบันทึกนี้?')) return;
     const x = excretionLogs.find(l => l.id === b.dataset.exDel);
